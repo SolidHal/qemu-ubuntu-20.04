@@ -1,0 +1,9 @@
+qemu for Debian
+---------------
+
+There's a rough make_debian_root.sh which uses debootstrap to create a
+fresh Debian installation inside an image suitable for qemu.  The
+debootstrap --exclude args are particularly vulnerable to breakage:
+try removing them if it doesn't work.  You'll need to run it as root.
+
+ -- Paul Russell <prussell@debian.org>, Wed, 03 Mar 2004 12:48:08 +0100

@@ -1,0 +1,24 @@
+This package was debianized by Paul Russell <prussell@debian.org> on
+Wed,  3 Mar 2004 02:18:54 +0100.
+
+It was downloaded from http://fabrice.bellard.free.fr/qemu/qemu-0.5.2.tar.gz
+
+Upstream Author: Fabrice Bellard <fabrice.bellard@free.fr>
+
+Copyright:
+
+Copyright (c) 2003 Fabrice Bellard
+
+The QEMU virtual CPU core library is released under the GNU Lesser
+General Public License.  On Debian systems, the complete text of the
+GNU Lesser General Public License can be found in the file
+/usr/share/common-licenses/LGPL.
+
+The Linux QEMU emulator is released under the GNU General Public
+License.  On Debian systems, the complete text of the GNU General
+Public License can be found in the file
+/usr/share/common-licenses/GPL.
+
+The QEMU PC system emulator is released under the MIT/BSD License.  On
+Debian systems, the complete text of the BSD license be found in the
+file /usr/share/common-licenses/BSD.

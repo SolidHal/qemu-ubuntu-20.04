@@ -1,0 +1,25 @@
+Source: qemu
+Section: misc
+Priority: optional
+Maintainer: Paul Russell <prussell@debian.org>
+Build-Depends: debhelper (>= 4.0.0), libx11-dev | xlibs-dev, docbook-to-man, libsdl1.2-dev (>> 1.2.1), texi2html, libgpmg1-dev
+Standards-Version: 3.6.1.0
+
+Package: qemu
+Architecture: i386 powerpc
+Depends: ${shlibs:Depends}, libx11-6
+Description: Fast x86 Processor Emulator
+ QEMU is a FAST! processor emulator: currently the package supports
+ x86 emulation.  By using dynamic translation it achieves reasonable
+ speed while being easy to port on new host CPUs.  QEMU has two
+ operating modes:
+ .
+  * User mode emulation: QEMU can launch Linux processes compiled for
+    one CPU on another CPU.
+  * Full system emulation: QEMU emulates a full system, including a
+    processor and various peripherials. It enables easier testing and
+    debugging of system code. It can also be used to provide virtual
+    hosting of several virtual PC on a single server.
+ .
+ As QEMU requires no host kernel patches to run, it is very safe and
+ easy to use.

@@ -1,0 +1,4 @@
+version=2
+
+# Full-site-with-pattern  [Version  [Action]]
+http://fabrice.bellard.free.fr/qemu/qemu-([0-9.]*).tar.gz		debian	uupdate

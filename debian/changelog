@@ -1,0 +1,61 @@
+qemu (0.5.5-2) unstable; urgency=low
+
+  * Re-enable SDL disabled while I was bugchasing (closes: #255014)
+  * Yes, this is really 0.5.5 (closes: #254655)
+  * Enable slirp networking (closes: #253573)
+  * Add Build-Depends on libgpmg1-dev (found by Bastian Blank, probably breaks Hurd but that's a problem for another day).
+
+ -- Paul Russell <prussell@debian.org>  Thu, 24 Jun 2004 06:26:42 +0200
+
+qemu (0.5.5-1) unstable; urgency=low
+
+  * New upstream release (closes: #237556, #237556)
+  * Applied patch to add options to make_debian_root.sh (closes: #238787)
+  * Applied patch for other archs: hmmm... (closes: #251420)
+  * Do umount -d in make_debian_root.sh (closes: #251775)
+
+ -- Paul Russell <prussell@debian.org>  Tue,  1 Jun 2004 03:50:05 +0200
+
+qemu (0.5.4-1) unstable; urgency=low
+
+  * New upstream release (closes: #246634)
+  * qemu-mkcow included in upstream.
+  * Added tundev program source in doc, to see if people find it useful.
+	
+ -- Paul Russell <prussell@debian.org>  Mon,  3 May 2004 08:14:49 +0200
+
+qemu (0.5.3-1) unstable; urgency=low
+
+  * New upstream release (closes: #237556)
+  * Use aalib-config --static-libs (closes: #243325)
+  * Document Control-Shift to release mouse pointer (closes: #238074)
+	
+ -- Paul Russell <prussell@debian.org>  Tue, 13 Apr 2004 02:58:49 +0200
+
+qemu (0.5.2-4) unstable; urgency=low
+
+  * Fix PPC install (Michel Daenzer patch) (closes: #238431)
+  * Simplify deps (might be wrong, but it's neater) (closes: #238430)
+
+ -- Paul Russell <prussell@debian.org>  Wed, 17 Mar 2004 01:35:47 +0100
+
+qemu (0.5.2-3) unstable; urgency=low
+
+  * Make compile on woody (closes: #238163) 
+  * Include qemu-doc.html (closes: #238076)
+  * Wrote qemu-i386 man page (closes: #238077) 
+
+ -- Paul Russell <prussell@debian.org>  Mon, 15 Mar 2004 23:56:25 +0100
+
+qemu (0.5.2-2) unstable; urgency=low
+
+  * Fix build problem so bios.bin etc. can be found (closes: #237553) 
+
+ -- Paul Russell <prussell@debian.org>  Fri, 12 Mar 2004 05:43:00 +0100
+
+qemu (0.5.2-1) unstable; urgency=low
+
+  * Initial Release (closes: #187407)
+
+ -- Paul Russell <prussell@debian.org>  Wed,  3 Mar 2004 02:18:54 +0100
+
