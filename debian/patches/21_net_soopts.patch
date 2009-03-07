@@ -1,0 +1,185 @@
+Index: qemu-0.10.0/linux-user/syscall.c
+===================================================================
+--- qemu-0.10.0.orig/linux-user/syscall.c	2009-03-07 13:46:58.000000000 +0100
++++ qemu-0.10.0/linux-user/syscall.c	2009-03-07 13:47:26.000000000 +0100
+@@ -833,6 +833,28 @@
+     return 0;
+ }
+ 
++static inline void copy_to_user_linger(target_ulong target_addr,
++                                         struct linger *host_l)
++{
++    struct target_linger *target_l;
++
++    lock_user_struct(VERIFY_WRITE, target_l, target_addr, 0);
++    target_l->l_onoff = tswapl(host_l->l_onoff);
++    target_l->l_linger = tswapl(host_l->l_linger);
++    unlock_user_struct(target_l, target_addr, 1);
++}
++
++static inline void copy_from_user_linger(struct linger *host_l,
++                                         target_ulong target_addr)
++{
++    struct target_linger *target_l;
++
++    lock_user_struct(VERIFY_WRITE, target_l, target_addr, 1);
++    host_l->l_onoff = tswapl(target_l->l_onoff);
++    host_l->l_linger = tswapl(target_l->l_linger);
++    unlock_user_struct(target_l, target_addr, 0);
++}
++
+ /* do_setsockopt() Must return target values and target errnos. */
+ static abi_long do_setsockopt(int sockfd, int level, int optname,
+                               abi_ulong optval_addr, socklen_t optlen)
+@@ -883,7 +905,6 @@
+         break;
+     case TARGET_SOL_SOCKET:
+         switch (optname) {
+-            /* Options with 'int' argument.  */
+         case TARGET_SO_DEBUG:
+ 		optname = SO_DEBUG;
+ 		break;
+@@ -940,17 +961,48 @@
+         case TARGET_SO_SNDTIMEO:
+ 		optname = SO_SNDTIMEO;
+ 		break;
+-            break;
++        case TARGET_SO_LINGER:
++                optname = SO_LINGER;
++                break;
+         default:
+             goto unimplemented;
+         }
+ 	if (optlen < sizeof(uint32_t))
+             return -TARGET_EINVAL;
++        switch (optname) {
++            /* Options with non-'int' argument.  */
++        case SO_RCVTIMEO:
++        case SO_SNDTIMEO:
++	{
++		struct timeval tval;
++		if(optlen < sizeof(struct target_timeval))
++		    return -TARGET_EINVAL;
++		copy_from_user_timeval(&tval,optval_addr);
++		ret = get_errno(setsockopt(sockfd, level, optname, &tval,sizeof(tval)));
++	}
++		break;
++        case SO_LINGER:
++	{
++		struct linger tmp;
++		if (optlen < sizeof(struct target_linger))
++		    return -TARGET_EINVAL;
++		optname = SO_LINGER;
++		copy_from_user_linger(&tmp,optval_addr);
++		ret = get_errno(setsockopt(sockfd, level, optname, &tmp, sizeof(tmp)));
++	}
++		break;
++            /* All remaning options take an 'int' argument.  */
++        default:
++	{
++		if (optlen < sizeof(uint32_t))
++		    return -TARGET_EINVAL;
+ 
+-	if (get_user_u32(val, optval_addr))
+-            return -TARGET_EFAULT;
+-	ret = get_errno(setsockopt(sockfd, SOL_SOCKET, optname, &val, sizeof(val)));
+-        break;
++	        if (get_user_u32(val, optval_addr))
++                    return -TARGET_EFAULT;
++		ret = get_errno(setsockopt(sockfd, SOL_SOCKET, optname, &val, sizeof(val)));
++	}
++		break;
++    }
+     default:
+     unimplemented:
+         gemu_log("Unsupported setsockopt level=%d optname=%d \n", level, optname);
+@@ -971,13 +1023,57 @@
+     case TARGET_SOL_SOCKET:
+     	level = SOL_SOCKET;
+ 	switch (optname) {
+-	case TARGET_SO_LINGER:
++	case TARGET_SO_LINGER: {
++         if (get_user_u32(len, optlen))
++           return -TARGET_EFAULT;
++	  if(len < sizeof(struct target_linger))
++	    return -TARGET_EINVAL;
++	  struct linger l;
++	  len=sizeof(l);
++
++	  ret = get_errno(getsockopt(sockfd, level, optname, &l, &len));
++	  copy_to_user_linger(optval_addr,&l);
++	  if (put_user_u32(optlen, sizeof(struct target_linger)))
++           return -TARGET_EFAULT;
++	}
++	  break;
++
+ 	case TARGET_SO_RCVTIMEO:
+-	case TARGET_SO_SNDTIMEO:
+-	case TARGET_SO_PEERCRED:
++	case TARGET_SO_SNDTIMEO: {
++         if (get_user_u32(len, optlen))
++            return -TARGET_EFAULT;
++	  if(len < sizeof(struct target_timeval))
++	     return -TARGET_EINVAL;
++	  struct timeval tval;
++	  len=sizeof(tval);
++
++	  ret = get_errno(getsockopt(sockfd, level, optname, &tval, &len));
++	  copy_to_user_timeval(optval_addr,&tval);
++	  if (put_user_u32(optlen, sizeof(struct target_timeval)))
++           return -TARGET_EFAULT;
++	}
++	  break;
++
+ 	case TARGET_SO_PEERNAME:
+ 	    /* These don't just return a single integer */
+ 	    goto unimplemented;
++	case TARGET_SO_PEERCRED: {
++	  struct ucred caller;
++	  socklen_t optlen = sizeof (caller);
++	  ret = get_errno(getsockopt(sockfd, SOL_SOCKET, SO_PEERCRED,
++				     &caller, &optlen));
++
++	  if (optlen != 0 && optval_addr != 0) {
++	    if (put_user_u32(optval_addr + 0, caller.pid))
++             return -TARGET_EFAULT;
++	    if (put_user_u32(optval_addr + 4, caller.uid))
++             return -TARGET_EFAULT;
++	    if (put_user_u32(optval_addr + 8, caller.gid))
++             return -TARGET_EFAULT;
++	  }
++	}
++	   break;
++
+         default:
+             goto int_case;
+         }
+@@ -1236,6 +1332,12 @@
+     void *addr;
+     abi_long ret;
+ 
++    if (target_addrlen_addr == (target_ulong)NULL ||
++	target_addr == (target_ulong)NULL) {
++        ret = get_errno(accept(fd, NULL, NULL));
++	return ret;
++    }
++
+     if (get_user_u32(addrlen, target_addrlen_addr))
+         return -TARGET_EFAULT;
+ 
+Index: qemu-0.10.0/linux-user/syscall_defs.h
+===================================================================
+--- qemu-0.10.0.orig/linux-user/syscall_defs.h	2009-03-07 13:46:58.000000000 +0100
++++ qemu-0.10.0/linux-user/syscall_defs.h	2009-03-07 13:47:26.000000000 +0100
+@@ -114,6 +114,11 @@
+     abi_long tv_nsec;
+ };
+ 
++struct target_linger {
++	target_long l_onoff;
++	target_long l_linger;
++};
++
+ struct target_itimerval {
+     struct target_timeval it_interval;
+     struct target_timeval it_value;

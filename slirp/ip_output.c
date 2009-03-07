@@ -10,11 +10,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -46,6 +42,10 @@
 
 u_int16_t ip_id;
 
+/* Number of packets queued before we start sending
+ * (to prevent allocing too many mbufs) */
+#define IF_THRESH 10
+
 /*
  * IP output.  The packet in mbuf chain m contains a skeletal IP
  * header (with len, off, ttl, proto, tos, src, dst).
@@ -65,7 +65,7 @@ ip_output(so, m0)
 	DEBUG_CALL("ip_output");
 	DEBUG_ARG("so = %lx", (long)so);
 	DEBUG_ARG("m0 = %lx", (long)m0);
-	
+
 	/* We do no options */
 /*	if (opt) {
  *		m = ip_insertoptions(m, opt, &len);
@@ -80,23 +80,23 @@ ip_output(so, m0)
 	ip->ip_off &= IP_DF;
 	ip->ip_id = htons(ip_id++);
 	ip->ip_hl = hlen >> 2;
-	ipstat.ips_localout++;
+	STAT(ipstat.ips_localout++);
 
 	/*
 	 * Verify that we have any chance at all of being able to queue
 	 *      the packet or packet fragments
 	 */
 	/* XXX Hmmm... */
-/*	if (if_queued > if_thresh && towrite <= 0) {
+/*	if (if_queued > IF_THRESH && towrite <= 0) {
  *		error = ENOBUFS;
  *		goto bad;
  *	}
  */
-	
+
 	/*
 	 * If small enough for interface, can just send directly.
 	 */
-	if ((u_int16_t)ip->ip_len <= if_mtu) {
+	if ((u_int16_t)ip->ip_len <= IF_MTU) {
 		ip->ip_len = htons((u_int16_t)ip->ip_len);
 		ip->ip_off = htons((u_int16_t)ip->ip_off);
 		ip->ip_sum = 0;
@@ -112,11 +112,11 @@ ip_output(so, m0)
 	 */
 	if (ip->ip_off & IP_DF) {
 		error = -1;
-		ipstat.ips_cantfrag++;
+		STAT(ipstat.ips_cantfrag++);
 		goto bad;
 	}
-	
-	len = (if_mtu - hlen) &~ 7;       /* ip databytes per packet */
+
+	len = (IF_MTU - hlen) &~ 7;       /* ip databytes per packet */
 	if (len < 8) {
 		error = -1;
 		goto bad;
@@ -137,13 +137,13 @@ ip_output(so, m0)
 	  m = m_get();
 	  if (m == 0) {
 	    error = -1;
-	    ipstat.ips_odropped++;
+	    STAT(ipstat.ips_odropped++);
 	    goto sendorfree;
 	  }
-	  m->m_data += if_maxlinkhdr;
+	  m->m_data += IF_MAXLINKHDR;
 	  mhip = mtod(m, struct ip *);
 	  *mhip = *ip;
-		
+
 		/* No options */
 /*		if (hlen > sizeof (struct ip)) {
  *			mhlen = ip_optcopy(ip, mhip) + sizeof (struct ip);
@@ -156,21 +156,21 @@ ip_output(so, m0)
 	    mhip->ip_off |= IP_MF;
 	  if (off + len >= (u_int16_t)ip->ip_len)
 	    len = (u_int16_t)ip->ip_len - off;
-	  else 
+	  else
 	    mhip->ip_off |= IP_MF;
 	  mhip->ip_len = htons((u_int16_t)(len + mhlen));
-	  
+
 	  if (m_copy(m, m0, off, len) < 0) {
 	    error = -1;
 	    goto sendorfree;
 	  }
-	  
+
 	  mhip->ip_off = htons((u_int16_t)mhip->ip_off);
 	  mhip->ip_sum = 0;
 	  mhip->ip_sum = cksum(m, mhlen);
 	  *mnext = m;
 	  mnext = &m->m_nextpkt;
-	  ipstat.ips_ofragments++;
+	  STAT(ipstat.ips_ofragments++);
 	}
 	/*
 	 * Update first fragment by trimming what's been copied out
@@ -193,7 +193,7 @@ sendorfree:
 	}
 
 	if (error == 0)
-		ipstat.ips_fragmented++;
+		STAT(ipstat.ips_fragmented++);
     }
 
 done:

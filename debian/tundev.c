@@ -1,8 +1,13 @@
-/* (C) 2004 Rusty Russell.  Licenced under the GNU GPL. */
-#define _GNU_SOURCE
+/*
+ * $Id: tundev.c 376 2009-03-03 20:45:06Z aurel32 $
+ */
+
+#define _GNU_SOURCE /* asprintf */
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
+#include <pwd.h>
+#include <grp.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
@@ -11,15 +16,19 @@
 #include <net/if.h>
 #include <linux/if_tun.h>
 
-/* Tiny code to open tap/tun device, and hand the fd to qemu.  Run
-   setuid root, drops privs. */
+/* Tiny code to open tap/tun device, and hand the fd to qemu.
+   Run as root, drops to given user. */
 int main(int argc, char *argv[])
 {
 	struct ifreq ifr;
+	struct passwd *p;
+	unsigned int i;
+	char *newargs[argc + 1];
 	int fd;
 
-	if (argc == 1) {
-		fprintf(stderr, "Usage: tundev qemu <qemu options>...\n");
+	if (argc < 4) {
+		fprintf(stderr,
+			"Usage: tundev user logfile qemu <qemu options>...\n");
 		exit(1);
 	}
 
@@ -36,15 +45,46 @@ int main(int argc, char *argv[])
 		perror("Could not get tun device");
 		exit(1);
 	}
-	printf("Got tun device %s on fd %i\n", ifr.ifr_name, fd);
 
-	/* Drop effective uid. */
-	setuid(getuid());
+	/* Set userid. */
+	p = getpwnam(argv[1]);
+	if (!p) {
+		fprintf(stderr, "No user '%s'\n", argv[1]);
+		exit(1);
+	}
+	setgroups(0, NULL);
+	setgid(p->pw_gid);
+	if (setuid(p->pw_uid) != 0) {
+		perror("setting uid");
+		exit(1);
+	}
 
-	/* Insert -tun-fd=3 arg. */
-	argv[0] = argv[1];
-	asprintf(&argv[1], "-tun-fd=%d", fd);
-	execvp(argv[0], argv);
-	perror("Exec of qemu failed");
-	exit(1);
+	/* Insert -tun-fd */
+	newargs[0] = argv[3];
+	newargs[1] = "-tun-fd";
+	asprintf(&newargs[2], "%d", fd);
+	for (i = 4; i <= argc; i++)
+		newargs[i-1] = argv[i];
+
+	if (strcmp(argv[2], "-") == 0) {
+		execvp(newargs[0], newargs);
+		exit(1);
+	}
+
+	switch (fork()) {
+	case 0: {
+		close(1);
+		close(2);
+		open(argv[2], O_WRONLY|O_APPEND);
+		open(argv[2], O_WRONLY|O_APPEND);
+		close(0);
+		execvp(newargs[0], newargs);
+		exit(1);
+	}
+	case -1:
+		perror("fork failed");
+		exit(1);
+	}
+	printf("%s\n", ifr.ifr_name);
+	exit(0);
 }

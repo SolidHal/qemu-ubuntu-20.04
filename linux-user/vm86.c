@@ -1,6 +1,6 @@
 /*
  *  vm86 linux syscall support
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,8 @@
  *
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *  Foundation, Inc., 51 Franklin Street - Fifth Floor, Boston,
+ *  MA 02110-1301, USA.
  */
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,6 +29,13 @@
 
 //#define DEBUG_VM86
 
+#ifdef DEBUG_VM86
+#  define LOG_VM86(...) qemu_log(__VA_ARGS__);
+#else
+#  define LOG_VM86(...) do { } while (0)
+#endif
+
+
 #define set_flags(X,new,mask) \
 ((X) = ((X) & ~(mask)) | ((new) & (mask)))
 
@@ -39,22 +47,27 @@ static inline int is_revectored(int nr, struct target_revectored_struct *bitmap)
     return (((uint8_t *)bitmap)[nr >> 3] >> (nr & 7)) & 1;
 }
 
-static inline void vm_putw(uint8_t *segptr, unsigned int reg16, unsigned int val)
+static inline void vm_putw(uint32_t segptr, unsigned int reg16, unsigned int val)
 {
     stw(segptr + (reg16 & 0xffff), val);
 }
 
-static inline void vm_putl(uint8_t *segptr, unsigned int reg16, unsigned int val)
+static inline void vm_putl(uint32_t segptr, unsigned int reg16, unsigned int val)
 {
     stl(segptr + (reg16 & 0xffff), val);
 }
 
-static inline unsigned int vm_getw(uint8_t *segptr, unsigned int reg16)
+static inline unsigned int vm_getb(uint32_t segptr, unsigned int reg16)
+{
+    return ldub(segptr + (reg16 & 0xffff));
+}
+
+static inline unsigned int vm_getw(uint32_t segptr, unsigned int reg16)
 {
     return lduw(segptr + (reg16 & 0xffff));
 }
 
-static inline unsigned int vm_getl(uint8_t *segptr, unsigned int reg16)
+static inline unsigned int vm_getl(uint32_t segptr, unsigned int reg16)
 {
     return ldl(segptr + (reg16 & 0xffff));
 }
@@ -62,29 +75,32 @@ static inline unsigned int vm_getl(uint8_t *segptr, unsigned int reg16)
 void save_v86_state(CPUX86State *env)
 {
     TaskState *ts = env->opaque;
+    struct target_vm86plus_struct * target_v86;
 
+    if (!lock_user_struct(VERIFY_WRITE, target_v86, ts->target_v86, 0))
+        /* FIXME - should return an error */
+        return;
     /* put the VM86 registers in the userspace register structure */
-    ts->target_v86->regs.eax = tswap32(env->regs[R_EAX]);
-    ts->target_v86->regs.ebx = tswap32(env->regs[R_EBX]);
-    ts->target_v86->regs.ecx = tswap32(env->regs[R_ECX]);
-    ts->target_v86->regs.edx = tswap32(env->regs[R_EDX]);
-    ts->target_v86->regs.esi = tswap32(env->regs[R_ESI]);
-    ts->target_v86->regs.edi = tswap32(env->regs[R_EDI]);
-    ts->target_v86->regs.ebp = tswap32(env->regs[R_EBP]);
-    ts->target_v86->regs.esp = tswap32(env->regs[R_ESP]);
-    ts->target_v86->regs.eip = tswap32(env->eip);
-    ts->target_v86->regs.cs = tswap16(env->segs[R_CS].selector);
-    ts->target_v86->regs.ss = tswap16(env->segs[R_SS].selector);
-    ts->target_v86->regs.ds = tswap16(env->segs[R_DS].selector);
-    ts->target_v86->regs.es = tswap16(env->segs[R_ES].selector);
-    ts->target_v86->regs.fs = tswap16(env->segs[R_FS].selector);
-    ts->target_v86->regs.gs = tswap16(env->segs[R_GS].selector);
+    target_v86->regs.eax = tswap32(env->regs[R_EAX]);
+    target_v86->regs.ebx = tswap32(env->regs[R_EBX]);
+    target_v86->regs.ecx = tswap32(env->regs[R_ECX]);
+    target_v86->regs.edx = tswap32(env->regs[R_EDX]);
+    target_v86->regs.esi = tswap32(env->regs[R_ESI]);
+    target_v86->regs.edi = tswap32(env->regs[R_EDI]);
+    target_v86->regs.ebp = tswap32(env->regs[R_EBP]);
+    target_v86->regs.esp = tswap32(env->regs[R_ESP]);
+    target_v86->regs.eip = tswap32(env->eip);
+    target_v86->regs.cs = tswap16(env->segs[R_CS].selector);
+    target_v86->regs.ss = tswap16(env->segs[R_SS].selector);
+    target_v86->regs.ds = tswap16(env->segs[R_DS].selector);
+    target_v86->regs.es = tswap16(env->segs[R_ES].selector);
+    target_v86->regs.fs = tswap16(env->segs[R_FS].selector);
+    target_v86->regs.gs = tswap16(env->segs[R_GS].selector);
     set_flags(env->eflags, ts->v86flags, VIF_MASK | ts->v86mask);
-    ts->target_v86->regs.eflags = tswap32(env->eflags);
-#ifdef DEBUG_VM86
-    fprintf(logfile, "save_v86_state: eflags=%08x cs:ip=%04x:%04x\n", 
-            env->eflags, env->segs[R_CS].selector, env->eip);
-#endif
+    target_v86->regs.eflags = tswap32(env->eflags);
+    unlock_user_struct(target_v86, ts->target_v86, 1);
+    LOG_VM86("save_v86_state: eflags=%08x cs:ip=%04x:%04x\n",
+             env->eflags, env->segs[R_CS].selector, env->eip);
 
     /* restore 32 bit registers */
     env->regs[R_EAX] = ts->vm86_saved_regs.eax;
@@ -110,9 +126,7 @@ void save_v86_state(CPUX86State *env)
    'retval' */
 static inline void return_to_32bit(CPUX86State *env, int retval)
 {
-#ifdef DEBUG_VM86
-    fprintf(logfile, "return_to_32bit: ret=0x%x\n", retval);
-#endif
+    LOG_VM86("return_to_32bit: ret=0x%x\n", retval);
     save_v86_state(env);
     env->regs[R_EAX] = retval;
 }
@@ -120,7 +134,7 @@ static inline void return_to_32bit(CPUX86State *env, int retval)
 static inline int set_IF(CPUX86State *env)
 {
     TaskState *ts = env->opaque;
-    
+
     ts->v86flags |= VIF_MASK;
     if (ts->v86flags & VIP_MASK) {
         return_to_32bit(env, TARGET_VM86_STI);
@@ -191,27 +205,24 @@ static inline unsigned int get_vflags(CPUX86State *env)
 static void do_int(CPUX86State *env, int intno)
 {
     TaskState *ts = env->opaque;
-    uint32_t *int_ptr, segoffs;
-    uint8_t *ssp;
+    uint32_t int_addr, segoffs, ssp;
     unsigned int sp;
 
     if (env->segs[R_CS].selector == TARGET_BIOSSEG)
         goto cannot_handle;
     if (is_revectored(intno, &ts->vm86plus.int_revectored))
         goto cannot_handle;
-    if (intno == 0x21 && is_revectored((env->regs[R_EAX] >> 8) & 0xff, 
+    if (intno == 0x21 && is_revectored((env->regs[R_EAX] >> 8) & 0xff,
                                        &ts->vm86plus.int21_revectored))
         goto cannot_handle;
-    int_ptr = (uint32_t *)(intno << 2);
-    segoffs = tswap32(*int_ptr);
+    int_addr = (intno << 2);
+    segoffs = ldl(int_addr);
     if ((segoffs >> 16) == TARGET_BIOSSEG)
         goto cannot_handle;
-#if defined(DEBUG_VM86)
-    fprintf(logfile, "VM86: emulating int 0x%x. CS:IP=%04x:%04x\n", 
-            intno, segoffs >> 16, segoffs & 0xffff);
-#endif
+    LOG_VM86("VM86: emulating int 0x%x. CS:IP=%04x:%04x\n",
+             intno, segoffs >> 16, segoffs & 0xffff);
     /* save old state */
-    ssp = (uint8_t *)(env->segs[R_SS].selector << 4);
+    ssp = env->segs[R_SS].selector << 4;
     sp = env->regs[R_ESP] & 0xffff;
     vm_putw(ssp, sp - 2, get_vflags(env));
     vm_putw(ssp, sp - 4, env->segs[R_CS].selector);
@@ -225,9 +236,7 @@ static void do_int(CPUX86State *env, int intno)
     clear_AC(env);
     return;
  cannot_handle:
-#if defined(DEBUG_VM86)
-    fprintf(logfile, "VM86: return to 32 bits int 0x%x\n", intno);
-#endif
+    LOG_VM86("VM86: return to 32 bits int 0x%x\n", intno);
     return_to_32bit(env, TARGET_VM86_INTx | (intno << 8));
 }
 
@@ -254,26 +263,23 @@ void handle_vm86_trap(CPUX86State *env, int trapno)
 void handle_vm86_fault(CPUX86State *env)
 {
     TaskState *ts = env->opaque;
-    uint8_t *csp, *pc, *ssp;
+    uint32_t csp, ssp;
     unsigned int ip, sp, newflags, newip, newcs, opcode, intno;
     int data32, pref_done;
 
-    csp = (uint8_t *)(env->segs[R_CS].selector << 4);
+    csp = env->segs[R_CS].selector << 4;
     ip = env->eip & 0xffff;
-    pc = csp + ip;
-    
-    ssp = (uint8_t *)(env->segs[R_SS].selector << 4);
+
+    ssp = env->segs[R_SS].selector << 4;
     sp = env->regs[R_ESP] & 0xffff;
 
-#if defined(DEBUG_VM86)
-    fprintf(logfile, "VM86 exception %04x:%08x %02x %02x\n",
-            env->segs[R_CS].selector, env->eip, pc[0], pc[1]);
-#endif
+    LOG_VM86("VM86 exception %04x:%08x\n",
+             env->segs[R_CS].selector, env->eip);
 
     data32 = 0;
     pref_done = 0;
     do {
-        opcode = csp[ip];
+        opcode = vm_getb(csp, ip);
         ADD16(ip, 1);
         switch (opcode) {
         case 0x66:      /* 32-bit data */     data32=1; break;
@@ -323,11 +329,11 @@ void handle_vm86_fault(CPUX86State *env)
         VM86_FAULT_RETURN;
 
     case 0xcd: /* int */
-        intno = csp[ip];
+        intno = vm_getb(csp, ip);
         ADD16(ip, 1);
         env->eip = ip;
         if (ts->vm86plus.vm86plus.flags & TARGET_vm86dbg_active) {
-            if ( (ts->vm86plus.vm86plus.vm86dbg_intxxtab[intno >> 3] >> 
+            if ( (ts->vm86plus.vm86plus.vm86dbg_intxxtab[intno >> 3] >>
                   (intno &7)) & 1) {
                 return_to_32bit(env, TARGET_VM86_INTx + (intno << 8));
                 return;
@@ -359,12 +365,12 @@ void handle_vm86_fault(CPUX86State *env)
                 return;
         }
         VM86_FAULT_RETURN;
-        
+
     case 0xfa: /* cli */
         env->eip = ip;
         clear_IF(env);
         VM86_FAULT_RETURN;
-        
+
     case 0xfb: /* sti */
         env->eip = ip;
         if (set_IF(env))
@@ -378,19 +384,19 @@ void handle_vm86_fault(CPUX86State *env)
     }
 }
 
-int do_vm86(CPUX86State *env, long subfunction, 
-            struct target_vm86plus_struct * target_v86)
+int do_vm86(CPUX86State *env, long subfunction, abi_ulong vm86_addr)
 {
     TaskState *ts = env->opaque;
+    struct target_vm86plus_struct * target_v86;
     int ret;
-    
+
     switch (subfunction) {
     case TARGET_VM86_REQUEST_IRQ:
     case TARGET_VM86_FREE_IRQ:
     case TARGET_VM86_GET_IRQ_BITS:
     case TARGET_VM86_GET_AND_RESET_IRQ:
         gemu_log("qemu: unsupported vm86 subfunction (%ld)\n", subfunction);
-        ret = -EINVAL;
+        ret = -TARGET_EINVAL;
         goto out;
     case TARGET_VM86_PLUS_INSTALL_CHECK:
         /* NOTE: on old vm86 stuff this will return the error
@@ -402,7 +408,6 @@ int do_vm86(CPUX86State *env, long subfunction,
         goto out;
     }
 
-    ts->target_v86 = target_v86;
     /* save current CPU regs */
     ts->vm86_saved_regs.eax = 0; /* default vm86 syscall return code */
     ts->vm86_saved_regs.ebx = env->regs[R_EBX];
@@ -421,9 +426,12 @@ int do_vm86(CPUX86State *env, long subfunction,
     ts->vm86_saved_regs.fs = env->segs[R_FS].selector;
     ts->vm86_saved_regs.gs = env->segs[R_GS].selector;
 
+    ts->target_v86 = vm86_addr;
+    if (!lock_user_struct(VERIFY_READ, target_v86, vm86_addr, 1))
+        return -TARGET_EFAULT;
     /* build vm86 CPU state */
     ts->v86flags = tswap32(target_v86->regs.eflags);
-    env->eflags = (env->eflags & ~SAFE_MASK) | 
+    env->eflags = (env->eflags & ~SAFE_MASK) |
         (tswap32(target_v86->regs.eflags) & SAFE_MASK) | VM_MASK;
 
     ts->vm86plus.cpu_type = tswapl(target_v86->cpu_type);
@@ -458,20 +466,18 @@ int do_vm86(CPUX86State *env, long subfunction,
     cpu_x86_load_seg(env, R_GS, tswap16(target_v86->regs.gs));
     ret = tswap32(target_v86->regs.eax); /* eax will be restored at
                                             the end of the syscall */
-    memcpy(&ts->vm86plus.int_revectored, 
+    memcpy(&ts->vm86plus.int_revectored,
            &target_v86->int_revectored, 32);
-    memcpy(&ts->vm86plus.int21_revectored, 
+    memcpy(&ts->vm86plus.int21_revectored,
            &target_v86->int21_revectored, 32);
     ts->vm86plus.vm86plus.flags = tswapl(target_v86->vm86plus.flags);
-    memcpy(&ts->vm86plus.vm86plus.vm86dbg_intxxtab, 
+    memcpy(&ts->vm86plus.vm86plus.vm86dbg_intxxtab,
            target_v86->vm86plus.vm86dbg_intxxtab, 32);
-    
-#ifdef DEBUG_VM86
-    fprintf(logfile, "do_vm86: cs:ip=%04x:%04x\n", 
-            env->segs[R_CS].selector, env->eip);
-#endif
+    unlock_user_struct(target_v86, vm86_addr, 0);
+
+    LOG_VM86("do_vm86: cs:ip=%04x:%04x\n",
+             env->segs[R_CS].selector, env->eip);
     /* now the virtual CPU is ready for vm86 execution ! */
  out:
     return ret;
 }
-

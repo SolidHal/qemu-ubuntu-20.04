@@ -3,18 +3,57 @@
 
 #define CONFIG_QEMU
 
-#define DEBUG 1
+//#define DEBUG 1
+
+// Uncomment the following line to enable SLIRP statistics printing in Qemu
+//#define LOG_ENABLED
+
+#ifdef LOG_ENABLED
+#define STAT(expr) expr
+#else
+#define STAT(expr) do { } while(0)
+#endif
 
 #ifndef CONFIG_QEMU
 #include "version.h"
 #endif
-#include "config.h"
+#include "config-host.h"
 #include "slirp_config.h"
+
+#ifdef _WIN32
+# include <inttypes.h>
+
+typedef uint8_t u_int8_t;
+typedef uint16_t u_int16_t;
+typedef uint32_t u_int32_t;
+typedef uint64_t u_int64_t;
+typedef char *caddr_t;
+
+#define WIN32_LEAN_AND_MEAN
+# include <windows.h>
+# include <winsock2.h>
+# include <ws2tcpip.h>
+# include <sys/timeb.h>
+# include <iphlpapi.h>
+
+# define EWOULDBLOCK WSAEWOULDBLOCK
+# define EINPROGRESS WSAEINPROGRESS
+# define ENOTCONN WSAENOTCONN
+# define EHOSTUNREACH WSAEHOSTUNREACH
+# define ENETUNREACH WSAENETUNREACH
+# define ECONNREFUSED WSAECONNREFUSED
+#else
+# define ioctlsocket ioctl
+# define closesocket(s) close(s)
+# define O_BINARY 0
+#endif
 
 #include <sys/types.h>
 #ifdef HAVE_SYS_BITYPES_H
 # include <sys/bitypes.h>
 #endif
+
+#include <sys/time.h>
 
 #ifdef NEED_TYPEDEFS
 typedef char int8_t;
@@ -64,7 +103,7 @@ typedef unsigned char u_int8_t;
 # include <sys/time.h>
 # include <time.h>
 #else
-# if HAVE_SYS_TIME_H
+# ifdef HAVE_SYS_TIME_H
 #  include <sys/time.h>
 # else
 #  include <time.h>
@@ -77,18 +116,21 @@ typedef unsigned char u_int8_t;
 # include <strings.h>
 #endif
 
+#ifndef _WIN32
 #include <sys/uio.h>
+#endif
 
-#ifndef _P
+#undef _P
 #ifndef NO_PROTOTYPES
 #  define   _P(x)   x
 #else
 #  define   _P(x)   ()
 #endif
-#endif
 
+#ifndef _WIN32
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#endif
 
 #ifdef GETTIMEOFDAY_ONE_ARG
 #define gettimeofday(x, y) gettimeofday(x)
@@ -117,26 +159,13 @@ int inet_aton _P((const char *cp, struct in_addr *ia));
 #ifdef HAVE_SYS_SIGNAL_H
 # include <sys/signal.h>
 #endif
+#ifndef _WIN32
 #include <sys/socket.h>
+#endif
 
-#if defined(WANT_SYS_IOCTL_H) && defined(HAVE_SYS_IOCTL_H)
+#if defined(HAVE_SYS_IOCTL_H)
 # include <sys/ioctl.h>
-#else
-# define WANT_SYS_TERMIOS_H
 #endif
-
-#ifdef WANT_SYS_TERMIOS_H
-# ifndef INCLUDED_TERMIOS_H
-#  ifdef HAVE_TERMIOS_H
-#   include <termios.h>
-#  else
-#   include <termio.h>
-#  endif
-#  define INCLUDED_TERMIOS_H
-# endif
-#endif
-
-
 
 #ifdef HAVE_SYS_SELECT_H
 # include <sys/select.h>
@@ -193,6 +222,7 @@ int inet_aton _P((const char *cp, struct in_addr *ia));
 #endif
 
 #include "bootp.h"
+#include "tftp.h"
 #include "libslirp.h"
 
 extern struct ttys *ttys_unit[MAX_INTERFACES];
@@ -235,20 +265,14 @@ void if_start _P((struct ttys *));
 
 void lprint _P((const char *, ...));
 
-extern int do_echo;
-
-#if SIZEOF_CHAR_P == 4
-# define insque_32 insque
-# define remque_32 remque
-#else
- inline void insque_32 _P((void *, void *));
- inline void remque_32 _P((void *));
+#ifndef _WIN32
+#include <netdb.h>
 #endif
 
-#include <pwd.h>
-#include <netdb.h>
-
 #define DEFAULT_BAUD 115200
+
+#define SO_OPTIONS DO_KEEPALIVE
+#define TCP_MAXIDLE (TCPTV_KEEPCNT * TCPTV_KEEPINTVL)
 
 /* cksum.c */
 int cksum(struct mbuf *m, int len);
@@ -260,10 +284,6 @@ void if_output _P((struct socket *, struct mbuf *));
 /* ip_input.c */
 void ip_init _P((void));
 void ip_input _P((struct mbuf *));
-struct ip * ip_reass _P((register struct ipasfrag *, register struct ipq *));
-void ip_freef _P((struct ipq *));
-void ip_enq _P((register struct ipasfrag *, register struct ipasfrag *));
-void ip_deq _P((register struct ipasfrag *));
 void ip_slowtimo _P((void));
 void ip_stripoptions _P((register struct mbuf *, struct mbuf *));
 
@@ -271,10 +291,7 @@ void ip_stripoptions _P((register struct mbuf *, struct mbuf *));
 int ip_output _P((struct socket *, struct mbuf *));
 
 /* tcp_input.c */
-int tcp_reass _P((register struct tcpcb *, register struct tcpiphdr *, struct mbuf *));
 void tcp_input _P((register struct mbuf *, int, struct socket *));
-void tcp_dooptions _P((struct tcpcb *, u_char *, int, struct tcpiphdr *));
-void tcp_xmit_timer _P((register struct tcpcb *, int));
 int tcp_mss _P((register struct tcpcb *, u_int));
 
 /* tcp_output.c */
@@ -287,7 +304,6 @@ void tcp_template _P((struct tcpcb *));
 void tcp_respond _P((struct tcpcb *, register struct tcpiphdr *, register struct mbuf *, tcp_seq, tcp_seq, int));
 struct tcpcb * tcp_newtcpcb _P((struct socket *));
 struct tcpcb * tcp_close _P((register struct tcpcb *));
-void tcp_drain _P((void));
 void tcp_sockclosed _P((struct tcpcb *));
 int tcp_fconnect _P((struct socket *));
 void tcp_connect _P((struct socket *));
@@ -303,6 +319,16 @@ struct tcpcb *tcp_drop(struct tcpcb *tp, int err);
 #else
 #define MIN_MRU 128
 #define MAX_MRU 16384
+#endif
+
+#ifndef _WIN32
+#define min(x,y) ((x) < (y) ? (x) : (y))
+#define max(x,y) ((x) > (y) ? (x) : (y))
+#endif
+
+#ifdef _WIN32
+#undef errno
+#define errno (WSAGetLastError())
 #endif
 
 #endif

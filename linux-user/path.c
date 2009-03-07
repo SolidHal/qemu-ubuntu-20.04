@@ -82,7 +82,7 @@ static struct pathelem *add_entry(struct pathelem *root, const char *name)
     return root;
 }
 
-/* This needs to be done after tree is stabalized (ie. no more reallocs!). */
+/* This needs to be done after tree is stabilized (ie. no more reallocs!). */
 static void set_parents(struct pathelem *child, struct pathelem *parent)
 {
     unsigned int i;
@@ -90,18 +90,6 @@ static void set_parents(struct pathelem *child, struct pathelem *parent)
     child->parent = parent;
     for (i = 0; i < child->num_entries; i++)
 	set_parents(child->entries[i], child);
-}
-
-void init_paths(const char *prefix)
-{
-    if (prefix[0] != '/' ||
-        prefix[0] == '\0' ||
-        !strcmp(prefix, "/"))
-        return;
-
-    base = new_entry("", NULL, prefix+1);
-    base = add_dir_maybe(base);
-    set_parents(base, base);
 }
 
 /* FIXME: Doesn't handle DIR/.. where DIR is not in emulated dir. */
@@ -130,12 +118,41 @@ follow_path(const struct pathelem *cursor, const char *name)
     return NULL;
 }
 
+void init_paths(const char *prefix)
+{
+    char pref_buf[PATH_MAX];
+
+    if (prefix[0] == '\0' ||
+        !strcmp(prefix, "/"))
+        return;
+
+    if (prefix[0] != '/') {
+        char *cwd = get_current_dir_name();
+	if (!cwd)
+            abort();
+	strcpy(pref_buf, cwd);
+        strcat(pref_buf, "/");
+        strcat(pref_buf, prefix);
+        free(cwd);
+    } else
+        strcpy(pref_buf,prefix + 1);
+
+    base = new_entry("", NULL, pref_buf);
+    base = add_dir_maybe(base);
+    if (base->num_entries == 0) {
+        free (base);
+        base = NULL;
+    } else {
+        set_parents(base, base);
+    }
+}
+
 /* Look for path in emulation dir, otherwise return name. */
 const char *path(const char *name)
 {
     /* Only do absolute paths: quick and dirty, but should mostly be OK.
        Could do relative by tracking cwd. */
-    if (!base || name[0] != '/')
+    if (!base || !name || name[0] != '/')
 	return name;
 
     return follow_path(base, name) ?: name;

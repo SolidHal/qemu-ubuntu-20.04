@@ -1,106 +1,125 @@
 #!/usr/bin/make -f
-# -*- makefile -*-
-# Sample debian/rules that uses debhelper.
-# GNU copyright 1997 to 1999 by Joey Hess.
-
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
-
-
-# These are used for cross-compiling and for saving the configure script
-# from having to guess our platform (since we know it already)
-DEB_HOST_GNU_TYPE   ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
-
-
-CFLAGS = -Wall -g
+#
+# $Id: rules 391 2009-03-07 05:21:19Z aurel32 $
+#
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CFLAGS += -O0
-else
-	CFLAGS += -O2
-endif
-ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
-	INSTALL_PROGRAM += -s
+	CFLAGS = -O0
 endif
 
-config.status: configure
+# Support multiple makes at once
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+NJOBS := -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# Architecture/system specific configuration
+DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
+DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
+
+TARGET_SYSTEM_TCG    = arm-softmmu cris-softmmu i386-softmmu m68k-softmmu mips-softmmu mipsel-softmmu mips64-softmmu mips64el-softmmu ppc-softmmu ppcemb-softmmu ppc64-softmmu sh4-softmmu sh4eb-softmmu sparc-softmmu sparc64-softmmu x86_64-softmmu
+TARGET_LINUX_TCG     = alpha-linux-user arm-linux-user armeb-linux-user cris-linux-user i386-linux-user m68k-linux-user mips-linux-user mipsel-linux-user ppc-linux-user ppc64-linux-user ppc64abi32-linux-user sh4-linux-user sh4eb-linux-user sparc-linux-user sparc64-linux-user sparc32plus-linux-user x86_64-linux-user
+
+target_system_list = $(TARGET_SYSTEM_TCG)
+
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+       conf_arch += --audio-drv-list=oss,alsa,sdl,esd,pa
+       target_linux_list += $(TARGET_LINUX_TCG)
+endif
+ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
+       conf_arch += --audio-drv-list=oss,sdl,esd,pa
+endif
+
+ifeq ($(DEB_HOST_ARCH_CPU),i386)
+       conf_arch += --cpu=i386
+endif
+ifeq ($(DEB_HOST_ARCH_CPU),sparc)
+       conf_arch += --cpu=sparc
+endif
+
+include /usr/share/quilt/quilt.make
+
+qemu_docs = \
+	qemu-doc.html \
+	qemu-tech.html \
+	qemu.1 \
+	qemu-img.1
+
+config-host.mak: configure
 	dh_testdir
-	CFLAGS="$(CFLAGS)" ./configure --target-list="i386-user i386 i386-softmmu arm-user sparc-user ppc-user ppc-softmmu" --prefix=/usr --enable-slirp
+	
+	CFLAGS="$(CFLAGS)" ./configure \
+		--prefix=/usr \
+		--disable-blobs \
+		--target-list="$(target_system_list) $(target_linux_list)" \
+		$(conf_arch)
 
-build: build-stamp
+setup-source: patch
+	$(MAKE) -f debian/rules config-host.mak
 
-build-stamp:  config.status
+build: setup-source
 	dh_testdir
-	$(MAKE)
-	/usr/bin/docbook-to-man debian/qemu-i386.sgml > qemu-i386.1
-	touch build-stamp
+	
+	$(MAKE) $(NJOBS)
+	$(MAKE) -C pc-bios bamboo.dtb
+	$(MAKE) -C pc-bios mpc8544ds.dtb
 
-clean:
+clean: unpatch
 	dh_testdir
 	dh_testroot
-	rm -f build-stamp 
-
-	-$(MAKE) distclean
-ifneq "$(wildcard /usr/share/misc/config.sub)" ""
-	cp -f /usr/share/misc/config.sub config.sub
-endif
-ifneq "$(wildcard /usr/share/misc/config.guess)" ""
-	cp -f /usr/share/misc/config.guess config.guess
-endif
-
-	rm -f qemu-doc.html qemu-i386.1 qemu.1
-
-	dh_clean 
+	
+	[ ! -f config-host.mak ] || $(MAKE) distclean
+	
+	rm -f $(qemu_docs)
+	rm -f pc-bios/*.dtb
+	
+	dh_clean
 
 install: build
 	dh_testdir
 	dh_testroot
-	dh_clean -k 
-	dh_installdirs
+	dh_clean -k
+	dh_installdirs -a
+	
+	$(MAKE) DESTDIR=$(CURDIR)/debian/qemu install
 
-	base=$(CURDIR)/debian/qemu/usr; $(MAKE) install prefix=$$base bindir=$$base/bin sharedir=$$base/share/qemu mandir=$$base/share/man docdir=$$base/share/doc/qemu
-	cp qemu-i386.1 $(CURDIR)/debian/qemu/usr/share/man/man1/
-	ln -sf qemu.1 $(CURDIR)/debian/qemu/usr/share/man/man1/qemu-fast.1
-	ln -sf qemu.1 $(CURDIR)/debian/qemu/usr/share/man/man1/qemu-arm.1
-	ln -sf qemu.1 $(CURDIR)/debian/qemu/usr/share/man/man1/qemu-sparc.1
-	ln -sf qemu.1 $(CURDIR)/debian/qemu/usr/share/man/man1/qemu-ppc.1
-	ln -sf qemu.1 $(CURDIR)/debian/qemu/usr/share/man/man1/qemu-system-ppc.1
+	zcat /usr/share/etherboot/e1000-82540em.zrom.gz > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-e1000.bin
+	zcat /usr/share/etherboot/rtl8029.zrom.gz       > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-ne2k_pci.bin
+	zcat /usr/share/etherboot/pcnet32.zrom.gz       > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-pcnet.bin
+	zcat /usr/share/etherboot/rtl8139.zrom.gz       > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-rtl8139.bin
 
-# Build architecture-independent files here.
-binary-indep: build install
-# We have nothing to do by default.
+	cp $(CURDIR)/pc-bios/bamboo.dtb $(CURDIR)/pc-bios/mpc8544ds.dtb $(CURDIR)/debian/qemu/usr/share/qemu/
 
-# Build architecture-dependent files here.
-binary-arch: build install
+	for target in $(target_system_list) ; do \
+	  cp $(CURDIR)/$$target/libqemu.a $(CURDIR)/debian/libqemu-dev/usr/lib/qemu/$$target/ ; \
+	  cp $(CURDIR)/$$target/*.h $(CURDIR)/debian/libqemu-dev/usr/include/qemu/$$target/ ; \
+	done
+	
+binary-indep:
+# Nothing to do.
+
+binary-arch: install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs Changelog
-	dh_installdocs
-	dh_installexamples
-#	dh_install
-#	dh_installmenu
-#	dh_installdebconf	
-#	dh_installlogrotate
-#	dh_installemacsen
-#	dh_installpam
-#	dh_installmime
-#	dh_installinit
-#	dh_installcron
-#	dh_installinfo
-	dh_installman
-	dh_link
-	dh_strip
-	dh_compress
-	dh_fixperms
-#	dh_perl
-#	dh_python
-#	dh_makeshlibs
-	dh_installdeb
-	dh_shlibdeps
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
+	dh_install -a
+	dh_installdebconf -a
+	dh_installdocs -a
+	dh_installexamples -a
+	dh_installlogrotate -a
+	dh_installman -a
+	dh_installinfo -a
+	dh_installchangelogs -a Changelog
+	dh_link -a
+	dh_strip -a
+	dh_compress -a
+	dh_fixperms -a
+	chmod a+x $(CURDIR)/debian/qemu/etc/qemu-ifup
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
 
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install 
+
+.PHONY: build clean binary-indep binary-arch binary install
+

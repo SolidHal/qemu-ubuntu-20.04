@@ -1,25 +1,55 @@
 Source: qemu
 Section: misc
 Priority: optional
-Maintainer: Paul Russell <prussell@debian.org>
-Build-Depends: debhelper (>= 4.0.0), libx11-dev | xlibs-dev, docbook-to-man, libsdl1.2-dev (>> 1.2.1), texi2html, libgpmg1-dev
-Standards-Version: 3.6.1.0
+Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
+Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku@debian.org>,
+ Josh Triplett <josh@psas.pdx.edu>
+Build-Depends: debhelper (>= 5), quilt (>= 0.40), binutils (>= 2.16), nasm,
+ libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
+ texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot,
+ libpulse-dev,
+ libvdeplug2-dev [!kfreebsd-i386 !kfreebsd-amd64],
+ libfreebsd-dev [kfreebsd-i386 kfreebsd-amd64], 
+ libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
+ libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
+ libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc ppc64],
+ device-tree-compiler
+Standards-Version: 3.8.0
+Homepage: http://www.qemu.org/
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-qemu/
+Vcs-Svn: svn://svn.debian.org/pkg-qemu/trunk/
 
 Package: qemu
-Architecture: i386 powerpc
-Depends: ${shlibs:Depends}, libx11-6
-Description: Fast x86 Processor Emulator
- QEMU is a FAST! processor emulator: currently the package supports
- x86 emulation.  By using dynamic translation it achieves reasonable
- speed while being easy to port on new host CPUs.  QEMU has two
- operating modes:
+Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
+Depends: ${shlibs:Depends}, ${misc:Depends}, vgabios (>= 0.5a-1), bochsbios (>= 2.3.5-1),
+ proll, openhackware, openbios-ppc (>= 1.0-1), openbios-sparc (>= 1.0-1)
+Recommends: debootstrap, sharutils, vde2
+Suggests: sudo, samba, kqemu-source
+Description: fast processor emulator
+ QEMU is a fast processor emulator: currently the package supports
+ ARM, CRIS, i386, M68k (ColdFire), MIPS, PowerPC, SH4, SPARc and x86-64 
+ emulation. By using dynamic translation it achieves reasonable speed 
+ while being easy to port on new host CPUs. QEMU has two operating modes:
  .
   * User mode emulation: QEMU can launch Linux processes compiled for
     one CPU on another CPU.
   * Full system emulation: QEMU emulates a full system, including a
-    processor and various peripherials. It enables easier testing and
+    processor and various peripherals. It enables easier testing and
     debugging of system code. It can also be used to provide virtual
     hosting of several virtual PC on a single server.
  .
  As QEMU requires no host kernel patches to run, it is very safe and
  easy to use.
+
+Package: libqemu-dev
+Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
+Section: libdevel
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: static libraries and headers for QEMU
+ QEMU is a fast processor emulator: currently the package supports
+ ARM, CRIS, i386, M68k (ColdFire), MIPS, PowerPC, SH4, SPARc and x86-64 
+ emulation. By using dynamic translation it achieves reasonable speed 
+ while being easy to port on new host CPUs.
+ .
+ This package provides header files and static libraries suitable to
+ emulate the various CPU supported by QEMU directly in an application.

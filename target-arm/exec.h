@@ -1,6 +1,6 @@
 /*
  *  ARM execution defines
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *
  * This library is free software; you can redistribute it and/or
@@ -15,26 +15,44 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
+#include "config.h"
 #include "dyngen-exec.h"
 
 register struct CPUARMState *env asm(AREG0);
 register uint32_t T0 asm(AREG1);
 register uint32_t T1 asm(AREG2);
-register uint32_t T2 asm(AREG3);
+
+#define M0   env->iwmmxt.val
 
 #include "cpu.h"
 #include "exec-all.h"
 
-void cpu_lock(void);
-void cpu_unlock(void);
-void cpu_loop_exit(void);
-
-static inline int compute_cpsr(void)
+static inline void env_to_regs(void)
 {
-    int ZF;
-    ZF = (env->NZF == 0);
-    return env->cpsr | (env->NZF & 0x80000000) | (ZF << 30) | 
-        (env->CF << 29) | ((env->VF & 0x80000000) >> 3);
 }
+
+static inline void regs_to_env(void)
+{
+}
+
+static inline int cpu_halted(CPUState *env) {
+    if (!env->halted)
+        return 0;
+    /* An interrupt wakes the CPU even if the I and F CPSR bits are
+       set.  We use EXITTB to silently wake CPU without causing an
+       actual interrupt.  */
+    if (env->interrupt_request &
+        (CPU_INTERRUPT_FIQ | CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB)) {
+        env->halted = 0;
+        return 0;
+    }
+    return EXCP_HALTED;
+}
+
+#if !defined(CONFIG_USER_ONLY)
+#include "softmmu_exec.h"
+#endif
+
+void raise_exception(int);

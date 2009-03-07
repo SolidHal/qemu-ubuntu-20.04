@@ -1,0 +1,14 @@
+*.h usr/include/qemu/
+audio/*.h usr/include/qemu/audio/
+fpu/*.h usr/include/qemu/fpu/
+hw/*.h usr/include/qemu/hw/
+
+target-alpha/*.h usr/include/qemu/target-alpha/
+target-arm/*.h usr/include/qemu/target-arm
+target-cris/*.h usr/include/qemu/target-cris
+target-i386/*.h usr/include/qemu/target-i386
+target-m68k/*.h usr/include/qemu/target-m68k
+target-mips/*.h usr/include/qemu/target-mips
+target-ppc/*.h usr/include/qemu/target-ppc
+target-sh4/*.h usr/include/qemu/target-sh4
+target-sparc/*.h usr/include/qemu/target-sparc

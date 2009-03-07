@@ -1,0 +1,30 @@
+Index: qemu-0.10.0/hw/pc.c
+===================================================================
+--- qemu-0.10.0.orig/hw/pc.c	2009-03-07 13:46:58.000000000 +0100
++++ qemu-0.10.0/hw/pc.c	2009-03-07 13:47:27.000000000 +0100
+@@ -823,6 +823,7 @@
+      * and some bios areas, which will be registered later
+      */
+     ram_addr = qemu_ram_alloc(0x100000 - 0xa0000);
++    cpu_register_physical_memory(0xa0000, 0x100000 - 0xa0000, ram_addr);
+     ram_addr = qemu_ram_alloc(below_4g_mem_size - 0x100000);
+     cpu_register_physical_memory(0x100000,
+                  below_4g_mem_size - 0x100000,
+@@ -881,13 +882,13 @@
+                                      vga_bios_offset | IO_MEM_ROM);
+     }
+ 
+-    /* map the last 128KB of the BIOS in ISA space */
++    /* copy the last 128KB of the BIOS to ISA space */
+     isa_bios_size = bios_size;
+     if (isa_bios_size > (128 * 1024))
+         isa_bios_size = 128 * 1024;
+-    cpu_register_physical_memory(0x100000 - isa_bios_size,
+-                                 isa_bios_size,
+-                                 (bios_offset + bios_size - isa_bios_size) | IO_MEM_ROM);
++    memcpy(phys_ram_base + 0x100000 - isa_bios_size,
++           phys_ram_base + bios_offset + bios_size - isa_bios_size,
++           isa_bios_size);
+ 
+     {
+         ram_addr_t option_rom_offset;

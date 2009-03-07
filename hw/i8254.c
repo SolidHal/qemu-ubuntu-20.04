@@ -1,8 +1,8 @@
 /*
  * QEMU 8253/8254 interval timer emulation
- * 
+ *
  * Copyright (c) 2003-2004 Fabrice Bellard
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
@@ -21,7 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "vl.h"
+#include "hw.h"
+#include "pc.h"
+#include "isa.h"
+#include "qemu-timer.h"
 
 //#define DEBUG_PIT
 
@@ -47,7 +50,7 @@ typedef struct PITChannelState {
     /* irq handling */
     int64_t next_transition_time;
     QEMUTimer *irq_timer;
-    int irq;
+    qemu_irq irq;
 } PITChannelState;
 
 struct PITState {
@@ -121,7 +124,7 @@ int pit_get_out(PITState *pit, int channel, int64_t current_time)
 }
 
 /* return -1 if no transition will occur.  */
-static int64_t pit_get_next_transition_time(PITChannelState *s, 
+static int64_t pit_get_next_transition_time(PITChannelState *s,
                                             int64_t current_time)
 {
     uint64_t d, next_time, base;
@@ -147,7 +150,7 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
     case 3:
         base = (d / s->count) * s->count;
         period2 = ((s->count + 1) >> 1);
-        if ((d - base) < period2) 
+        if ((d - base) < period2)
             next_time = base + period2;
         else
             next_time = base + s->count;
@@ -207,6 +210,18 @@ int pit_get_gate(PITState *pit, int channel)
 {
     PITChannelState *s = &pit->channels[channel];
     return s->gate;
+}
+
+int pit_get_initial_count(PITState *pit, int channel)
+{
+    PITChannelState *s = &pit->channels[channel];
+    return s->count;
+}
+
+int pit_get_mode(PITState *pit, int channel)
+{
+    PITChannelState *s = &pit->channels[channel];
+    return s->mode;
 }
 
 static inline void pit_load_count(PITChannelState *s, int val)
@@ -297,7 +312,7 @@ static uint32_t pit_ioport_read(void *opaque, uint32_t addr)
     PITState *pit = opaque;
     int ret, count;
     PITChannelState *s;
-    
+
     addr &= 3;
     s = &pit->channels[addr];
     if (s->status_latched) {
@@ -354,10 +369,10 @@ static void pit_irq_timer_update(PITChannelState *s, int64_t current_time)
         return;
     expire_time = pit_get_next_transition_time(s, current_time);
     irq_level = pit_get_out1(s, current_time);
-    pic_set_irq(s->irq, irq_level);
+    qemu_set_irq(s->irq, irq_level);
 #ifdef DEBUG_PIT
     printf("irq_level=%d next_delay=%f\n",
-           irq_level, 
+           irq_level,
            (double)(expire_time - current_time) / ticks_per_sec);
 #endif
     s->next_transition_time = expire_time;
@@ -379,10 +394,10 @@ static void pit_save(QEMUFile *f, void *opaque)
     PITState *pit = opaque;
     PITChannelState *s;
     int i;
-    
+
     for(i = 0; i < 3; i++) {
         s = &pit->channels[i];
-        qemu_put_be32s(f, &s->count);
+        qemu_put_be32(f, s->count);
         qemu_put_be16s(f, &s->latched_count);
         qemu_put_8s(f, &s->count_latched);
         qemu_put_8s(f, &s->status_latched);
@@ -394,9 +409,9 @@ static void pit_save(QEMUFile *f, void *opaque)
         qemu_put_8s(f, &s->mode);
         qemu_put_8s(f, &s->bcd);
         qemu_put_8s(f, &s->gate);
-        qemu_put_be64s(f, &s->count_load_time);
+        qemu_put_be64(f, s->count_load_time);
         if (s->irq_timer) {
-            qemu_put_be64s(f, &s->next_transition_time);
+            qemu_put_be64(f, s->next_transition_time);
             qemu_put_timer(f, s->irq_timer);
         }
     }
@@ -407,13 +422,13 @@ static int pit_load(QEMUFile *f, void *opaque, int version_id)
     PITState *pit = opaque;
     PITChannelState *s;
     int i;
-    
+
     if (version_id != 1)
         return -EINVAL;
 
     for(i = 0; i < 3; i++) {
         s = &pit->channels[i];
-        qemu_get_be32s(f, &s->count);
+        s->count=qemu_get_be32(f);
         qemu_get_be16s(f, &s->latched_count);
         qemu_get_8s(f, &s->count_latched);
         qemu_get_8s(f, &s->status_latched);
@@ -425,36 +440,68 @@ static int pit_load(QEMUFile *f, void *opaque, int version_id)
         qemu_get_8s(f, &s->mode);
         qemu_get_8s(f, &s->bcd);
         qemu_get_8s(f, &s->gate);
-        qemu_get_be64s(f, &s->count_load_time);
+        s->count_load_time=qemu_get_be64(f);
         if (s->irq_timer) {
-            qemu_get_be64s(f, &s->next_transition_time);
+            s->next_transition_time=qemu_get_be64(f);
             qemu_get_timer(f, s->irq_timer);
         }
     }
     return 0;
 }
 
-PITState *pit_init(int base, int irq)
+static void pit_reset(void *opaque)
 {
-    PITState *pit = &pit_state;
+    PITState *pit = opaque;
     PITChannelState *s;
     int i;
 
     for(i = 0;i < 3; i++) {
         s = &pit->channels[i];
-        if (i == 0) {
-            /* the timer 0 is connected to an IRQ */
-            s->irq_timer = qemu_new_timer(vm_clock, pit_irq_timer, s);
-            s->irq = irq;
-        }
         s->mode = 3;
         s->gate = (i != 2);
         pit_load_count(s, 0);
     }
+}
+
+/* When HPET is operating in legacy mode, i8254 timer0 is disabled */
+void hpet_pit_disable(void) {
+    PITChannelState *s;
+    s = &pit_state.channels[0];
+    if (s->irq_timer)
+        qemu_del_timer(s->irq_timer);
+}
+
+/* When HPET is reset or leaving legacy mode, it must reenable i8254
+ * timer 0
+ */
+
+void hpet_pit_enable(void)
+{
+    PITState *pit = &pit_state;
+    PITChannelState *s;
+    s = &pit->channels[0];
+    s->mode = 3;
+    s->gate = 1;
+    pit_load_count(s, 0);
+}
+
+PITState *pit_init(int base, qemu_irq irq)
+{
+    PITState *pit = &pit_state;
+    PITChannelState *s;
+
+    s = &pit->channels[0];
+    /* the timer 0 is connected to an IRQ */
+    s->irq_timer = qemu_new_timer(vm_clock, pit_irq_timer, s);
+    s->irq = irq;
 
     register_savevm("i8254", base, 1, pit_save, pit_load, pit);
 
+    qemu_register_reset(pit_reset, pit);
     register_ioport_write(base, 4, 1, pit_ioport_write, pit);
     register_ioport_read(base, 3, 1, pit_ioport_read, pit);
+
+    pit_reset(pit);
+
     return pit;
 }

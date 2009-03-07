@@ -1,3 +1,234 @@
+version 0.10.0:
+
+  - TCG support (No longer requires GCC 3.x)
+  - Kernel Virtual Machine acceleration support
+  - BSD userspace emulation
+  - Bluetooth emulation and host passthrough support
+  - GDB XML register description support
+  - Intel e1000 emulation
+  - HPET emulation
+  - VirtIO paravirtual device support
+  - Marvell 88w8618 / MusicPal emulation
+  - Nokia N-series tablet emulation / OMAP2 processor emulation
+  - PCI hotplug support
+  - Live migration and new save/restore formats
+  - Curses display support
+  - qemu-nbd utility to mount supported block formats
+  - Altivec support in PPC emulation and new firmware (OpenBIOS)
+  - Multiple VNC clients are now supported
+  - TLS encryption is now supported in VNC
+  - MIPS Magnum R4000 machine (Hervé Poussineau)
+  - Braille support (Samuel Thibault)
+  - Freecom MusicPal system emulation (Jan Kiszka)
+  - OMAP242x and Nokia N800, N810 machines (Andrzej Zaborowski)
+  - EsounD audio driver (Frederick Reeve)
+  - Gravis Ultrasound GF1 sound card (Tibor "TS" Schütz)
+  - Many, many, bug fixes and new features
+
+version 0.9.1:
+
+  - TFTP booting from host directory (Anthony Liguori, Erwan Velu)
+  - Tap device emulation for Solaris (Sittichai Palanisong)
+  - Monitor multiplexing to several I/O channels (Jason Wessel)
+  - ds1225y nvram support (Herve Poussineau)
+  - CPU model selection support (J. Mayer, Paul Brook, Herve Poussineau)
+  - Several Sparc fixes (Aurelien Jarno, Blue Swirl, Robert Reif)
+  - MIPS 64-bit FPU support (Thiemo Seufer)
+  - Xscale PDA emulation (Andrzej Zaborowski)
+  - ColdFire system emulation (Paul Brook)
+  - Improved SH4 support (Magnus Damm)
+  - MIPS64 support (Aurelien Jarno, Thiemo Seufer)
+  - Preliminary Alpha guest support (J. Mayer)
+  - Read-only support for Parallels disk images (Alex Beregszaszi)
+  - SVM (x86 virtualization) support (Alexander Graf)
+  - CRIS emulation (Edgar E. Iglesias)
+  - SPARC32PLUS execution support (Blue Swirl)
+  - MIPS mipssim pseudo machine (Thiemo Seufer)
+  - Strace for Linux userland emulation (Stuart Anderson, Thayne Harbaugh)
+  - OMAP310 MPU emulation plus Palm T|E machine (Andrzej Zaborowski)
+  - ARM v6, v7, NEON SIMD and SMP emulation (Paul Brook/CodeSourcery)
+  - Gumstix boards: connex and verdex emulation (Thorsten Zitterell)
+  - Intel mainstone II board emulation (Armin Kuster)
+  - VMware SVGA II graphics card support (Andrzej Zaborowski)
+
+version 0.9.0:
+
+  - Support for relative paths in backing files for disk images
+  - Async file I/O API
+  - New qcow2 disk image format
+  - Support of multiple VM snapshots
+  - Linux: specific host CDROM and floppy support
+  - SMM support
+  - Moved PCI init, MP table init and ACPI table init to Bochs BIOS
+  - Support for MIPS32 Release 2 instruction set (Thiemo Seufer)
+  - MIPS Malta system emulation (Aurelien Jarno, Stefan Weil)
+  - Darwin userspace emulation (Pierre d'Herbemont)
+  - m68k user support (Paul Brook)
+  - several x86 and x86_64 emulation fixes
+  - Mouse relative offset VNC extension (Anthony Liguori)
+  - PXE boot support (Anthony Liguori)
+  - '-daemonize' option (Anthony Liguori)
+
+version 0.8.2:
+
+  - ACPI support
+  - PC VGA BIOS fixes
+  - switch to OpenBios for SPARC targets (Blue Swirl)
+  - VNC server fixes
+  - MIPS FPU support (Marius Groeger)
+  - Solaris/SPARC host support (Juergen Keil)
+  - PPC breakpoints and single stepping (Jason Wessel)
+  - USB updates (Paul Brook)
+  - UDP/TCP/telnet character devices (Jason Wessel)
+  - Windows sparse file support (Frediano Ziglio)
+  - RTL8139 NIC TCP segmentation offloading (Igor Kovalenko)
+  - PCNET NIC support (Antony T Curtis)
+  - Support for variable frequency host CPUs
+  - Workaround for win32 SMP hosts
+  - Support for AMD Flash memories (Jocelyn Mayer)
+  - Audio capture to WAV files support (malc)
+
+version 0.8.1:
+
+  - USB tablet support (Brad Campbell, Anthony Liguori)
+  - win32 host serial support (Kazu)
+  - PC speaker support (Joachim Henke)
+  - IDE LBA48 support (Jens Axboe)
+  - SSE3 support
+  - Solaris port (Juergen Keil)
+  - Preliminary SH4 target (Samuel Tardieu)
+  - VNC server (Anthony Liguori)
+  - slirp fixes (Ed Swierk et al.)
+  - USB fixes
+  - ARM Versatile Platform Baseboard emulation (Paul Brook)
+
+version 0.8.0:
+
+  - ARM system emulation: Arm Integrator/CP board with an arm1026ej-s
+    cpu (Paul Brook)
+  - SMP support
+  - Mac OS X cocoa improvements (Mike Kronenberg)
+  - Mac OS X CoreAudio driver (Mike Kronenberg)
+  - DirectSound driver (malc)
+  - ALSA audio driver (malc)
+  - new audio options: '-soundhw' and '-audio-help' (malc)
+  - ES1370 PCI audio device (malc)
+  - Initial USB support
+  - Linux host serial port access
+  - Linux host low level parallel port access
+  - New network emulation code supporting VLANs.
+  - MIPS and MIPSel User Linux emulation
+  - MIPS fixes to boot Linux (Daniel Jacobowitz)
+  - NX bit support
+  - Initial SPARC SMP support (Blue Swirl)
+  - Major overhaul of the virtual FAT driver for read/write support
+    (Johannes Schindelin)
+
+version 0.7.2:
+
+  - x86_64 fixes (Win2000 and Linux 2.6 boot in 32 bit)
+  - merge self modifying code handling in dirty ram page mecanism.
+  - MIPS fixes (Ralf Baechle)
+  - better user net performances
+
+version 0.7.1:
+
+  - read-only Virtual FAT support (Johannes Schindelin)
+  - Windows 2000 install disk full hack (original idea from Vladimir
+    N. Oleynik)
+  - VMDK disk image creation (Filip Navara)
+  - SPARC64 progress (Blue Swirl)
+  - initial MIPS support (Jocelyn mayer)
+  - MIPS improvements (Ralf Baechle)
+  - 64 bit fixes in user networking (initial patch by Gwenole Beauchesne)
+  - IOAPIC support (Filip Navara)
+
+version 0.7.0:
+
+  - better BIOS translation and HDD geometry auto-detection
+  - user mode networking bug fix
+  - undocumented FPU ops support
+  - Cirrus VGA: support for 1280x1024x[8,15,16] modes
+  - 'pidfile' option
+  - .dmg disk image format support (Johannes Schindelin)
+  - keymaps support (initial patch by Johannes Schindelin)
+  - big endian ARM support (Lennert Buytenhek)
+  - added generic 64 bit target support
+  - x86_64 target support
+  - initial APIC support
+  - MMX/SSE/SSE2/PNI support
+  - PC parallel port support (Mark Jonckheere)
+  - initial SPARC64 support (Blue Swirl)
+  - SPARC target boots Linux (Blue Swirl)
+  - armv5te user mode support (Paul Brook)
+  - ARM VFP support (Paul Brook)
+  - ARM "Angel" semihosting syscalls (Paul Brook)
+  - user mode gdb stub support (Paul Brook)
+  - Samba 3 support
+  - initial Cocoa support (Pierre d'Herbemont)
+  - generic FPU emulation code
+  - Virtual PC read-only disk image support (Alex Beregszaszi)
+
+version 0.6.1:
+
+  - Mac OS X port (Pierre d'Herbemont)
+  - Virtual console support
+  - Better monitor line edition
+  - New block device layer
+  - New 'qcow' growable disk image support with AES encryption and
+    transparent decompression
+  - VMware 3 and 4 read-only disk image support (untested)
+  - Support for up to 4 serial ports
+  - TFTP server support (Magnus Damm)
+  - Port redirection support in user mode networking
+  - Support for not executable data sections
+  - Compressed loop disk image support (Johannes Schindelin)
+  - Level triggered IRQ fix (aka NE2000 PCI performance fix) (Steve
+    Wormley)
+  - Fixed Fedora Core 2 problems (now you can run qemu without any
+    LD_ASSUME_KERNEL tricks on FC2)
+  - DHCP fix for Windows (accept DHCPREQUEST alone)
+  - SPARC system emulation (Blue Swirl)
+  - Automatic Samba configuration for host file access from Windows.
+  - '-loadvm' and '-full-screen' options
+  - ne2000 savevm support (Johannes Schindelin)
+  - Ctrl-Alt is now the default grab key. Ctrl-Alt-[0-9] switches to
+    the virtual consoles.
+  - BIOS floppy fix for NT4 (Mike Nordell, Derek Fawcus, Volker Ruppert)
+  - Floppy fixes for NT4 and NT5 (Mike Nordell)
+  - NT4 IDE fixes (Ben Pfaf, Mike Nordell)
+  - SDL Audio support and SB16 fixes (malc)
+  - ENTER instruction bug fix (initial patch by Stefan Kisdaroczi)
+  - VGA font change fix
+  - VGA read-only CRTC register fix
+
+version 0.6.0:
+
+  - minimalist FPU exception support (NetBSD FPU probe fix)
+  - cr0.ET fix (Win95 boot)
+  - *BSD port (Markus Niemisto)
+  - I/O access fix (signaled by Mark Jonckheere)
+  - IDE drives serial number fix (Mike Nordell)
+  - int13 CDROM BIOS fix (aka Solaris x86 install CD fix)
+  - int15, ah=86 BIOS fix (aka Solaris x86 hardware probe hang up fix)
+  - BSR/BSF "undefined behaviour" fix
+  - vmdk2raw: convert VMware disk images to raw images
+  - PCI support
+  - NE2K PCI support
+  - dummy VGA PCI support
+  - VGA font selection fix (Daniel Serpell)
+  - PIC reset fix (Hidemi KAWAI)
+  - PIC spurious irq support (aka Solaris install bug)
+  - added '-localtime' option
+  - Cirrus CL-GD54xx VGA support (initial patch by Makoto Suzuki (suzu))
+  - APM and system shutdown support
+  - Fixed system reset
+  - Support for other PC BIOSes
+  - Initial PowerMac hardware emulation
+  - PowerMac/PREP OpenFirmware compatible BIOS (Jocelyn Mayer)
+  - initial IDE BMDMA support (needed for Darwin x86)
+  - Set the default memory size for PC emulation to 128 MB
+
 version 0.5.5:
 
   - SDL full screen support (initial patch by malc)
@@ -9,7 +240,7 @@ version 0.5.5:
   - FDC fixes for Win98
 
 version 0.5.4:
-  
+
   - qemu-fast fixes
   - BIOS area protection fix (aka EMM386.EXE fix) (Mike Nordell)
   - keyboard/mouse fix (Mike Nordell)
@@ -36,7 +267,7 @@ version 0.5.3:
   - added accurate CR0.MP/ME/TS emulation
   - fixed DMA memory write access (Win95 boot floppy fix)
   - graphical x86 linux loader
-  - command line monitor 
+  - command line monitor
   - generic removable device support
   - support of CD-ROM change
   - multiple network interface support
@@ -74,7 +305,7 @@ version 0.5.2:
   - eflags optimisation fix for string operations
 
 version 0.5.1:
-  
+
   - float access fixes when using soft mmu
   - PC emulation support on PowerPC
   - A20 support
@@ -89,7 +320,7 @@ version 0.5.1:
   - Major SPARC target fixes (dynamically linked programs begin to work)
 
 version 0.5.0:
-  
+
   - full hardware level VGA emulation
   - graphical display with SDL
   - added PS/2 mouse and keyboard emulation
@@ -127,7 +358,7 @@ version 0.4.2:
  - SMP kernels can at least be booted
 
 version 0.4.1:
-  
+
  - more accurate timer support in vl.
  - more reliable NE2000 probe in vl.
  - added 2.5.66 kernel in vl-test.
@@ -213,7 +444,7 @@ version 0.1.3:
  - added bound, cmpxchg8b, cpuid instructions
  - added 16 bit addressing support/override for string operations
  - poll() fix
- 
+
 version 0.1.2:
 
  - compile fixes

@@ -1,0 +1,69 @@
+Index: qemu-0.10.0/linux-user/syscall.c
+===================================================================
+--- qemu-0.10.0.orig/linux-user/syscall.c	2009-03-07 13:47:26.000000000 +0100
++++ qemu-0.10.0/linux-user/syscall.c	2009-03-07 13:47:26.000000000 +0100
+@@ -56,6 +56,7 @@
+ //#include <sys/user.h>
+ #include <netinet/ip.h>
+ #include <netinet/tcp.h>
++#include <sys/un.h>
+ #include <sys/sysctl.h>
+ #include <qemu-common.h>
+ #ifdef HAVE_GPROF
+@@ -693,14 +694,17 @@
+ 
+ static inline abi_long target_to_host_sockaddr(struct sockaddr *addr,
+                                                abi_ulong target_addr,
+-                                               socklen_t len)
++                                               socklen_t *target_len)
+ {
++    const socklen_t len = sizeof (struct sockaddr_un);
+     struct target_sockaddr *target_saddr;
+ 
+-    target_saddr = lock_user(VERIFY_READ, target_addr, len, 1);
++    target_saddr = lock_user(VERIFY_READ, target_addr, *target_len, 1);
+     if (!target_saddr)
+         return -TARGET_EFAULT;
+-    memcpy(addr, target_saddr, len);
++    if (target_saddr->sa_family == AF_UNIX && *target_len > len)
++        *target_len = len;
++    memcpy(addr, target_saddr, *target_len);
+     addr->sa_family = tswap16(target_saddr->sa_family);
+     unlock_user(target_saddr, target_addr, 0);
+ 
+@@ -1253,7 +1257,7 @@
+ 
+     addr = alloca(addrlen);
+ 
+-    target_to_host_sockaddr(addr, target_addr, addrlen);
++    target_to_host_sockaddr(addr, target_addr, &addrlen);
+     return get_errno(bind(sockfd, addr, addrlen));
+ }
+ 
+@@ -1268,7 +1272,7 @@
+ 
+     addr = alloca(addrlen);
+ 
+-    target_to_host_sockaddr(addr, target_addr, addrlen);
++    target_to_host_sockaddr(addr, target_addr, &addrlen);
+     return get_errno(connect(sockfd, addr, addrlen));
+ }
+ 
+@@ -1293,7 +1297,7 @@
+         msg.msg_namelen = tswap32(msgp->msg_namelen);
+         msg.msg_name = alloca(msg.msg_namelen);
+         target_to_host_sockaddr(msg.msg_name, tswapl(msgp->msg_name),
+-                                msg.msg_namelen);
++                                &msg.msg_namelen);
+     } else {
+         msg.msg_name = NULL;
+         msg.msg_namelen = 0;
+@@ -1443,7 +1447,7 @@
+         return -TARGET_EFAULT;
+     if (target_addr) {
+         addr = alloca(addrlen);
+-        target_to_host_sockaddr(addr, target_addr, addrlen);
++        target_to_host_sockaddr(addr, target_addr, &addrlen);
+         ret = get_errno(sendto(fd, host_msg, len, flags, addr, addrlen));
+     } else {
+         ret = get_errno(send(fd, host_msg, len, flags));

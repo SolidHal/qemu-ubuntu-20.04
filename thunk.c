@@ -1,6 +1,6 @@
 /*
  *  Generic thunking code to convert data between host and target CPU
- * 
+ *
  *  Copyright (c) 2003 Fabrice Bellard
  *
  * This library is free software; you can redistribute it and/or
@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 #include <stdlib.h>
 #include <stdio.h>
@@ -30,6 +30,8 @@
 
 /* XXX: make it dynamic */
 StructEntry struct_entries[MAX_STRUCTS];
+
+static const argtype *thunk_type_next_ptr(const argtype *type_ptr);
 
 static inline const argtype *thunk_type_next(const argtype *type_ptr)
 {
@@ -47,14 +49,19 @@ static inline const argtype *thunk_type_next(const argtype *type_ptr)
     case TYPE_PTRVOID:
         return type_ptr;
     case TYPE_PTR:
-        return thunk_type_next(type_ptr);
+        return thunk_type_next_ptr(type_ptr);
     case TYPE_ARRAY:
-        return thunk_type_next(type_ptr + 1);
+        return thunk_type_next_ptr(type_ptr + 1);
     case TYPE_STRUCT:
         return type_ptr + 1;
     default:
         return NULL;
     }
+}
+
+static const argtype *thunk_type_next_ptr(const argtype *type_ptr)
+{
+    return thunk_type_next(type_ptr);
 }
 
 void thunk_register_struct(int id, const char *name, const argtype *types)
@@ -64,7 +71,7 @@ void thunk_register_struct(int id, const char *name, const argtype *types)
     int nb_fields, offset, max_align, align, size, i, j;
 
     se = struct_entries + id;
-    
+
     /* first we count the number of fields */
     type_ptr = types;
     nb_fields = 0;
@@ -76,7 +83,7 @@ void thunk_register_struct(int id, const char *name, const argtype *types)
     se->nb_fields = nb_fields;
     se->name = name;
 #ifdef DEBUG
-    printf("struct %s: id=%d nb_fields=%d\n", 
+    printf("struct %s: id=%d nb_fields=%d\n",
            se->name, id, se->nb_fields);
 #endif
     /* now we can alloc the data */
@@ -100,13 +107,14 @@ void thunk_register_struct(int id, const char *name, const argtype *types)
         se->size[i] = offset;
         se->align[i] = max_align;
 #ifdef DEBUG
-        printf("%s: size=%d align=%d\n", 
+        printf("%s: size=%d align=%d\n",
                i == THUNK_HOST ? "host" : "target", offset, max_align);
 #endif
     }
 }
 
-void thunk_register_struct_direct(int id, const char *name, StructEntry *se1)
+void thunk_register_struct_direct(int id, const char *name,
+                                  const StructEntry *se1)
 {
     StructEntry *se;
     se = struct_entries + id;
@@ -116,7 +124,7 @@ void thunk_register_struct_direct(int id, const char *name, StructEntry *se1)
 
 
 /* now we can define the main conversion functions */
-const argtype *thunk_convert(void *dst, const void *src, 
+const argtype *thunk_convert(void *dst, const void *src,
                              const argtype *type_ptr, int to_host)
 {
     int type;
@@ -136,24 +144,50 @@ const argtype *thunk_convert(void *dst, const void *src,
     case TYPE_ULONGLONG:
         *(uint64_t *)dst = tswap64(*(uint64_t *)src);
         break;
-#if HOST_LONG_BITS == 32 && TARGET_LONG_BITS == 32
+#if HOST_LONG_BITS == 32 && TARGET_ABI_BITS == 32
     case TYPE_LONG:
     case TYPE_ULONG:
     case TYPE_PTRVOID:
         *(uint32_t *)dst = tswap32(*(uint32_t *)src);
         break;
-#elif HOST_LONG_BITS == 64 && TARGET_LONG_BITS == 32
+#elif HOST_LONG_BITS == 64 && TARGET_ABI_BITS == 32
     case TYPE_LONG:
     case TYPE_ULONG:
     case TYPE_PTRVOID:
         if (to_host) {
-            *(uint64_t *)dst = tswap32(*(uint32_t *)src);
+            if (type == TYPE_LONG) {
+                /* sign extension */
+                *(uint64_t *)dst = (int32_t)tswap32(*(uint32_t *)src);
+            } else {
+                *(uint64_t *)dst = tswap32(*(uint32_t *)src);
+            }
         } else {
             *(uint32_t *)dst = tswap32(*(uint64_t *)src & 0xffffffff);
         }
         break;
+#elif HOST_LONG_BITS == 64 && TARGET_ABI_BITS == 64
+    case TYPE_LONG:
+    case TYPE_ULONG:
+    case TYPE_PTRVOID:
+        *(uint64_t *)dst = tswap64(*(uint64_t *)src);
+        break;
+#elif HOST_LONG_BITS == 32 && TARGET_ABI_BITS == 64
+    case TYPE_LONG:
+    case TYPE_ULONG:
+    case TYPE_PTRVOID:
+        if (to_host) {
+            *(uint32_t *)dst = tswap64(*(uint64_t *)src);
+        } else {
+            if (type == TYPE_LONG) {
+                /* sign extension */
+                *(uint64_t *)dst = tswap64(*(int32_t *)src);
+            } else {
+                *(uint64_t *)dst = tswap64(*(uint32_t *)src);
+            }
+        }
+        break;
 #else
-#error unsupported conversion
+#warning unsupported conversion
 #endif
     case TYPE_ARRAY:
         {
@@ -182,7 +216,7 @@ const argtype *thunk_convert(void *dst, const void *src,
             uint8_t  *d;
             const argtype *field_types;
             const int *dst_offsets, *src_offsets;
-            
+
             se = struct_entries + *type_ptr++;
             if (se->convert[0] != NULL) {
                 /* specific conversion is needed */
@@ -195,8 +229,8 @@ const argtype *thunk_convert(void *dst, const void *src,
                 d = dst;
                 s = src;
                 for(i = 0;i < se->nb_fields; i++) {
-                    field_types = thunk_convert(d + dst_offsets[i], 
-                                                s + src_offsets[i], 
+                    field_types = thunk_convert(d + dst_offsets[i],
+                                                s + src_offsets[i],
                                                 field_types, to_host);
                 }
             }
@@ -214,10 +248,10 @@ const argtype *thunk_convert(void *dst, const void *src,
 /* Utility function: Table-driven functions to translate bitmasks
  * between X86 and Alpha formats...
  */
-unsigned int target_to_host_bitmask(unsigned int x86_mask, 
-                                    bitmask_transtbl * trans_tbl)
+unsigned int target_to_host_bitmask(unsigned int x86_mask,
+                                    const bitmask_transtbl * trans_tbl)
 {
-    bitmask_transtbl *	btp;
+    const bitmask_transtbl *btp;
     unsigned int	alpha_mask = 0;
 
     for(btp = trans_tbl; btp->x86_mask && btp->alpha_mask; btp++) {
@@ -228,16 +262,28 @@ unsigned int target_to_host_bitmask(unsigned int x86_mask,
     return(alpha_mask);
 }
 
-unsigned int host_to_target_bitmask(unsigned int alpha_mask, 
-                                    bitmask_transtbl * trans_tbl)
+unsigned int host_to_target_bitmask(unsigned int alpha_mask,
+                                    const bitmask_transtbl * trans_tbl)
 {
-    bitmask_transtbl *	btp;
+    const bitmask_transtbl *btp;
     unsigned int	x86_mask = 0;
 
     for(btp = trans_tbl; btp->x86_mask && btp->alpha_mask; btp++) {
 	if((alpha_mask & btp->alpha_mask) == btp->alpha_bits) {
-	    x86_mask |= btp->x86_mask;
+	    x86_mask |= btp->x86_bits;
 	}
     }
     return(x86_mask);
 }
+
+#ifndef NO_THUNK_TYPE_SIZE
+int thunk_type_size_array(const argtype *type_ptr, int is_host)
+{
+    return thunk_type_size(type_ptr, is_host);
+}
+
+int thunk_type_align_array(const argtype *type_ptr, int is_host)
+{
+    return thunk_type_align(type_ptr, is_host);
+}
+#endif /* ndef NO_THUNK_TYPE_SIZE */

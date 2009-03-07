@@ -10,11 +10,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -126,17 +122,12 @@ char *tcptimers[] =
 		(tv) = (tvmax); \
 }
 
-extern int tcp_keepidle;		/* time before keepalive probes begin */
-extern int tcp_keepintvl;		/* time between keepalive probes */
-extern int tcp_maxidle;			/* time to drop after starting probes */
-extern int tcp_ttl;			/* time to live for TCP segs */
-extern int tcp_backoff[];
+extern const int tcp_backoff[];
 
 struct tcpcb;
 
 void tcp_fasttimo _P((void));
 void tcp_slowtimo _P((void));
 void tcp_canceltimers _P((struct tcpcb *));
-struct tcpcb * tcp_timers _P((register struct tcpcb *, int));
 
 #endif

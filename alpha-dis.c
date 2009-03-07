@@ -17,14 +17,11 @@ the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this file; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 #include <stdio.h>
 #include "dis-asm.h"
-
-#define ATTRIBUTE_UNUSED __attribute__((unused))
-#define _(x) x
 
 /* The opcode table is an array of struct alpha_opcode.  */
 
@@ -377,7 +374,7 @@ const struct alpha_operand alpha_operands[] =
 
   /* The signed "23-bit" aligned displacement of Branch format insns */
 #define BDISP		(MDISP + 1)
-  { 21, 0, BFD_RELOC_23_PCREL_S2, 
+  { 21, 0, BFD_RELOC_23_PCREL_S2,
     AXP_OPERAND_RELATIVE, insert_bdisp, extract_bdisp },
 
   /* The 26-bit PALcode function */

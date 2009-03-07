@@ -1,0 +1,27 @@
+Index: qemu-0.10.0/Makefile.target
+===================================================================
+--- qemu-0.10.0.orig/Makefile.target	2009-03-07 13:47:24.000000000 +0100
++++ qemu-0.10.0/Makefile.target	2009-03-07 13:47:25.000000000 +0100
+@@ -63,12 +63,8 @@
+ QEMU_PROG=qemu-$(TARGET_ARCH2)
+ else
+ # system emulator name
+-ifeq ($(TARGET_ARCH), i386)
+-QEMU_PROG=qemu$(EXESUF)
+-else
+ QEMU_PROG=qemu-system-$(TARGET_ARCH2)$(EXESUF)
+ endif
+-endif
+ 
+ PROGS=$(QEMU_PROG)
+ 
+@@ -747,6 +743,9 @@
+ ifneq ($(PROGS),)
+ 	$(INSTALL) -m 755 $(PROGS) "$(DESTDIR)$(bindir)"
+ endif
++ifeq ($(TARGET_ARCH), i386)
++	ln -sf qemu-system-i386$(EXESUF) "$(DESTDIR)$(bindir)/qemu$(EXESUF)"
++endif
+ 
+ # Include automatically generated dependency files
+ -include $(wildcard *.d */*.d)
