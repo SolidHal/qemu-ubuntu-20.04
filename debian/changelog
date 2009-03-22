@@ -1,3 +1,17 @@
+qemu (0.10.1-1) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * New upstream stable release:
+    - patches/80_stable-branch.patch: remove.
+  * debian/control: 
+    - Remove depends on proll.
+    - Move depends on device-tree-compiler to build-depends.
+    - Bump Standards-Version to 3.8.1 (no changes).
+  * patches/82_qemu-img_decimal.patch: new patch from upstream to make
+    qemu-img accept sizes with decimal values (closes: bug#501400).
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sun, 22 Mar 2009 10:13:17 +0100
+
 qemu (0.10.0-1) unstable; urgency=low
 
   [ Aurelien Jarno ]
