@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
 Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku@debian.org>,
  Josh Triplett <josh@psas.pdx.edu>
-Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler
+Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot,
  libpulse-dev,
@@ -20,7 +20,7 @@ Vcs-Svn: svn://svn.debian.org/pkg-qemu/trunk/
 
 Package: qemu
 Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, vgabios (>= 0.5a-1), bochsbios (>= 2.3.5-1),
+Depends: ${shlibs:Depends}, ${misc:Depends}, vgabios (>= 0.6c-1), bochsbios (>= 2.3.5-1),
  openhackware, openbios-ppc (>= 1.0-1), openbios-sparc (>= 1.0-1)
 Recommends: debootstrap, sharutils, vde2
 Suggests: sudo, samba, kqemu-source

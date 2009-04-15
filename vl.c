@@ -3220,10 +3220,10 @@ static int ram_save_live(QEMUFile *f, int stage, void *opaque)
     /* try transferring iterative blocks of memory */
 
     if (stage == 3) {
-        cpu_physical_memory_set_dirty_tracking(0);
 
         /* flush all remaining blocks regardless of rate limiting */
         while (ram_save_block(f) != 0);
+        cpu_physical_memory_set_dirty_tracking(0);
     }
 
     qemu_put_be64(f, RAM_SAVE_FLAG_EOS);
@@ -4244,9 +4244,7 @@ static const QEMUOption qemu_options[] = {
     { "boot", HAS_ARG, QEMU_OPTION_boot },
     { "snapshot", 0, QEMU_OPTION_snapshot },
     { "m", HAS_ARG, QEMU_OPTION_m },
-#ifndef _WIN32
     { "k", HAS_ARG, QEMU_OPTION_k },
-#endif
 #ifdef HAS_AUDIO
     { "audio-help", 0, QEMU_OPTION_audio_help },
     { "soundhw", HAS_ARG, QEMU_OPTION_soundhw },

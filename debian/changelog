@@ -1,3 +1,17 @@
+qemu (0.10.2-2) unstable; urgency=low
+
+  * Add missing comma in build-depends (closes: bug#524207). 
+  * Tighten dependency on vgabios.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Wed, 15 Apr 2009 22:30:43 +0200
+
+qemu (0.10.2-1) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * New upstream stable release.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 07 Apr 2009 07:37:15 +0200
+
 qemu (0.10.1-1) unstable; urgency=low
 
   [ Aurelien Jarno ]
