@@ -20,7 +20,7 @@ Vcs-Svn: svn://svn.debian.org/pkg-qemu/trunk/
 
 Package: qemu
 Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, vgabios (>= 0.6c-1), bochsbios (>= 2.3.5-1),
+Depends: ${shlibs:Depends}, ${misc:Depends}, vgabios (>= 0.6c-1), bochsbios (>= 2.3.7+20090416-1),
  openhackware, openbios-ppc (>= 1.0-1), openbios-sparc (>= 1.0-1)
 Recommends: debootstrap, sharutils, vde2
 Suggests: sudo, samba, kqemu-source

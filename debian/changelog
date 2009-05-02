@@ -1,3 +1,10 @@
+qemu (0.10.3-1) unstable; urgency=low
+
+  * New upstream version.
+  * Tighten dependency on bochsbios.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sat, 02 May 2009 10:14:21 +0200
+
 qemu (0.10.2-2) unstable; urgency=low
 
   * Add missing comma in build-depends (closes: bug#524207). 

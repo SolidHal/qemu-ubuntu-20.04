@@ -2566,7 +2566,7 @@ int drive_init(struct drive_opt *arg, int snapshot, void *opaque)
     drives_table[drives_table_idx].unit = unit_id;
     drives_table[drives_table_idx].onerror = onerror;
     drives_table[drives_table_idx].drive_opt_idx = arg - drives_opt;
-    strncpy(drives_table[nb_drives].serial, serial, sizeof(serial));
+    strncpy(drives_table[drives_table_idx].serial, serial, sizeof(serial));
     nb_drives++;
 
     switch(type) {
@@ -5485,6 +5485,7 @@ int main(int argc, char **argv, char **envp)
     cpu_exec_init_all(tb_size * 1024 * 1024);
 
     bdrv_init();
+    dma_helper_init();
 
     /* we always create the cdrom drive, even if no disk is there */
 
