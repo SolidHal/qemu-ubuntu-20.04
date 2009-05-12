@@ -14,7 +14,7 @@
 64_ppc_asm_constraints.patch
 65_kfreebsd.patch 
 66_tls_ld.patch 
-#80_stable-branch.patch
+70_versatile_memsize.patch
 81_compile_dtb.patch
 82_qemu-img_decimal.patch
 security/leftover.patch

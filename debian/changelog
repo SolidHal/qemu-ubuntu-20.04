@@ -1,3 +1,14 @@
+qemu (0.10.4-1) unstable; urgency=low
+
+  * New upstream version.
+  * debian/NEWS.Debian: new file, describing the cache policy options
+    (closes: bug#526832).
+  * debian/patches/70_versatile_memsize.patch: new patch to set a upper
+    limit on the memory size of the versatile boards (closes: 
+    bug#527264).
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 12 May 2009 18:31:29 +0200
+
 qemu (0.10.3-1) unstable; urgency=low
 
   * New upstream version.
