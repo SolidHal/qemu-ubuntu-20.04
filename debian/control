@@ -2,21 +2,20 @@ Source: qemu
 Section: misc
 Priority: optional
 Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
-Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku@debian.org>,
- Josh Triplett <josh@psas.pdx.edu>
+Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku.voipio@iki.fi>
 Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot,
  libpulse-dev,
  libvdeplug2-dev [!kfreebsd-i386 !kfreebsd-amd64],
- libfreebsd-dev [kfreebsd-i386 kfreebsd-amd64], 
+ libfreebsd-dev [kfreebsd-i386 kfreebsd-amd64],
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc ppc64]
 Standards-Version: 3.8.1
 Homepage: http://www.qemu.org/
-Vcs-Browser: http://svn.debian.org/wsvn/pkg-qemu/
-Vcs-Svn: svn://svn.debian.org/pkg-qemu/trunk/
+Vcs-Browser: http://git.debian.org/?p=users/riku/qemu.git
+Vcs-Git: git://git.debian.org/users/riku/qemu.git
 
 Package: qemu
 Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64

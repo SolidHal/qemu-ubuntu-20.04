@@ -7,13 +7,14 @@
  * This code is licenced under the GPL.
  */
 
-#include "hw.h"
+#include "sysbus.h"
 #include "primecell.h"
 #include "sysemu.h"
 
 #define LOCK_VALUE 0xa05f
 
 typedef struct {
+    SysBusDevice busdev;
     uint32_t sys_id;
     uint32_t leds;
     uint16_t lockval;
@@ -188,18 +189,48 @@ static CPUWriteMemoryFunc *arm_sysctl_writefn[] = {
    arm_sysctl_write
 };
 
-void arm_sysctl_init(uint32_t base, uint32_t sys_id)
+static void arm_sysctl_init1(SysBusDevice *dev)
 {
-    arm_sysctl_state *s;
+    arm_sysctl_state *s = FROM_SYSBUS(arm_sysctl_state, dev);
     int iomemtype;
 
-    s = (arm_sysctl_state *)qemu_mallocz(sizeof(arm_sysctl_state));
-    s->sys_id = sys_id;
     /* The MPcore bootloader uses these flags to start secondary CPUs.
        We don't use a bootloader, so do this here.  */
     s->flags = 3;
-    iomemtype = cpu_register_io_memory(0, arm_sysctl_readfn,
+    iomemtype = cpu_register_io_memory(arm_sysctl_readfn,
                                        arm_sysctl_writefn, s);
-    cpu_register_physical_memory(base, 0x00001000, iomemtype);
+    sysbus_init_mmio(dev, 0x1000, iomemtype);
     /* ??? Save/restore.  */
 }
+
+/* Legacy helper function.  */
+void arm_sysctl_init(uint32_t base, uint32_t sys_id)
+{
+    DeviceState *dev;
+
+    dev = qdev_create(NULL, "realview_sysctl");
+    qdev_prop_set_uint32(dev, "sys_id", sys_id);
+    qdev_init(dev);
+    sysbus_mmio_map(sysbus_from_qdev(dev), 0, base);
+}
+
+static SysBusDeviceInfo arm_sysctl_info = {
+    .init = arm_sysctl_init1,
+    .qdev.name  = "realview_sysctl",
+    .qdev.size  = sizeof(arm_sysctl_state),
+    .qdev.props = (Property[]) {
+        {
+            .name   = "sys_id",
+            .info   = &qdev_prop_uint32,
+            .offset = offsetof(arm_sysctl_state, sys_id),
+        },
+        {/* end of list */}
+    }
+};
+
+static void arm_sysctl_register_devices(void)
+{
+    sysbus_register_withprop(&arm_sysctl_info);
+}
+
+device_init(arm_sysctl_register_devices)

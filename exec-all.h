@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef _EXEC_ALL_H_
@@ -115,10 +114,7 @@ static inline int tlb_set_page(CPUState *env1, target_ulong vaddr,
 #define CODE_GEN_AVG_BLOCK_SIZE 64
 #endif
 
-#if defined(_ARCH_PPC) || defined(__x86_64__) || defined(__arm__)
-#define USE_DIRECT_JUMP
-#endif
-#if defined(__i386__) && !defined(_WIN32)
+#if defined(_ARCH_PPC) || defined(__x86_64__) || defined(__arm__) || defined(__i386__)
 #define USE_DIRECT_JUMP
 #endif
 
@@ -316,6 +312,7 @@ static inline target_ulong get_phys_addr_code(CPUState *env1, target_ulong addr)
 static inline target_ulong get_phys_addr_code(CPUState *env1, target_ulong addr)
 {
     int mmu_idx, page_index, pd;
+    void *p;
 
     page_index = (addr >> TARGET_PAGE_BITS) & (CPU_TLB_SIZE - 1);
     mmu_idx = cpu_mmu_index(env1);
@@ -331,7 +328,9 @@ static inline target_ulong get_phys_addr_code(CPUState *env1, target_ulong addr)
         cpu_abort(env1, "Trying to execute code outside RAM or ROM at 0x" TARGET_FMT_lx "\n", addr);
 #endif
     }
-    return addr + env1->tlb_table[mmu_idx][page_index].addend - (unsigned long)phys_ram_base;
+    p = (void *)(unsigned long)addr
+        + env1->tlb_table[mmu_idx][page_index].addend;
+    return qemu_ram_addr_from_host(p);
 }
 
 /* Deterministic execution requires that IO only be performed on the last
@@ -349,7 +348,7 @@ static inline int can_do_io(CPUState *env)
 }
 #endif
 
-#ifdef USE_KQEMU
+#ifdef CONFIG_KQEMU
 #define KQEMU_MODIFY_PAGE_MASK (0xff & ~(VGA_DIRTY_FLAG | CODE_DIRTY_FLAG))
 
 #define MSR_QPI_COMMBASE 0xfabe0010
@@ -366,6 +365,9 @@ void kqemu_cpu_interrupt(CPUState *env);
 void kqemu_record_dump(void);
 
 extern uint32_t kqemu_comm_base;
+
+extern ram_addr_t kqemu_phys_ram_size;
+extern uint8_t *kqemu_phys_ram_base;
 
 static inline int kqemu_is_ok(CPUState *env)
 {
@@ -384,4 +386,8 @@ static inline int kqemu_is_ok(CPUState *env)
 typedef void (CPUDebugExcpHandler)(CPUState *env);
 
 CPUDebugExcpHandler *cpu_set_debug_excp_handler(CPUDebugExcpHandler *handler);
+
+/* vl.c */
+extern int singlestep;
+
 #endif

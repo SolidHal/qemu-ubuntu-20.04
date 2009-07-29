@@ -8,6 +8,7 @@ target-arm/*.h usr/include/qemu/target-arm
 target-cris/*.h usr/include/qemu/target-cris
 target-i386/*.h usr/include/qemu/target-i386
 target-m68k/*.h usr/include/qemu/target-m68k
+target-microblaze/*.h usr/include/qemu/target-microblaze
 target-mips/*.h usr/include/qemu/target-mips
 target-ppc/*.h usr/include/qemu/target-ppc
 target-sh4/*.h usr/include/qemu/target-sh4

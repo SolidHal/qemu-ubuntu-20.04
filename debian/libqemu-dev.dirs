@@ -7,6 +7,7 @@ usr/include/qemu/target-arm/
 usr/include/qemu/target-cris/
 usr/include/qemu/target-i386/
 usr/include/qemu/target-m68k/
+usr/include/qemu/target-microblaze/
 usr/include/qemu/target-mips/
 usr/include/qemu/target-ppc/
 usr/include/qemu/target-sh4/
@@ -16,6 +17,7 @@ usr/include/qemu/arm-softmmu/
 usr/include/qemu/cris-softmmu/
 usr/include/qemu/i386-softmmu/
 usr/include/qemu/m68k-softmmu/
+usr/include/qemu/microblaze-softmmu/
 usr/include/qemu/mips-softmmu/
 usr/include/qemu/mips64-softmmu/
 usr/include/qemu/mips64el-softmmu/
@@ -33,6 +35,7 @@ usr/lib/qemu/arm-softmmu/
 usr/lib/qemu/cris-softmmu/
 usr/lib/qemu/i386-softmmu/
 usr/lib/qemu/m68k-softmmu/
+usr/lib/qemu/microblaze-softmmu/
 usr/lib/qemu/mips-softmmu/
 usr/lib/qemu/mips64-softmmu/
 usr/lib/qemu/mips64el-softmmu/

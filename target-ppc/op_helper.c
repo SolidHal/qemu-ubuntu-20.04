@@ -14,8 +14,7 @@
  * Lesser General Public License for more details.
  *
  * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
+ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
  */
 #include <string.h>
 #include "exec.h"
@@ -51,30 +50,6 @@ void helper_raise_exception_err (uint32_t exception, uint32_t error_code)
 void helper_raise_exception (uint32_t exception)
 {
     helper_raise_exception_err(exception, 0);
-}
-
-/*****************************************************************************/
-/* Registers load and stores */
-target_ulong helper_load_cr (void)
-{
-    return (env->crf[0] << 28) |
-           (env->crf[1] << 24) |
-           (env->crf[2] << 20) |
-           (env->crf[3] << 16) |
-           (env->crf[4] << 12) |
-           (env->crf[5] << 8) |
-           (env->crf[6] << 4) |
-           (env->crf[7] << 0);
-}
-
-void helper_store_cr (target_ulong val, uint32_t mask)
-{
-    int i, sh;
-
-    for (i = 0, sh = 7; i < 8; i++, sh--) {
-        if (mask & (1 << sh))
-            env->crf[i] = (val >> (sh * 4)) & 0xFUL;
-    }
 }
 
 /*****************************************************************************/
@@ -1671,20 +1646,20 @@ static always_inline void do_rfi (target_ulong nip, target_ulong msr,
 void helper_rfi (void)
 {
     do_rfi(env->spr[SPR_SRR0], env->spr[SPR_SRR1],
-           ~((target_ulong)0xFFFF0000), 1);
+           ~((target_ulong)0x0), 1);
 }
 
 #if defined(TARGET_PPC64)
 void helper_rfid (void)
 {
     do_rfi(env->spr[SPR_SRR0], env->spr[SPR_SRR1],
-           ~((target_ulong)0xFFFF0000), 0);
+           ~((target_ulong)0x0), 0);
 }
 
 void helper_hrfid (void)
 {
     do_rfi(env->spr[SPR_HSRR0], env->spr[SPR_HSRR1],
-           ~((target_ulong)0xFFFF0000), 0);
+           ~((target_ulong)0x0), 0);
 }
 #endif
 #endif
@@ -1946,7 +1921,7 @@ target_ulong helper_dlmzb (target_ulong high, target_ulong low, uint32_t update_
 
 /*****************************************************************************/
 /* Altivec extension helpers */
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define HI_IDX 0
 #define LO_IDX 1
 #else
@@ -1954,7 +1929,7 @@ target_ulong helper_dlmzb (target_ulong high, target_ulong low, uint32_t update_
 #define LO_IDX 0
 #endif
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define VECTOR_FOR_INORDER_I(index, element)            \
     for (index = 0; index < ARRAY_SIZE(r->element); index++)
 #else
@@ -1998,7 +1973,21 @@ target_ulong helper_dlmzb (target_ulong high, target_ulong low, uint32_t update_
 SATCVT(sh, sb, int16_t, int8_t, INT8_MIN, INT8_MAX, 1, 1)
 SATCVT(sw, sh, int32_t, int16_t, INT16_MIN, INT16_MAX, 1, 1)
 SATCVT(sd, sw, int64_t, int32_t, INT32_MIN, INT32_MAX, 1, 1)
-SATCVT(uh, ub, uint16_t, uint8_t, 0, UINT8_MAX, 0, 1)
+
+/* Work around gcc problems with the macro version */
+static always_inline uint8_t cvtuhub(uint16_t x, int *sat)
+{
+    uint8_t r;
+
+    if (x > UINT8_MAX) {
+        r = UINT8_MAX;
+        *sat = 1;
+    } else {
+        r = x;
+    }
+    return r;
+}
+//SATCVT(uh, ub, uint16_t, uint8_t, 0, UINT8_MAX, 0, 1)
 SATCVT(uw, uh, uint32_t, uint16_t, 0, UINT16_MAX, 0, 1)
 SATCVT(ud, uw, uint64_t, uint32_t, 0, UINT32_MAX, 0, 1)
 SATCVT(sh, ub, int16_t, uint8_t, 0, UINT8_MAX, 1, 1)
@@ -2066,7 +2055,7 @@ STVE(stvewx, stl, bswap32, u32)
 
 void helper_mtvscr (ppc_avr_t *r)
 {
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
     env->vscr = r->u32[3];
 #else
     env->vscr = r->u32[0];
@@ -2433,7 +2422,7 @@ void helper_vmladduhm (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b, ppc_avr_t *c)
         }                                                               \
         *r = result;                                                    \
     }
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define MRGHI 0
 #define MRGLO 1
 #else
@@ -2594,7 +2583,7 @@ void helper_vperm (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b, ppc_avr_t *c)
     int i;
     VECTOR_FOR_INORDER_I (i, u8) {
         int s = c->u8[i] & 0x1f;
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
         int index = s & 0xf;
 #else
         int index = 15 - (s & 0xf);
@@ -2608,7 +2597,7 @@ void helper_vperm (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b, ppc_avr_t *c)
     *r = result;
 }
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define PKBIG 1
 #else
 #define PKBIG 0
@@ -2617,7 +2606,7 @@ void helper_vpkpx (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
 {
     int i, j;
     ppc_avr_t result;
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
     const ppc_avr_t *x[2] = { a, b };
 #else
     const ppc_avr_t *x[2] = { b, a };
@@ -2734,7 +2723,7 @@ void helper_vlogefp (ppc_avr_t *r, ppc_avr_t *b)
     }
 }
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define LEFT 0
 #define RIGHT 1
 #else
@@ -2747,7 +2736,7 @@ void helper_vlogefp (ppc_avr_t *r, ppc_avr_t *b)
 #define VSHIFT(suffix, leftp)                                           \
     void helper_vs##suffix (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)   \
     {                                                                   \
-        int shift = b->u8[LO_IDX*0x15] & 0x7;                           \
+        int shift = b->u8[LO_IDX*15] & 0x7;                             \
         int doit = 1;                                                   \
         int i;                                                          \
         for (i = 0; i < ARRAY_SIZE(r->u8); i++) {                       \
@@ -2794,7 +2783,7 @@ void helper_vsldoi (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b, uint32_t shift)
     int i;
     ppc_avr_t result;
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
     for (i = 0; i < ARRAY_SIZE(r->u8); i++) {
         int index = sh + i;
         if (index > 0xf) {
@@ -2820,7 +2809,7 @@ void helper_vslo (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
 {
   int sh = (b->u8[LO_IDX*0xf] >> 3) & 0xf;
 
-#if defined (WORDS_BIGENDIAN)
+#if defined (HOST_WORDS_BIGENDIAN)
   memmove (&r->u8[0], &a->u8[sh], 16-sh);
   memset (&r->u8[16-sh], 0, sh);
 #else
@@ -2831,7 +2820,7 @@ void helper_vslo (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
 
 /* Experimental testing shows that hardware masks the immediate.  */
 #define _SPLAT_MASKED(element) (splat & (ARRAY_SIZE(r->element) - 1))
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define SPLAT_ELEMENT(element) _SPLAT_MASKED(element)
 #else
 #define SPLAT_ELEMENT(element) (ARRAY_SIZE(r->element)-1 - _SPLAT_MASKED(element))
@@ -2888,7 +2877,7 @@ void helper_vsro (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
 {
   int sh = (b->u8[LO_IDX*0xf] >> 3) & 0xf;
 
-#if defined (WORDS_BIGENDIAN)
+#if defined (HOST_WORDS_BIGENDIAN)
   memmove (&r->u8[sh], &a->u8[0], 16-sh);
   memset (&r->u8[0], 0, sh);
 #else
@@ -2912,7 +2901,7 @@ void helper_vsumsws (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
     ppc_avr_t result;
     int sat = 0;
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
     upper = ARRAY_SIZE(r->s32)-1;
 #else
     upper = 0;
@@ -2936,7 +2925,7 @@ void helper_vsum2sws (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
     ppc_avr_t result;
     int sat = 0;
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
     upper = 1;
 #else
     upper = 0;
@@ -3008,7 +2997,7 @@ void helper_vsum4ubs (ppc_avr_t *r, ppc_avr_t *a, ppc_avr_t *b)
     }
 }
 
-#if defined(WORDS_BIGENDIAN)
+#if defined(HOST_WORDS_BIGENDIAN)
 #define UPKHI 1
 #define UPKLO 0
 #else
@@ -3752,6 +3741,10 @@ void tlb_fill (target_ulong addr, int is_write, int mmu_idx, void *retaddr)
 /* Segment registers load and store */
 target_ulong helper_load_sr (target_ulong sr_num)
 {
+#if defined(TARGET_PPC64)
+    if (env->mmu_model & POWERPC_MMU_64)
+        return ppc_load_sr(env, sr_num);
+#endif
     return env->sr[sr_num];
 }
 
@@ -3767,9 +3760,9 @@ target_ulong helper_load_slb (target_ulong slb_nr)
     return ppc_load_slb(env, slb_nr);
 }
 
-void helper_store_slb (target_ulong slb_nr, target_ulong rs)
+void helper_store_slb (target_ulong rb, target_ulong rs)
 {
-    ppc_store_slb(env, slb_nr, rs);
+    ppc_store_slb(env, rb, rs);
 }
 
 void helper_slbia (void)

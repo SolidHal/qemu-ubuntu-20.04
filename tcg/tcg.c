@@ -22,13 +22,16 @@
  * THE SOFTWARE.
  */
 
-/* define it to suppress various consistency checks (faster) */
-#define NDEBUG
-
 /* define it to use liveness analysis (better code) */
 #define USE_LIVENESS_ANALYSIS
 
-#include <assert.h>
+#include "config.h"
+
+#ifndef CONFIG_DEBUG_TCG
+/* define it to suppress various consistency checks (faster) */
+#define NDEBUG
+#endif
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -41,9 +44,9 @@
 #include <alloca.h>
 #endif
 
-#include "config.h"
 #include "qemu-common.h"
 #include "cache-utils.h"
+#include "host-utils.h"
 
 /* Note: the long term plan is to reduce the dependancies on the QEMU
    CPU definitions. Currently they are used for qemu_ld/st
@@ -55,6 +58,9 @@
 #include "tcg-op.h"
 #include "elf.h"
 
+#if defined(CONFIG_USE_GUEST_BASE) && !defined(TCG_TARGET_HAS_GUEST_BASE)
+#error GUEST_BASE not supported on this host.
+#endif
 
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
@@ -1122,9 +1128,11 @@ static void tcg_liveness_analysis(TCGContext *s)
                         dead_temps[arg] = 1;
                     }
                     
-                    /* globals are live (they may be used by the call) */
-                    memset(dead_temps, 0, s->nb_globals);
-                    
+                    if (!(call_flags & TCG_CALL_CONST)) {
+                        /* globals are live (they may be used by the call) */
+                        memset(dead_temps, 0, s->nb_globals);
+                    }
+
                     /* input args are live */
                     dead_iargs = 0;
                     for(i = 0; i < nb_iargs; i++) {
@@ -1821,7 +1829,9 @@ static int tcg_reg_alloc_call(TCGContext *s, const TCGOpDef *def,
     
     /* store globals and free associated registers (we assume the call
        can modify any global. */
-    save_globals(s, allocated_regs);
+    if (!(flags & TCG_CALL_CONST)) {
+        save_globals(s, allocated_regs);
+    }
 
     tcg_out_op(s, opc, &func_arg, &const_func_arg);
     
@@ -1856,7 +1866,7 @@ static int tcg_reg_alloc_call(TCGContext *s, const TCGOpDef *def,
 
 static int64_t tcg_table_op_count[NB_OPS];
 
-void dump_op_count(void)
+static void dump_op_count(void)
 {
     int i;
     FILE *f;
@@ -2064,10 +2074,8 @@ void tcg_dump_info(FILE *f,
                 s->restore_count);
     cpu_fprintf(f, "  avg cycles        %0.1f\n",
                 s->restore_count ? (double)s->restore_time / s->restore_count : 0);
-    {
-        extern void dump_op_count(void);
-        dump_op_count();
-    }
+
+    dump_op_count();
 }
 #else
 void tcg_dump_info(FILE *f,

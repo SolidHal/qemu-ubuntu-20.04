@@ -35,7 +35,7 @@
 #define ldebug(...)
 #endif
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define GUS_ENDIANNESS 1
 #else
 #define GUS_ENDIANNESS 0
@@ -250,19 +250,14 @@ static int GUS_load (QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-int GUS_init (AudioState *audio, qemu_irq *pic)
+int GUS_init (qemu_irq *pic)
 {
     GUSState *s;
     struct audsettings as;
 
-    if (!audio) {
-        dolog ("No audio state\n");
-        return -1;
-    }
-
     s = qemu_mallocz (sizeof (*s));
 
-    AUD_register_card (audio, "gus", &s->card);
+    AUD_register_card ("gus", &s->card);
 
     as.freq = conf.freq;
     as.nchannels = 2;

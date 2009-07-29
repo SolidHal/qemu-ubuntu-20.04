@@ -38,7 +38,7 @@ typedef enum {
     AUD_FMT_S32
 } audfmt_e;
 
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define AUDIO_HOST_ENDIANNESS 1
 #else
 #define AUDIO_HOST_ENDIANNESS 0
@@ -78,7 +78,6 @@ typedef struct CaptureVoiceOut CaptureVoiceOut;
 typedef struct SWVoiceIn SWVoiceIn;
 
 typedef struct QEMUSoundCard {
-    AudioState *audio;
     char *name;
     LIST_ENTRY (QEMUSoundCard) entries;
 } QEMUSoundCard;
@@ -94,12 +93,10 @@ void AUD_log (const char *cap, const char *fmt, ...)
 #endif
     ;
 
-AudioState *AUD_init (void);
 void AUD_help (void);
-void AUD_register_card (AudioState *s, const char *name, QEMUSoundCard *card);
+void AUD_register_card (const char *name, QEMUSoundCard *card);
 void AUD_remove_card (QEMUSoundCard *card);
 CaptureVoiceOut *AUD_add_capture (
-    AudioState *s,
     struct audsettings *as,
     struct audio_capture_ops *ops,
     void *opaque

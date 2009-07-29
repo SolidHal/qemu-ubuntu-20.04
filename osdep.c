@@ -28,29 +28,46 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
 #include <sys/types.h>
 #include <sys/statvfs.h>
 #endif
 
-#include "qemu-common.h"
-#include "sysemu.h"
+/* FIXME: This file should be target independent. However it has kqemu
+   hacks, so must be built for every target.  */
+
+/* Needed early for CONFIG_BSD etc. */
+#include "config-host.h"
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#elif defined(_BSD)
+#elif defined(CONFIG_BSD)
 #include <stdlib.h>
 #else
 #include <malloc.h>
 #endif
 
+#include "qemu-common.h"
+#include "sysemu.h"
 #include "qemu_socket.h"
+
+#if !defined(_POSIX_C_SOURCE) || defined(_WIN32)
+static void *oom_check(void *ptr)
+{
+    if (ptr == NULL) {
+        abort();
+    }
+    return ptr;
+}
+#endif
 
 #if defined(_WIN32)
 void *qemu_memalign(size_t alignment, size_t size)
 {
-    return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
+    if (!size) {
+        abort();
+    }
+    return oom_check(VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE));
 }
 
 void *qemu_vmalloc(size_t size)
@@ -58,7 +75,10 @@ void *qemu_vmalloc(size_t size)
     /* FIXME: this is not exactly optimal solution since VirtualAlloc
        has 64Kb granularity, but at least it guarantees us that the
        memory is page aligned. */
-    return VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE);
+    if (!size) {
+        abort();
+    }
+    return oom_check(VirtualAlloc(NULL, size, MEM_COMMIT, PAGE_READWRITE));
 }
 
 void qemu_vfree(void *ptr)
@@ -68,7 +88,7 @@ void qemu_vfree(void *ptr)
 
 #else
 
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
 
 #ifdef __OpenBSD__
 #include <sys/param.h>
@@ -90,22 +110,26 @@ static void *kqemu_vmalloc(size_t size)
     void *ptr;
 
 /* no need (?) for a dummy file on OpenBSD/FreeBSD */
-#if defined(__OpenBSD__) || defined(__FreeBSD__)
+#if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
     int map_anon = MAP_ANON;
 #else
     int map_anon = 0;
     const char *tmpdir;
     char phys_ram_file[1024];
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
     struct statvfs stfs;
 #else
     struct statfs stfs;
 #endif
 
+    if (!size) {
+        abort ();
+    }
+
     if (phys_ram_fd < 0) {
         tmpdir = getenv("QEMU_TMPDIR");
         if (!tmpdir)
-#ifdef HOST_SOLARIS
+#ifdef CONFIG_SOLARIS
             tmpdir = "/tmp";
         if (statvfs(tmpdir, &stfs) == 0) {
 #else
@@ -157,7 +181,7 @@ static void *kqemu_vmalloc(size_t size)
     }
     size = (size + 4095) & ~4095;
     ftruncate(phys_ram_fd, phys_ram_size + size);
-#endif /* !(__OpenBSD__ || __FreeBSD__) */
+#endif /* !(__OpenBSD__ || __FreeBSD__ || __DragonFly__) */
     ptr = mmap(NULL,
                size,
                PROT_WRITE | PROT_READ, map_anon | MAP_SHARED,
@@ -184,19 +208,19 @@ void *qemu_memalign(size_t alignment, size_t size)
     void *ptr;
     ret = posix_memalign(&ptr, alignment, size);
     if (ret != 0)
-        return NULL;
+        abort();
     return ptr;
-#elif defined(_BSD)
-    return valloc(size);
+#elif defined(CONFIG_BSD)
+    return oom_check(valloc(size));
 #else
-    return memalign(alignment, size);
+    return oom_check(memalign(alignment, size));
 #endif
 }
 
 /* alloc shared memory pages */
 void *qemu_vmalloc(size_t size)
 {
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
     if (kqemu_allowed)
         return kqemu_vmalloc(size);
 #endif
@@ -205,7 +229,7 @@ void *qemu_vmalloc(size_t size)
 
 void qemu_vfree(void *ptr)
 {
-#if defined(USE_KQEMU)
+#if defined(CONFIG_KQEMU)
     if (kqemu_allowed)
         kqemu_vfree(ptr);
 #endif

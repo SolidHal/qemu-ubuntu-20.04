@@ -1,42 +1,3 @@
-version 0.10.5:
-  - kvm: trim unsupported cpu features from cpuid (Avi Kivity)
-  - kvm: provide a better error message for -smp > 1 (Mark McLoughlin)
-  - Remove initrd printfs (Richard Jones)
-  - Initial variables found by valgrind (Jean-Christophe Dubois)
-  - Fix -initrd with > 4GB guests (Glauber Costa)
-  - Fix busy loop on live migration for certain platforms (Uri Lublin)
-  - Remove GCC 3.x requirements from docs (Hollis Blanchard)
-  - ETRAX: fixes for kernel command line, ethernet address, bmi (Edgar Iglesias)
-  - CRIS: Fix bmi (Edgar Iglesias)
-  - Fix bounce buffer errors (Avi Kivity)
-  - Fix regression in -kernel (Anthony Liguori)
-
-version 0.10.4:
-  - Improve block range checks to remove integer overflow (Kevin Wolf)
-  - e1000: do not re-init PCI config space 0 (Amit Shah)
-  - fix AIO deletion race (Alex Graf)
-  - reset option roms on reboot (Glauber Costa)
-  - fix qcow2 corruption in cluster freeing (Gleb Natapov)
-  - Enable power button event generation (Gleb Natapov)
-
-version 0.10.3:
-  - fix AIO cancellations (Avi Kivity)
-  - fix live migration error path on incoming
-  - avoid SEGV on pci hotplug failure (Chris Wright)
-  - fix serial option in -drive
-  - support DDIM for option roms (Glauber Costa)
-  - avoid fork/exec on pre-2.6.27 kernels with KVM (Jan Kiszka)
-  - block-vpc: don't silently create smaller images than requested (Kevin Wolf)
-  - Fix non-ACPI timer interrupt routing (Beth Kon)
-  - hpet: fix emulation of HPET_TN_SETVAL (Jan Kiszka)
-  - kvm: fix cpuid initialization (Jan Kiszka)
-  - qcow2: fix corruption on little endian hosts (Kevin Wolf)
-  - avoid leaing memory on hot unplug (Mark McLoughlin)
-  - fix savevm/migration after hot unplug (Mark McLoughlin)
-  - Fix keyboard mapping on newer Xords with non-default keymaps (balrog)
-  - Make PCI config status register read-only (Anthony Liguori)
-  - Fix crash on resolution change -> screen dump -> vga redraw (Avi Kivity)
-
 version 0.10.2:
 
   - fix savevm/loadvm (Anthony Liguori)
@@ -55,11 +16,6 @@ version 0.10.2:
 	
 version 0.10.1:
 
-  - virtio-net: allow masking of notifications on empty queue (Alex Williamson)
-  - e1000: fix rx descriptor low threshold logic (Alex Willaimson)
-  - x86 tcg: add NULL checks to lsl instruction (Jan Kiszka)
-  - kvm vga: fix screen corruption with -std-vga and Windows (Avi Kivity)
-  - kvm vga: fix screen corruption with Ubuntu installations (Glauber Costa)
   - virtio-net: check right return size on sg list (Alex Williamson)
   - Make qemu_announce_self handle holes (live migration after hotplug)
     (Marcelo Tosatti)

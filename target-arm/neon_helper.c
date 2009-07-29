@@ -49,7 +49,7 @@ typedef struct \
 { \
     type v1; \
 } neon_##name;
-#ifdef WORDS_BIGENDIAN
+#ifdef HOST_WORDS_BIGENDIAN
 #define NEON_TYPE2(name, type) \
 typedef struct \
 { \
@@ -456,11 +456,11 @@ uint64_t HELPER(neon_shl_s64)(uint64_t valop, uint64_t shiftop)
     if (tmp >= sizeof(src1) * 8) { \
         dest = 0; \
     } else if (tmp < -sizeof(src1) * 8) { \
-        dest >>= sizeof(src1) * 8 - 1; \
+        dest = src1 >> (sizeof(src1) * 8 - 1); \
     } else if (tmp == -sizeof(src1) * 8) { \
         dest = src1 >> (tmp - 1); \
         dest++; \
-        src2 >>= 1; \
+        dest >>= 1; \
     } else if (tmp < 0) { \
         dest = (src1 + (1 << (-1 - tmp))) >> -tmp; \
     } else { \

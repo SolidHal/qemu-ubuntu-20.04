@@ -1,3 +1,36 @@
+qemu (0.10.50+git20090729-1) experimental; urgency=low
+
+  [ Josh Triplett ]
+  * Remove myself from Uploaders.
+
+  [ Riku Voipio ]
+  * new upstream RC version
+  * nuke all linux-user patches (applied upstream)
+    06_exit_segfault
+    12_signal_powerpc_support
+    21_net_soopts
+    30_syscall_ipc
+    32_syscall_sysctl
+    35_syscall_sockaddr
+    48_signal_terminate
+    55_unmux_socketcall
+  * nuke all other applied-upstream patches
+    01_nostrip (better version upstream)
+    07_i386_exec_name (can be reintroduced in debian/rules)
+    50_linuxbios_isa_bios_ram (shouldn't be needed anymore)
+    51_linuxbios_piix_ram_size (applied)
+    56_dhcp (crap)
+    60_ppc_ld (reintroduce if needed)
+    64_ppc_asm_constraints (ditto)
+    66_tls_ld.patch (ditto)
+    81_compile_dtb.patch (applied upstream)
+    82_qemu-img_decimal (ditto)
+  * move to git
+  * simplify build rules
+  * Correct my email address
+
+ -- Riku Voipio <riku.voipio@iki.fi>  Wed, 29 Jul 2009 13:28:05 +0300
+
 qemu (0.10.5-1) unstable; urgency=low
 
   * New upstream version.
