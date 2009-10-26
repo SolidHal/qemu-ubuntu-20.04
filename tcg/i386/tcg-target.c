@@ -427,10 +427,6 @@ static void *qemu_st_helpers[4] = {
 };
 #endif
 
-#ifndef CONFIG_USER_ONLY
-#define GUEST_BASE 0
-#endif
-
 /* XXX: qemu_ld and qemu_st could be modified to clobber only EDX and
    EAX. It will be useful once fixed registers globals are less
    common. */
@@ -576,15 +572,15 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
     switch(opc) {
     case 0:
         /* movzbl */
-        tcg_out_modrm_offset(s, 0xb6 | P_EXT, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0xb6 | P_EXT, data_reg, r0, 0);
         break;
     case 0 | 4:
         /* movsbl */
-        tcg_out_modrm_offset(s, 0xbe | P_EXT, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0xbe | P_EXT, data_reg, r0, 0);
         break;
     case 1:
         /* movzwl */
-        tcg_out_modrm_offset(s, 0xb7 | P_EXT, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0xb7 | P_EXT, data_reg, r0, 0);
         if (bswap) {
             /* rolw $8, data_reg */
             tcg_out8(s, 0x66); 
@@ -594,7 +590,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         break;
     case 1 | 4:
         /* movswl */
-        tcg_out_modrm_offset(s, 0xbf | P_EXT, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0xbf | P_EXT, data_reg, r0, 0);
         if (bswap) {
             /* rolw $8, data_reg */
             tcg_out8(s, 0x66); 
@@ -607,7 +603,7 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
         break;
     case 2:
         /* movl (r0), data_reg */
-        tcg_out_modrm_offset(s, 0x8b, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0x8b, data_reg, r0, 0);
         if (bswap) {
             /* bswap */
             tcg_out_opc(s, (0xc8 + data_reg) | P_EXT);
@@ -623,13 +619,13 @@ static void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args,
             r0 = r1;
         }
         if (!bswap) {
-            tcg_out_modrm_offset(s, 0x8b, data_reg, r0, GUEST_BASE);
-            tcg_out_modrm_offset(s, 0x8b, data_reg2, r0, GUEST_BASE + 4);
+            tcg_out_modrm_offset(s, 0x8b, data_reg, r0, 0);
+            tcg_out_modrm_offset(s, 0x8b, data_reg2, r0, 4);
         } else {
-            tcg_out_modrm_offset(s, 0x8b, data_reg, r0, GUEST_BASE + 4);
+            tcg_out_modrm_offset(s, 0x8b, data_reg, r0, 4);
             tcg_out_opc(s, (0xc8 + data_reg) | P_EXT);
 
-            tcg_out_modrm_offset(s, 0x8b, data_reg2, r0, GUEST_BASE);
+            tcg_out_modrm_offset(s, 0x8b, data_reg2, r0, 0);
             /* bswap */
             tcg_out_opc(s, (0xc8 + data_reg2) | P_EXT);
         }
@@ -810,7 +806,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
     switch(opc) {
     case 0:
         /* movb */
-        tcg_out_modrm_offset(s, 0x88, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0x88, data_reg, r0, 0);
         break;
     case 1:
         if (bswap) {
@@ -822,7 +818,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
         }
         /* movw */
         tcg_out8(s, 0x66);
-        tcg_out_modrm_offset(s, 0x89, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0x89, data_reg, r0, 0);
         break;
     case 2:
         if (bswap) {
@@ -832,21 +828,21 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args,
             data_reg = r1;
         }
         /* movl */
-        tcg_out_modrm_offset(s, 0x89, data_reg, r0, GUEST_BASE);
+        tcg_out_modrm_offset(s, 0x89, data_reg, r0, 0);
         break;
     case 3:
         if (bswap) {
             tcg_out_mov(s, r1, data_reg2);
             /* bswap data_reg */
             tcg_out_opc(s, (0xc8 + r1) | P_EXT);
-            tcg_out_modrm_offset(s, 0x89, r1, r0, GUEST_BASE);
+            tcg_out_modrm_offset(s, 0x89, r1, r0, 0);
             tcg_out_mov(s, r1, data_reg);
             /* bswap data_reg */
             tcg_out_opc(s, (0xc8 + r1) | P_EXT);
-            tcg_out_modrm_offset(s, 0x89, r1, r0, GUEST_BASE + 4);
+            tcg_out_modrm_offset(s, 0x89, r1, r0, 4);
         } else {
-            tcg_out_modrm_offset(s, 0x89, data_reg, r0, GUEST_BASE);
-            tcg_out_modrm_offset(s, 0x89, data_reg2, r0, GUEST_BASE + 4);
+            tcg_out_modrm_offset(s, 0x89, data_reg, r0, 0);
+            tcg_out_modrm_offset(s, 0x89, data_reg2, r0, 4);
         }
         break;
     default:

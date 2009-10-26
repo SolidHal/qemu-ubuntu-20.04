@@ -40,8 +40,7 @@ static void xen_init_pv(ram_addr_t ram_size,
 			const char *cpu_model)
 {
     CPUState *env;
-    DriveInfo *dinfo;
-    int i;
+    int i, index;
 
     /* Initialize a dummy CPU */
     if (cpu_model == NULL) {
@@ -91,10 +90,10 @@ static void xen_init_pv(ram_addr_t ram_size,
 
     /* configure disks */
     for (i = 0; i < 16; i++) {
-        dinfo = drive_get(IF_XEN, 0, i);
-        if (!dinfo)
+        index = drive_get_index(IF_XEN, 0, i);
+        if (index == -1)
             continue;
-        xen_config_dev_blk(dinfo);
+        xen_config_dev_blk(drives_table + index);
     }
 
     /* configure nics */

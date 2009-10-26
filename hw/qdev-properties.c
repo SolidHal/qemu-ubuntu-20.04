@@ -88,59 +88,6 @@ PropertyInfo qdev_prop_hex32 = {
     .print = print_hex32,
 };
 
-/* --- 64bit integer --- */
-
-static int parse_uint64(DeviceState *dev, Property *prop, const char *str)
-{
-    uint64_t *ptr = qdev_get_prop_ptr(dev, prop);
-    const char *fmt;
-
-    /* accept both hex and decimal */
-    fmt = strncasecmp(str, "0x",2) == 0 ? "%" PRIx64 : "%" PRIu64;
-    if (sscanf(str, fmt, ptr) != 1)
-        return -1;
-    return 0;
-}
-
-static int print_uint64(DeviceState *dev, Property *prop, char *dest, size_t len)
-{
-    uint64_t *ptr = qdev_get_prop_ptr(dev, prop);
-    return snprintf(dest, len, "%" PRIu64, *ptr);
-}
-
-PropertyInfo qdev_prop_uint64 = {
-    .name  = "uint64",
-    .type  = PROP_TYPE_UINT64,
-    .size  = sizeof(uint64_t),
-    .parse = parse_uint64,
-    .print = print_uint64,
-};
-
-/* --- 64bit hex value --- */
-
-static int parse_hex64(DeviceState *dev, Property *prop, const char *str)
-{
-    uint64_t *ptr = qdev_get_prop_ptr(dev, prop);
-
-    if (sscanf(str, "%" PRIx64, ptr) != 1)
-        return -1;
-    return 0;
-}
-
-static int print_hex64(DeviceState *dev, Property *prop, char *dest, size_t len)
-{
-    uint64_t *ptr = qdev_get_prop_ptr(dev, prop);
-    return snprintf(dest, len, "0x%" PRIx64, *ptr);
-}
-
-PropertyInfo qdev_prop_hex64 = {
-    .name  = "hex64",
-    .type  = PROP_TYPE_UINT64,
-    .size  = sizeof(uint64_t),
-    .parse = parse_hex64,
-    .print = print_hex64,
-};
-
 /* --- pointer --- */
 
 static int print_ptr(DeviceState *dev, Property *prop, char *dest, size_t len)
@@ -196,49 +143,6 @@ PropertyInfo qdev_prop_macaddr = {
     .size  = 6,
     .parse = parse_mac,
     .print = print_mac,
-};
-
-/* --- pci address --- */
-
-/*
- * bus-local address, i.e. "$slot" or "$slot.$fn"
- */
-static int parse_pci_devfn(DeviceState *dev, Property *prop, const char *str)
-{
-    uint32_t *ptr = qdev_get_prop_ptr(dev, prop);
-    unsigned int slot, fn, n;
-
-    if (sscanf(str, "%x.%x%n", &slot, &fn, &n) != 2) {
-        fn = 0;
-        if (sscanf(str, "%x%n", &slot, &n) != 1) {
-            return -1;
-        }
-    }
-    if (str[n] != '\0')
-        return -1;
-    if (fn > 7)
-        return -1;
-    *ptr = slot << 3 | fn;
-    return 0;
-}
-
-static int print_pci_devfn(DeviceState *dev, Property *prop, char *dest, size_t len)
-{
-    uint32_t *ptr = qdev_get_prop_ptr(dev, prop);
-
-    if (-1 == *ptr) {
-        return snprintf(dest, len, "<unset>");
-    } else {
-        return snprintf(dest, len, "%02x.%x", *ptr >> 3, *ptr & 7);
-    }
-}
-
-PropertyInfo qdev_prop_pci_devfn = {
-    .name  = "pci-devfn",
-    .type  = PROP_TYPE_UINT32,
-    .size  = sizeof(uint32_t),
-    .parse = parse_pci_devfn,
-    .print = print_pci_devfn,
 };
 
 /* --- public helpers --- */
@@ -318,11 +222,6 @@ void qdev_prop_set_uint16(DeviceState *dev, const char *name, uint16_t value)
 void qdev_prop_set_uint32(DeviceState *dev, const char *name, uint32_t value)
 {
     qdev_prop_set(dev, name, &value, PROP_TYPE_UINT32);
-}
-
-void qdev_prop_set_uint64(DeviceState *dev, const char *name, uint64_t value)
-{
-    qdev_prop_set(dev, name, &value, PROP_TYPE_UINT64);
 }
 
 void qdev_prop_set_ptr(DeviceState *dev, const char *name, void *value)

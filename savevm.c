@@ -29,7 +29,7 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-/* Needed early for CONFIG_BSD etc. */
+/* Needed early for HOST_BSD etc. */
 #include "config-host.h"
 
 #ifndef _WIN32
@@ -52,7 +52,7 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef CONFIG_BSD
+#ifdef HOST_BSD
 #include <sys/stat.h>
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <libutil.h>
@@ -1011,12 +1011,12 @@ static int bdrv_has_snapshot(BlockDriverState *bs)
 static BlockDriverState *get_bs_snapshots(void)
 {
     BlockDriverState *bs;
-    DriveInfo *dinfo;
+    int i;
 
     if (bs_snapshots)
         return bs_snapshots;
-    TAILQ_FOREACH(dinfo, &drives, next) {
-        bs = dinfo->bdrv;
+    for(i = 0; i <= nb_drives; i++) {
+        bs = drives_table[i].bdrv;
         if (bdrv_can_snapshot(bs))
             goto ok;
     }
@@ -1050,10 +1050,9 @@ static int bdrv_snapshot_find(BlockDriverState *bs, QEMUSnapshotInfo *sn_info,
 
 void do_savevm(Monitor *mon, const char *name)
 {
-    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn1, *sn = &sn1, old_sn1, *old_sn = &old_sn1;
-    int must_delete, ret;
+    int must_delete, ret, i;
     QEMUFile *f;
     int saved_vm_running;
     uint32_t vm_state_size;
@@ -1119,8 +1118,8 @@ void do_savevm(Monitor *mon, const char *name)
 
     /* create the snapshots */
 
-    TAILQ_FOREACH(dinfo, &drives, next) {
-        bs1 = dinfo->bdrv;
+    for(i = 0; i < nb_drives; i++) {
+        bs1 = drives_table[i].bdrv;
         if (bdrv_has_snapshot(bs1)) {
             if (must_delete) {
                 ret = bdrv_snapshot_delete(bs1, old_sn->id_str);
@@ -1147,11 +1146,10 @@ void do_savevm(Monitor *mon, const char *name)
 
 void do_loadvm(Monitor *mon, const char *name)
 {
-    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo sn;
     QEMUFile *f;
-    int ret;
+    int i, ret;
     int saved_vm_running;
 
     bs = get_bs_snapshots();
@@ -1166,8 +1164,8 @@ void do_loadvm(Monitor *mon, const char *name)
     saved_vm_running = vm_running;
     vm_stop(0);
 
-    TAILQ_FOREACH(dinfo, &drives, next) {
-        bs1 = dinfo->bdrv;
+    for(i = 0; i <= nb_drives; i++) {
+        bs1 = drives_table[i].bdrv;
         if (bdrv_has_snapshot(bs1)) {
             ret = bdrv_snapshot_goto(bs1, name);
             if (ret < 0) {
@@ -1219,9 +1217,8 @@ void do_loadvm(Monitor *mon, const char *name)
 
 void do_delvm(Monitor *mon, const char *name)
 {
-    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
-    int ret;
+    int i, ret;
 
     bs = get_bs_snapshots();
     if (!bs) {
@@ -1229,8 +1226,8 @@ void do_delvm(Monitor *mon, const char *name)
         return;
     }
 
-    TAILQ_FOREACH(dinfo, &drives, next) {
-        bs1 = dinfo->bdrv;
+    for(i = 0; i <= nb_drives; i++) {
+        bs1 = drives_table[i].bdrv;
         if (bdrv_has_snapshot(bs1)) {
             ret = bdrv_snapshot_delete(bs1, name);
             if (ret < 0) {
@@ -1248,7 +1245,6 @@ void do_delvm(Monitor *mon, const char *name)
 
 void do_info_snapshots(Monitor *mon)
 {
-    DriveInfo *dinfo;
     BlockDriverState *bs, *bs1;
     QEMUSnapshotInfo *sn_tab, *sn;
     int nb_sns, i;
@@ -1260,8 +1256,8 @@ void do_info_snapshots(Monitor *mon)
         return;
     }
     monitor_printf(mon, "Snapshot devices:");
-    TAILQ_FOREACH(dinfo, &drives, next) {
-        bs1 = dinfo->bdrv;
+    for(i = 0; i <= nb_drives; i++) {
+        bs1 = drives_table[i].bdrv;
         if (bdrv_has_snapshot(bs1)) {
             if (bs == bs1)
                 monitor_printf(mon, " %s", bdrv_get_device_name(bs1));

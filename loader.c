@@ -272,9 +272,6 @@ static void *load_at(int fd, int offset, int size)
     return ptr;
 }
 
-#ifdef ELF_CLASS
-#undef ELF_CLASS
-#endif
 
 #define ELF_CLASS   ELFCLASS32
 #include "elf.h"
@@ -324,7 +321,7 @@ int load_elf(const char *filename, int64_t address_offset,
         e_ident[2] != ELFMAG2 ||
         e_ident[3] != ELFMAG3)
         goto fail;
-#ifdef HOST_WORDS_BIGENDIAN
+#ifdef WORDS_BIGENDIAN
     data_order = ELFDATA2MSB;
 #else
     data_order = ELFDATA2LSB;
@@ -358,7 +355,7 @@ int load_elf(const char *filename, int64_t address_offset,
 
 static void bswap_uboot_header(uboot_image_header_t *hdr)
 {
-#ifndef HOST_WORDS_BIGENDIAN
+#ifndef WORDS_BIGENDIAN
     bswap32s(&hdr->ih_magic);
     bswap32s(&hdr->ih_hcrc);
     bswap32s(&hdr->ih_time);

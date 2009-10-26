@@ -41,7 +41,7 @@
 # error unknown bit depth
 #endif
 
-#ifdef HOST_WORDS_BIGENDIAN
+#ifdef WORDS_BIGENDIAN
 # define SWAP_WORDS	1
 #endif
 

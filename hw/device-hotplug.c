@@ -28,23 +28,22 @@
 #include "block_int.h"
 #include "sysemu.h"
 
-DriveInfo *add_init_drive(const char *optstr)
+int add_init_drive(const char *opts)
 {
-    int fatal_error;
-    DriveInfo *dinfo;
-    QemuOpts *opts;
+    int drive_opt_idx, drive_idx;
+    int ret = -1;
 
-    opts = drive_add(NULL, "%s", optstr);
-    if (!opts)
-        return NULL;
+    drive_opt_idx = drive_add(NULL, "%s", opts);
+    if (!drive_opt_idx)
+        return ret;
 
-    dinfo = drive_init(opts, current_machine, &fatal_error);
-    if (!dinfo) {
-        qemu_opts_del(opts);
-        return NULL;
+    drive_idx = drive_init(&drives_opt[drive_opt_idx], 0, current_machine);
+    if (drive_idx == -1) {
+        drive_remove(drive_opt_idx);
+        return ret;
     }
 
-    return dinfo;
+    return drive_idx;
 }
 
 void destroy_nic(dev_match_fn *match_fn, void *arg)
@@ -65,11 +64,11 @@ void destroy_nic(dev_match_fn *match_fn, void *arg)
 
 void destroy_bdrvs(dev_match_fn *match_fn, void *arg)
 {
-    DriveInfo *dinfo;
+    int i;
     struct BlockDriverState *bs;
 
-    TAILQ_FOREACH(dinfo, &drives, next) {
-        bs = dinfo->bdrv;
+    for (i = 0; i <= MAX_DRIVES; i++) {
+        bs = drives_table[i].bdrv;
         if (bs) {
             if (bs->private && match_fn(bs->private, arg)) {
                 drive_uninit(bs);

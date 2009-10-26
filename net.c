@@ -29,7 +29,7 @@
 #include <sys/time.h>
 #include <zlib.h>
 
-/* Needed early for CONFIG_BSD etc. */
+/* Needed early for HOST_BSD etc. */
 #include "config-host.h"
 
 #ifndef _WIN32
@@ -52,7 +52,7 @@
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/select.h>
-#ifdef CONFIG_BSD
+#ifdef HOST_BSD
 #include <sys/stat.h>
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 #include <libutil.h>
@@ -99,6 +99,15 @@
 
 #if defined(CONFIG_VDE)
 #include <libvdeplug.h>
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#include <malloc.h>
+#include <sys/timeb.h>
+#include <mmsystem.h>
+#define getopt_long_only getopt_long
+#define memalign(align, size) malloc(size)
 #endif
 
 #include "qemu-common.h"
@@ -270,6 +279,26 @@ int parse_host_port(struct sockaddr_in *saddr, const char *str)
     return 0;
 }
 
+#if !defined(_WIN32) && 0
+static int parse_unix_path(struct sockaddr_un *uaddr, const char *str)
+{
+    const char *p;
+    int len;
+
+    len = MIN(108, strlen(str));
+    p = strchr(str, ',');
+    if (p)
+	len = MIN(len, p - str);
+
+    memset(uaddr, 0, sizeof(*uaddr));
+
+    uaddr->sun_family = AF_UNIX;
+    memcpy(uaddr->sun_path, str, len);
+
+    return 0;
+}
+#endif
+
 void qemu_format_nic_info_str(VLANClientState *vc, uint8_t macaddr[6])
 {
     snprintf(vc->info_str, sizeof(vc->info_str),
@@ -436,33 +465,28 @@ qemu_deliver_packet(VLANClientState *sender, const uint8_t *buf, int size)
 
 void qemu_purge_queued_packets(VLANClientState *vc)
 {
-    VLANPacket **pp = &vc->vlan->send_queue;
+    VLANPacket *packet, *next;
 
-    while (*pp != NULL) {
-        VLANPacket *packet = *pp;
-
+    TAILQ_FOREACH_SAFE(packet, &vc->vlan->send_queue, entry, next) {
         if (packet->sender == vc) {
-            *pp = packet->next;
+            TAILQ_REMOVE(&vc->vlan->send_queue, packet, entry);
             qemu_free(packet);
-        } else {
-            pp = &packet->next;
         }
     }
 }
 
 void qemu_flush_queued_packets(VLANClientState *vc)
 {
-    VLANPacket *packet;
-
-    while ((packet = vc->vlan->send_queue) != NULL) {
+    while (!TAILQ_EMPTY(&vc->vlan->send_queue)) {
+        VLANPacket *packet;
         int ret;
 
-        vc->vlan->send_queue = packet->next;
+        packet = TAILQ_FIRST(&vc->vlan->send_queue);
+        TAILQ_REMOVE(&vc->vlan->send_queue, packet, entry);
 
         ret = qemu_deliver_packet(packet->sender, packet->data, packet->size);
         if (ret == 0 && packet->sent_cb != NULL) {
-            packet->next = vc->vlan->send_queue;
-            vc->vlan->send_queue = packet;
+            TAILQ_INSERT_HEAD(&vc->vlan->send_queue, packet, entry);
             break;
         }
 
@@ -480,12 +504,12 @@ static void qemu_enqueue_packet(VLANClientState *sender,
     VLANPacket *packet;
 
     packet = qemu_malloc(sizeof(VLANPacket) + size);
-    packet->next = sender->vlan->send_queue;
     packet->sender = sender;
     packet->size = size;
     packet->sent_cb = sent_cb;
     memcpy(packet->data, buf, size);
-    sender->vlan->send_queue = packet;
+
+    TAILQ_INSERT_TAIL(&sender->vlan->send_queue, packet, entry);
 }
 
 ssize_t qemu_send_packet_async(VLANClientState *sender,
@@ -597,7 +621,6 @@ static ssize_t qemu_enqueue_packet_iov(VLANClientState *sender,
     max_len = calc_iov_length(iov, iovcnt);
 
     packet = qemu_malloc(sizeof(VLANPacket) + max_len);
-    packet->next = sender->vlan->send_queue;
     packet->sender = sender;
     packet->sent_cb = sent_cb;
     packet->size = 0;
@@ -609,7 +632,7 @@ static ssize_t qemu_enqueue_packet_iov(VLANClientState *sender,
         packet->size += len;
     }
 
-    sender->vlan->send_queue = packet;
+    TAILQ_INSERT_TAIL(&sender->vlan->send_queue, packet, entry);
 
     return packet->size;
 }
@@ -1435,7 +1458,7 @@ static TAPState *net_tap_fd_init(VLANState *vlan,
     return s;
 }
 
-#if defined (CONFIG_BSD) || defined (__FreeBSD_kernel__)
+#if defined (HOST_BSD) || defined (__FreeBSD_kernel__)
 static int tap_open(char *ifname, int ifname_size)
 {
     int fd;
@@ -2330,6 +2353,7 @@ VLANState *qemu_find_vlan(int id, int allocate)
     }
     vlan = qemu_mallocz(sizeof(VLANState));
     vlan->id = id;
+    TAILQ_INIT(&vlan->send_queue);
     vlan->next = NULL;
     pvlan = &first_vlan;
     while (*pvlan != NULL)
@@ -2905,7 +2929,7 @@ void do_info_network(Monitor *mon)
     }
 }
 
-int do_set_link(Monitor *mon, const char *name, const char *up_or_down)
+void do_set_link(Monitor *mon, const char *name, const char *up_or_down)
 {
     VLANState *vlan;
     VLANClientState *vc = NULL;
@@ -2917,8 +2941,8 @@ int do_set_link(Monitor *mon, const char *name, const char *up_or_down)
 done:
 
     if (!vc) {
-        monitor_printf(mon, "could not find network device '%s'", name);
-        return 0;
+        monitor_printf(mon, "could not find network device '%s'\n", name);
+        return;
     }
 
     if (strcmp(up_or_down, "up") == 0)
@@ -2931,8 +2955,6 @@ done:
 
     if (vc->link_status_changed)
         vc->link_status_changed(vc);
-
-    return 1;
 }
 
 void net_cleanup(void)

@@ -38,7 +38,7 @@ typedef enum {
     AUD_FMT_S32
 } audfmt_e;
 
-#ifdef HOST_WORDS_BIGENDIAN
+#ifdef WORDS_BIGENDIAN
 #define AUDIO_HOST_ENDIANNESS 1
 #else
 #define AUDIO_HOST_ENDIANNESS 0

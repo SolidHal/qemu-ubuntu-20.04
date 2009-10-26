@@ -3,6 +3,8 @@
 # $Id: rules 391 2009-03-07 05:21:19Z aurel32 $
 #
 
+# Compiler flags
+LDFLAGS = -Wl,--as-needed
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CFLAGS = -O0
 endif
@@ -18,7 +20,6 @@ DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
        conf_arch += --audio-drv-list=oss,alsa,sdl,esd,pa
-       target_linux_list += $(TARGET_LINUX_TCG)
 endif
 ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
        conf_arch += --audio-drv-list=oss,sdl,esd,pa
@@ -33,39 +34,73 @@ endif
 
 include /usr/share/quilt/quilt.make
 
-qemu_docs = \
-	qemu-doc.html \
-	qemu-tech.html \
-	qemu.1 \
-	qemu-img.1
+configure-stamp: configure
+	dh_testdir
 
-config-host.mak: configure
+	# system build
+	mkdir -p $(CURDIR)/system-build
+	cd $(CURDIR)/system-build && \
+		../configure \
+			--extra-cflags="$(CFLAGS)" \
+			--extra-ldflags="$(LDFLAGS)" \
+			--prefix=/usr \
+			--disable-blobs \
+			--disable-strip \
+			--disable-linux-user \
+			--disable-bsd-user \
+			--disable-darwin-user \
+			$(conf_arch)
+
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+	# user build
+	mkdir -p $(CURDIR)/user-build
+	cd $(CURDIR)/user-build && \
+		../configure \
+			--extra-cflags="$(CFLAGS)" \
+			--extra-ldflags="$(LDFLAGS)" \
+			--prefix=/usr \
+			--disable-blobs \
+			--disable-strip \
+			--disable-system \
+			$(conf_arch)
+
+	# static user build
+	mkdir -p $(CURDIR)/user-static-build
+	cd $(CURDIR)/user-static-build && \
+		../configure \
+			--extra-cflags="$(CFLAGS)" \
+			--extra-ldflags="$(LDFLAGS)" \
+			--prefix=/usr \
+			--disable-blobs \
+			--disable-strip \
+			--disable-system \
+			--static \
+			$(conf_arch)
+endif
+	touch $@
+
+build: build-stamp
+build-stamp: configure-stamp
 	dh_testdir
 	
-	CFLAGS="$(CFLAGS)" ./configure \
-		--prefix=/usr \
-		--disable-blobs \
-		--disable-strip \
-		$(conf_arch)
+	# system build
+	$(MAKE) -C $(CURDIR)/system-build $(NJOBS)
 
-setup-source: patch
-	$(MAKE) -f debian/rules config-host.mak
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+	# user build
+	$(MAKE) -C $(CURDIR)/user-build $(NJOBS)
 
-build: setup-source
-	dh_testdir
-	
-	$(MAKE) $(NJOBS)
-	$(MAKE) -C pc-bios bamboo.dtb
-	$(MAKE) -C pc-bios mpc8544ds.dtb
+	# static user build
+	$(MAKE) -C $(CURDIR)/user-static-build $(NJOBS)
+endif
+	touch $@
 
 clean: unpatch
 	dh_testdir
 	dh_testroot
 	
-	[ ! -f config-host.mak ] || $(MAKE) distclean
-	
-	rm -f $(qemu_docs)
-	rm -f pc-bios/*.dtb
+	rm -rf $(CURDIR)/*-build
+	rm -f $(CURDIR)/*-stamp
 	
 	dh_clean
 
@@ -75,39 +110,47 @@ install: build
 	dh_clean -k
 	dh_installdirs -a
 	
-	$(MAKE) DESTDIR=$(CURDIR)/debian/qemu install
+	# system build
+	$(MAKE) -C $(CURDIR)/system-build DESTDIR=$(CURDIR)/debian/tmp install
 
-	zcat /usr/share/etherboot/e1000-82540em.zrom.gz > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-e1000.bin
-	zcat /usr/share/etherboot/rtl8029.zrom.gz       > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-ne2k_pci.bin
-	zcat /usr/share/etherboot/pcnet32.zrom.gz       > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-pcnet.bin
-	zcat /usr/share/etherboot/rtl8139.zrom.gz       > $(CURDIR)/debian/qemu/usr/share/qemu/pxe-rtl8139.bin
+	mv $(CURDIR)/debian/tmp/usr/bin/qemu $(CURDIR)/debian/tmp/usr/bin/qemu-system-i386
 
-	cp $(CURDIR)/pc-bios/bamboo.dtb $(CURDIR)/pc-bios/mpc8544ds.dtb $(CURDIR)/debian/qemu/usr/share/qemu/
+	zcat /usr/share/etherboot/e1000-82540em.zrom.gz > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-e1000.bin
+	zcat /usr/share/etherboot/rtl8029.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-ne2k_pci.bin
+	zcat /usr/share/etherboot/pcnet32.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-pcnet.bin
+	zcat /usr/share/etherboot/rtl8139.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-rtl8139.bin
 
-	for target in *softmmu ; do \
-	  cp $(CURDIR)/$$target/libqemu.a $(CURDIR)/debian/libqemu-dev/usr/lib/qemu/$$target/ ; \
-	  cp $(CURDIR)/$$target/*.h $(CURDIR)/debian/libqemu-dev/usr/include/qemu/$$target/ ; \
+	for i in bamboo mpc8544ds ; do \
+		dtc -o $(CURDIR)/debian/tmp/usr/share/qemu/$$i.dtb pc-bios/$$i.dts ; \
 	done
-	
+
+ifeq ($(DEB_HOST_ARCH_OS),linux)
+	# user build
+	$(MAKE) -C $(CURDIR)/user-build DESTDIR=$(CURDIR)/debian/tmp install
+
+	# static user build
+	for target in $(CURDIR)/user-static-build/*-*-user/qemu-* ; do \
+		install -m 755 $$target $(CURDIR)/debian/tmp/usr/bin/$$(basename $$target)-static ; \
+	done
+endif
+
+	dh_install --list-missing
+
 binary-indep:
 # Nothing to do.
 
-binary-arch: install
+binary-arch: build install
 	dh_testdir
 	dh_testroot
 	dh_install -a
-	dh_installdebconf -a
 	dh_installdocs -a
-	dh_installexamples -a
-	dh_installlogrotate -a
 	dh_installman -a
-	dh_installinfo -a
 	dh_installchangelogs -a Changelog
 	dh_link -a
 	dh_strip -a
 	dh_compress -a
 	dh_fixperms -a
-	chmod a+x $(CURDIR)/debian/qemu/etc/qemu-ifup
+	chmod a+x $(CURDIR)/debian/qemu-system/etc/qemu-ifup
 	dh_installdeb -a
 	dh_shlibdeps -a
 	dh_gencontrol -a

@@ -386,13 +386,13 @@ static inline int compare_masked(uint64_t x, uint64_t y, uint64_t mask)
 
 // Returns true if TTE tag is valid and matches virtual address value in context
 // requires virtual address mask value calculated from TTE entry size
-static inline int ultrasparc_tag_match(SparcTLBEntry *tlb,
+static inline int ultrasparc_tag_match(uint64_t tlb_tag, uint64_t tlb_tte,
                                        uint64_t address, uint64_t context,
                                        target_phys_addr_t *physical)
 {
     uint64_t mask;
 
-    switch ((tlb->tte >> 61) & 3) {
+    switch ((tlb_tte >> 61) & 3) {
     default:
     case 0x0: // 8k
         mask = 0xffffffffffffe000ULL;
@@ -409,12 +409,12 @@ static inline int ultrasparc_tag_match(SparcTLBEntry *tlb,
     }
 
     // valid, context match, virtual address match?
-    if (TTE_IS_VALID(tlb->tte) &&
-            compare_masked(context, tlb->tag, 0x1fff) &&
-            compare_masked(address, tlb->tag, mask))
+    if ((tlb_tte & 0x8000000000000000ULL) &&
+            compare_masked(context, tlb_tag, 0x1fff) &&
+            compare_masked(address, tlb_tag, mask))
     {
         // decode physical address
-        *physical = ((tlb->tte & mask) | (address & ~mask)) & 0x1ffffffe000ULL;
+        *physical = ((tlb_tte & mask) | (address & ~mask)) & 0x1ffffffe000ULL;
         return 1;
     }
 
@@ -434,31 +434,21 @@ static int get_physical_address_data(CPUState *env,
         return 0;
     }
 
-    context = env->dmmu.mmu_primary_context & 0x1fff;
+    context = env->dmmuregs[1] & 0x1fff;
 
     for (i = 0; i < 64; i++) {
         // ctx match, vaddr match, valid?
-        if (ultrasparc_tag_match(&env->dtlb[i],
+        if (ultrasparc_tag_match(env->dtlb_tag[i], env->dtlb_tte[i],
                                  address, context, physical)
         ) {
             // access ok?
-            if (((env->dtlb[i].tte & 0x4) && is_user) ||
-                (!(env->dtlb[i].tte & 0x2) && (rw == 1))) {
-                uint8_t fault_type = 0;
-
-                if ((env->dtlb[i].tte & 0x4) && is_user) {
-                    fault_type |= 1; /* privilege violation */
-                }
-
-                if (env->dmmu.sfsr & 1) /* Fault status register */
-                    env->dmmu.sfsr = 2; /* overflow (not read before
+            if (((env->dtlb_tte[i] & 0x4) && is_user) ||
+                (!(env->dtlb_tte[i] & 0x2) && (rw == 1))) {
+                if (env->dmmuregs[3]) /* Fault status register */
+                    env->dmmuregs[3] = 2; /* overflow (not read before
                                              another fault) */
-
-                env->dmmu.sfsr |= (is_user << 3) | ((rw == 1) << 2) | 1;
-
-                env->dmmu.sfsr |= (fault_type << 7);
-
-                env->dmmu.sfar = address; /* Fault address register */
+                env->dmmuregs[3] |= (is_user << 3) | ((rw == 1) << 2) | 1;
+                env->dmmuregs[4] = address; /* Fault address register */
                 env->exception_index = TT_DFAULT;
 #ifdef DEBUG_MMU
                 printf("DFAULT at 0x%" PRIx64 "\n", address);
@@ -466,16 +456,15 @@ static int get_physical_address_data(CPUState *env,
                 return 1;
             }
             *prot = PAGE_READ;
-            if (env->dtlb[i].tte & 0x2)
+            if (env->dtlb_tte[i] & 0x2)
                 *prot |= PAGE_WRITE;
-            TTE_SET_USED(env->dtlb[i].tte);
             return 0;
         }
     }
 #ifdef DEBUG_MMU
     printf("DMISS at 0x%" PRIx64 "\n", address);
 #endif
-    env->dmmu.tag_access = (address & ~0x1fffULL) | context;
+    env->dmmuregs[6] = (address & ~0x1fffULL) | context;
     env->exception_index = TT_DMISS;
     return 1;
 }
@@ -494,19 +483,19 @@ static int get_physical_address_code(CPUState *env,
         return 0;
     }
 
-    context = env->dmmu.mmu_primary_context & 0x1fff;
+    context = env->dmmuregs[1] & 0x1fff;
 
     for (i = 0; i < 64; i++) {
         // ctx match, vaddr match, valid?
-        if (ultrasparc_tag_match(&env->itlb[i],
+        if (ultrasparc_tag_match(env->itlb_tag[i], env->itlb_tte[i],
                                  address, context, physical)
         ) {
             // access ok?
-            if ((env->itlb[i].tte & 0x4) && is_user) {
-                if (env->immu.sfsr) /* Fault status register */
-                    env->immu.sfsr = 2; /* overflow (not read before
+            if ((env->itlb_tte[i] & 0x4) && is_user) {
+                if (env->immuregs[3]) /* Fault status register */
+                    env->immuregs[3] = 2; /* overflow (not read before
                                              another fault) */
-                env->immu.sfsr |= (is_user << 3) | 1;
+                env->immuregs[3] |= (is_user << 3) | 1;
                 env->exception_index = TT_TFAULT;
 #ifdef DEBUG_MMU
                 printf("TFAULT at 0x%" PRIx64 "\n", address);
@@ -514,7 +503,6 @@ static int get_physical_address_code(CPUState *env,
                 return 1;
             }
             *prot = PAGE_EXEC;
-            TTE_SET_USED(env->itlb[i].tte);
             return 0;
         }
     }
@@ -522,7 +510,7 @@ static int get_physical_address_code(CPUState *env,
     printf("TMISS at 0x%" PRIx64 "\n", address);
 #endif
     /* Context is stored in DMMU (dmmuregs[1]) also for IMMU */
-    env->immu.tag_access = (address & ~0x1fffULL) | context;
+    env->immuregs[6] = (address & ~0x1fffULL) | context;
     env->exception_index = TT_TMISS;
     return 1;
 }
@@ -573,7 +561,7 @@ void dump_mmu(CPUState *env)
     const char *mask;
 
     printf("MMU contexts: Primary: %" PRId64 ", Secondary: %" PRId64 "\n",
-           env->dmmu.mmu_primary_context, env->dmmu.mmu_secondary_context);
+           env->dmmuregs[1], env->dmmuregs[2]);
     if ((env->lsu & DMMU_E) == 0) {
         printf("DMMU disabled\n");
     } else {
@@ -595,9 +583,8 @@ void dump_mmu(CPUState *env)
                 break;
             }
             if ((env->dtlb_tte[i] & 0x8000000000000000ULL) != 0) {
-                printf("[%02u] VA: " PRIx64 ", PA: " PRIx64
+                printf("VA: %" PRIx64 ", PA: %" PRIx64
                        ", %s, %s, %s, %s, ctx %" PRId64 "\n",
-                       i,
                        env->dtlb_tag[i] & (uint64_t)~0x1fffULL,
                        env->dtlb_tte[i] & (uint64_t)0x1ffffffe000ULL,
                        mask,
@@ -629,15 +616,14 @@ void dump_mmu(CPUState *env)
                 break;
             }
             if ((env->itlb_tte[i] & 0x8000000000000000ULL) != 0) {
-                printf("[%02u] VA: " PRIx64 ", PA: " PRIx64
+                printf("VA: %" PRIx64 ", PA: %" PRIx64
                        ", %s, %s, %s, ctx %" PRId64 "\n",
-                       i,
-                       env->itlb[i].tag & (uint64_t)~0x1fffULL,
+                       env->itlb_tag[i] & (uint64_t)~0x1fffULL,
                        env->itlb_tte[i] & (uint64_t)0x1ffffffe000ULL,
                        mask,
                        env->itlb_tte[i] & 0x4? "priv": "user",
                        env->itlb_tte[i] & 0x40? "locked": "unlocked",
-                       env->itlb[i].tag & (uint64_t)0x1fffULL);
+                       env->itlb_tag[i] & (uint64_t)0x1fffULL);
             }
         }
     }

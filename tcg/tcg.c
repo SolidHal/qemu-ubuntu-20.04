@@ -27,7 +27,7 @@
 
 #include "config.h"
 
-#ifndef CONFIG_DEBUG_TCG
+#ifndef DEBUG_TCG
 /* define it to suppress various consistency checks (faster) */
 #define NDEBUG
 #endif
@@ -46,7 +46,6 @@
 
 #include "qemu-common.h"
 #include "cache-utils.h"
-#include "host-utils.h"
 
 /* Note: the long term plan is to reduce the dependancies on the QEMU
    CPU definitions. Currently they are used for qemu_ld/st
@@ -58,9 +57,6 @@
 #include "tcg-op.h"
 #include "elf.h"
 
-#if defined(CONFIG_USE_GUEST_BASE) && !defined(TCG_TARGET_HAS_GUEST_BASE)
-#error GUEST_BASE not supported on this host.
-#endif
 
 static void patch_reloc(uint8_t *code_ptr, int type, 
                         tcg_target_long value, tcg_target_long addend);
@@ -1866,7 +1862,7 @@ static int tcg_reg_alloc_call(TCGContext *s, const TCGOpDef *def,
 
 static int64_t tcg_table_op_count[NB_OPS];
 
-static void dump_op_count(void)
+void dump_op_count(void)
 {
     int i;
     FILE *f;
@@ -2074,8 +2070,10 @@ void tcg_dump_info(FILE *f,
                 s->restore_count);
     cpu_fprintf(f, "  avg cycles        %0.1f\n",
                 s->restore_count ? (double)s->restore_time / s->restore_count : 0);
-
-    dump_op_count();
+    {
+        extern void dump_op_count(void);
+        dump_op_count();
+    }
 }
 #else
 void tcg_dump_info(FILE *f,

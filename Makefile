@@ -20,7 +20,9 @@ CPPFLAGS += -I. -I$(SRC_PATH) -MMD -MP -MT $@
 CPPFLAGS += -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 CPPFLAGS += -U_FORTIFY_SOURCE
 LIBS=
-
+ifdef CONFIG_STATIC
+LDFLAGS += -static
+endif
 ifdef BUILD_DOCS
 DOCS=qemu-doc.html qemu-tech.html qemu.1 qemu-img.1 qemu-nbd.8
 else
@@ -38,7 +40,7 @@ ifdef CONFIG_WIN32
 LIBS+=-lwinmm -lws2_32 -liphlpapi
 endif
 
-build-all: $(TOOLS) $(DOCS) roms recurse-all
+build-all: $(TOOLS) $(DOCS) recurse-all
 
 config-host.mak: configure
 ifneq ($(wildcard config-host.mak),)
@@ -55,20 +57,35 @@ subdir-%:
 $(filter %-softmmu,$(SUBDIR_RULES)): libqemu_common.a
 $(filter %-user,$(SUBDIR_RULES)): libqemu_user.a
 
-recurse-all: $(SUBDIR_RULES)
+
+ROMSUBDIR_RULES=$(patsubst %,romsubdir-%, $(ROMS))
+romsubdir-%:
+	$(call quiet-command,$(MAKE) $(SUBDIR_MAKEFLAGS) -C pc-bios/$* V="$(V)" TARGET_DIR="$*/",)
+
+ALL_SUBDIRS=$(TARGET_DIRS) $(patsubst %,pc-bios/%, $(ROMS))
+
+recurse-all: $(SUBDIR_RULES) $(ROMSUBDIR_RULES)
 
 #######################################################################
 # block-obj-y is code used by both qemu system emulation and qemu-img
 
 block-obj-y = cutils.o cache-utils.o qemu-malloc.o qemu-option.o module.o
 block-obj-y += nbd.o block.o aio.o aes.o
-block-obj-$(CONFIG_AIO) += posix-aio-compat.o
 
 block-nested-y += cow.o qcow.o vmdk.o cloop.o dmg.o bochs.o vpc.o vvfat.o
 block-nested-y += qcow2.o qcow2-refcount.o qcow2-cluster.o qcow2-snapshot.o
 block-nested-y += parallels.o nbd.o
-block-nested-$(CONFIG_WIN32) += raw-win32.o
-block-nested-$(CONFIG_POSIX) += raw-posix.o
+
+
+ifdef CONFIG_WIN32
+block-nested-y += raw-win32.o
+else
+ifdef CONFIG_AIO
+block-obj-y += posix-aio-compat.o
+endif
+block-nested-y += raw-posix.o
+endif
+
 block-nested-$(CONFIG_CURL) += curl.o
 
 block-obj-y +=  $(addprefix block/, $(block-nested-y))
@@ -100,16 +117,21 @@ obj-y += qdev.o qdev-properties.o ssi.o
 
 obj-$(CONFIG_BRLAPI) += baum.o
 
-LIBS+=$(BRLAPI_LIBS)
+ifdef CONFIG_BRLAPI
+LIBS+=-lbrlapi
+endif
 
-obj-$(CONFIG_WIN32) += tap-win32.o
-obj-$(CONFIG_POSIX) += migration-exec.o
+ifdef CONFIG_WIN32
+obj-y += tap-win32.o
+else
+obj-y += migration-exec.o
+endif
 
 ifdef CONFIG_COREAUDIO
 AUDIO_PT = y
 endif
 ifdef CONFIG_FMOD
-audio/audio.o audio/fmodaudio.o: CPPFLAGS := $(FMOD_CFLAGS) $(CPPFLAGS)
+audio/audio.o audio/fmodaudio.o: CPPFLAGS := -I$(CONFIG_FMOD_INC) $(CPPFLAGS)
 endif
 ifdef CONFIG_ESD
 AUDIO_PT = y
@@ -178,7 +200,7 @@ vnc.h: vnc-tls.h vnc-auth-vencrypt.h vnc-auth-sasl.h keymaps.h
 
 vnc.o: vnc.c vnc.h vnc_keysym.h vnchextile.h d3des.c d3des.h acl.h
 
-vnc.o: CFLAGS += $(VNC_TLS_CFLAGS)
+vnc.o: CFLAGS += $(CONFIG_VNC_TLS_CFLAGS)
 
 vnc-tls.o: vnc-tls.c vnc.h
 
@@ -188,7 +210,7 @@ vnc-auth-sasl.o: vnc-auth-sasl.c vnc.h
 
 curses.o: curses.c keymaps.h curses_keys.h
 
-bt-host.o: CFLAGS += $(BLUEZ_CFLAGS)
+bt-host.o: CFLAGS += $(CONFIG_BLUEZ_CFLAGS)
 
 libqemu_common.a: $(obj-y)
 
@@ -220,12 +242,12 @@ clean:
 	rm -f slirp/*.o slirp/*.d audio/*.o audio/*.d block/*.o block/*.d
 	rm -f qemu-img-cmds.h
 	$(MAKE) -C tests clean
-	for d in $(TARGET_DIRS) $(ROMS) libhw32 libhw64; do \
+	for d in $(ALL_SUBDIRS) libhw32 libhw64; do \
 	$(MAKE) -C $$d $@ || exit 1 ; \
         done
 
 distclean: clean
-	rm -f config-host.mak config-host.h config-host.ld $(DOCS) qemu-options.texi qemu-img-cmds.texi
+	rm -f config-host.mak config-host.h $(DOCS) qemu-options.texi qemu-img-cmds.texi
 	rm -f qemu-{doc,tech}.{info,aux,cp,dvi,fn,info,ky,log,pg,toc,tp,vr}
 	for d in $(TARGET_DIRS) libhw32 libhw64; do \
 	rm -rf $$d || exit 1 ; \
@@ -244,11 +266,6 @@ multiboot.bin
 else
 BLOBS=
 endif
-
-roms:
-	for d in $(ROMS); do \
-	$(MAKE) -C $$d || exit 1 ; \
-        done
 
 install-doc: $(DOCS)
 	$(INSTALL_DIR) "$(DESTDIR)$(docdir)"

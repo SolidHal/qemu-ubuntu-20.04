@@ -95,7 +95,7 @@ enum {
 
 
 /* Note: must be synced with dyngen-exec.h and Makefile.target */
-#ifdef CONFIG_SOLARIS
+#ifdef HOST_SOLARIS
 #define TCG_AREG0 TCG_REG_G2
 #define TCG_AREG1 TCG_REG_G3
 #define TCG_AREG2 TCG_REG_G4

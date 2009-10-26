@@ -480,7 +480,7 @@ device_init(prom_register_devices);
 typedef struct RamDevice
 {
     SysBusDevice busdev;
-    uint64_t size;
+    uint32_t size;
 } RamDevice;
 
 /* System RAM */
@@ -527,7 +527,7 @@ static SysBusDeviceInfo ram_info = {
     .qdev.props = (Property[]) {
         {
             .name = "size",
-            .info = &qdev_prop_uint64,
+            .info = &qdev_prop_uint32,
             .offset = offsetof(RamDevice, size),
         },
         {/* end of property list */}
@@ -581,9 +581,9 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     qemu_irq *cpu_halt;
     unsigned long kernel_size;
     BlockDriverState *fd[MAX_FD];
+    int drive_index;
     void *fw_cfg;
     DeviceState *dev;
-    DriveInfo *dinfo;
 
     /* init CPUs */
     if (!cpu_model)
@@ -662,9 +662,9 @@ static void sun4m_hw_init(const struct sun4m_hwdef *hwdef, ram_addr_t RAM_size,
     if (hwdef->fd_base) {
         /* there is zero or one floppy drive */
         memset(fd, 0, sizeof(fd));
-        dinfo = drive_get(IF_FLOPPY, 0, 0);
-        if (dinfo)
-            fd[0] = dinfo->bdrv;
+        drive_index = drive_get_index(IF_FLOPPY, 0, 0);
+        if (drive_index != -1)
+            fd[0] = drives_table[drive_index].bdrv;
 
         sun4m_fdctrl_init(slavio_irq[hwdef->fd_irq], hwdef->fd_base, fd,
                           &fdc_tc);
@@ -1322,13 +1322,12 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 {
     CPUState *envs[MAX_CPUS];
     unsigned int i;
-    void *iounits[MAX_IOUNITS], *espdma, *ledma, *nvram;
-    qemu_irq *cpu_irqs[MAX_CPUS], sbi_irq[32], sbi_cpu_irq[MAX_CPUS],
+    void *iounits[MAX_IOUNITS], *espdma, *ledma, *nvram, *sbi;
+    qemu_irq *cpu_irqs[MAX_CPUS], *sbi_irq, *sbi_cpu_irq,
         espdma_irq, ledma_irq;
     qemu_irq *esp_reset, *le_reset;
     unsigned long kernel_size;
     void *fw_cfg;
-    DeviceState *dev;
 
     /* init CPUs */
     if (!cpu_model)
@@ -1346,14 +1345,7 @@ static void sun4d_hw_init(const struct sun4d_hwdef *hwdef, ram_addr_t RAM_size,
 
     prom_init(hwdef->slavio_base, bios_name);
 
-    dev = sbi_init(hwdef->sbi_base, cpu_irqs);
-
-    for (i = 0; i < 32; i++) {
-        sbi_irq[i] = qdev_get_gpio_in(dev, i);
-    }
-    for (i = 0; i < MAX_CPUS; i++) {
-        sbi_cpu_irq[i] = qdev_get_gpio_in(dev, 32 + i);
-    }
+    sbi = sbi_init(hwdef->sbi_base, &sbi_irq, &sbi_cpu_irq, cpu_irqs);
 
     for (i = 0; i < MAX_IOUNITS; i++)
         if (hwdef->iounit_bases[i] != (target_phys_addr_t)-1)
@@ -1502,15 +1494,13 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 {
     CPUState *env;
     void *iommu, *espdma, *ledma, *nvram;
-    qemu_irq *cpu_irqs, slavio_irq[8], espdma_irq, ledma_irq;
+    qemu_irq *cpu_irqs, *slavio_irq, espdma_irq, ledma_irq;
     qemu_irq *esp_reset, *le_reset;
     qemu_irq fdc_tc;
     unsigned long kernel_size;
     BlockDriverState *fd[MAX_FD];
+    int drive_index;
     void *fw_cfg;
-    DeviceState *dev;
-    unsigned int i;
-    DriveInfo *dinfo;
 
     /* init CPU */
     if (!cpu_model)
@@ -1523,11 +1513,8 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
 
     prom_init(hwdef->slavio_base, bios_name);
 
-    dev = sun4c_intctl_init(hwdef->intctl_base, cpu_irqs);
-
-    for (i = 0; i < 8; i++) {
-        slavio_irq[i] = qdev_get_gpio_in(dev, i);
-    }
+    slavio_intctl = sun4c_intctl_init(hwdef->intctl_base,
+                                      &slavio_irq, cpu_irqs);
 
     iommu = iommu_init(hwdef->iommu_base, hwdef->iommu_version,
                        slavio_irq[hwdef->me_irq]);
@@ -1565,9 +1552,9 @@ static void sun4c_hw_init(const struct sun4c_hwdef *hwdef, ram_addr_t RAM_size,
     if (hwdef->fd_base != (target_phys_addr_t)-1) {
         /* there is zero or one floppy drive */
         memset(fd, 0, sizeof(fd));
-        dinfo = drive_get(IF_FLOPPY, 0, 0);
-        if (dinfo)
-            fd[0] = dinfo->bdrv;
+        drive_index = drive_get_index(IF_FLOPPY, 0, 0);
+        if (drive_index != -1)
+            fd[0] = drives_table[drive_index].bdrv;
 
         sun4m_fdctrl_init(slavio_irq[hwdef->fd_irq], hwdef->fd_base, fd,
                           &fdc_tc);

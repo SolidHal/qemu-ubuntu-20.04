@@ -106,7 +106,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
     qemu_irq *dummy_irq;
     int pic_mem_index, dbdma_mem_index, cuda_mem_index, escc_mem_index;
     int ppc_boot_device;
-    DriveInfo *dinfo;
+    int index;
     BlockDriverState *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
     void *fw_cfg;
     void *dbdma;
@@ -179,10 +179,6 @@ static void ppc_core99_init (ram_addr_t ram_size,
         vga_bios_ptr[3] = 'V';
         cpu_to_be32w((uint32_t *)(vga_bios_ptr + 4), vga_bios_size);
         vga_bios_size += 8;
-
-        /* Round to page boundary */
-        vga_bios_size = (vga_bios_size + TARGET_PAGE_SIZE - 1) &
-            TARGET_PAGE_MASK;
     }
 
     if (linux_boot) {
@@ -195,7 +191,7 @@ static void ppc_core99_init (ram_addr_t ram_size,
         kernel_size = load_elf(kernel_filename, kernel_base, NULL, &lowaddr, NULL);
         if (kernel_size > 0 && lowaddr != KERNEL_LOAD_ADDR) {
             kernel_size = load_elf(kernel_filename, (2 * kernel_base) - lowaddr,
-                                   NULL, 0, NULL);
+                                   NULL, NULL, NULL);
         }
         if (kernel_size < 0)
             kernel_size = load_aout(kernel_filename, kernel_base,
@@ -315,8 +311,11 @@ static void ppc_core99_init (ram_addr_t ram_size,
         exit(1);
     }
     for(i = 0; i < MAX_IDE_BUS * MAX_IDE_DEVS; i++) {
-        dinfo = drive_get(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
-        hd[i] = dinfo ? dinfo->bdrv : NULL;
+        index = drive_get_index(IF_IDE, i / MAX_IDE_DEVS, i % MAX_IDE_DEVS);
+        if (index != -1)
+            hd[i] = drives_table[index].bdrv;
+        else
+            hd[i] = NULL;
     }
     dbdma = DBDMA_init(&dbdma_mem_index);
     pci_cmd646_ide_init(pci_bus, hd, 0);

@@ -39,7 +39,7 @@
 /* XXX: This may be wrong for 64-bit ILP32 hosts.  */
 typedef void * host_reg_t;
 
-#ifdef CONFIG_BSD
+#ifdef HOST_BSD
 typedef struct __sFILE FILE;
 #else
 typedef struct FILE FILE;
@@ -75,7 +75,7 @@ extern int printf(const char *, ...);
 #define AREG1 "s0"
 #define AREG2 "s1"
 #elif defined(__sparc__)
-#ifdef CONFIG_SOLARIS
+#ifdef HOST_SOLARIS
 #define AREG0 "g2"
 #define AREG1 "g3"
 #define AREG2 "g4"

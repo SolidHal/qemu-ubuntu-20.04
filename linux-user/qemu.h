@@ -20,7 +20,7 @@
 #include "gdbstub.h"
 #include "sys-queue.h"
 
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
 #define THREAD __thread
 #else
 #define THREAD
@@ -104,7 +104,7 @@ typedef struct TaskState {
     uint32_t v86flags;
     uint32_t v86mask;
 #endif
-#ifdef CONFIG_USE_NPTL
+#ifdef USE_NPTL
     abi_ulong child_tidptr;
 #endif
 #ifdef TARGET_M68K
@@ -133,9 +133,6 @@ void init_task_state(TaskState *ts);
 void task_settid(TaskState *);
 void stop_all_tasks(void);
 extern const char *qemu_uname_release;
-#if defined(CONFIG_USE_GUEST_BASE)
-extern unsigned long mmap_min_addr;
-#endif
 
 /* ??? See if we can avoid exposing so much of the loader internals.  */
 /*
@@ -244,7 +241,7 @@ void mmap_unlock(void);
 abi_ulong mmap_find_vma(abi_ulong, abi_ulong);
 void cpu_list_lock(void);
 void cpu_list_unlock(void);
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
 void mmap_fork_start(void);
 void mmap_fork_end(int child);
 #endif
@@ -441,7 +438,7 @@ static inline void *lock_user_string(abi_ulong guest_addr)
 #define unlock_user_struct(host_ptr, guest_addr, copy)		\
     unlock_user(host_ptr, guest_addr, (copy) ? sizeof(*host_ptr) : 0)
 
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
 #include <pthread.h>
 #endif
 

@@ -316,7 +316,7 @@ static inline PageDesc *page_find_alloc(target_ulong index)
 #if defined(CONFIG_USER_ONLY)
         size_t len = sizeof(PageDesc) * L2_SIZE;
         /* Don't use qemu_malloc because it may recurse.  */
-        p = mmap(0, len, PROT_READ | PROT_WRITE,
+        p = mmap(NULL, len, PROT_READ | PROT_WRITE,
                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         *lp = p;
         if (h2g_valid(p)) {
@@ -341,8 +341,9 @@ static inline PageDesc *page_find(target_ulong index)
         return NULL;
 
     p = *lp;
-    if (!p)
-        return 0;
+    if (!p) {
+        return NULL;
+    }
     return p + (index & (L2_SIZE - 1));
 }
 
@@ -1491,8 +1492,7 @@ void cpu_set_log(int log_flags)
             static char logfile_buf[4096];
             setvbuf(logfile, logfile_buf, _IOLBF, sizeof(logfile_buf));
         }
-#elif !defined(_WIN32)
-        /* Win32 doesn't support line-buffering and requires size >= 2 */
+#else
         setvbuf(logfile, NULL, _IOLBF, 0);
 #endif
         log_append = 1;
@@ -1515,7 +1515,7 @@ void cpu_set_log_filename(const char *filename)
 
 static void cpu_unlink_tb(CPUState *env)
 {
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
     /* FIXME: TB unchaining isn't SMP safe.  For now just ignore the
        problem and hope the cpu will stop of its own accord.  For userspace
        emulation this often isn't actually as bad as it sounds.  Often

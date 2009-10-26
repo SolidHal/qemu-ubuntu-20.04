@@ -27,7 +27,7 @@
  * WORDS_ALIGNED : if defined, the host cpu can only make word aligned
  * memory accesses.
  *
- * HOST_WORDS_BIGENDIAN : if defined, the host cpu is big endian and
+ * WORDS_BIGENDIAN : if defined, the host cpu is big endian and
  * otherwise little endian.
  *
  * (TARGET_WORDS_ALIGNED : same for target cpu (not supported yet))
@@ -37,7 +37,7 @@
 
 #include "softfloat.h"
 
-#if defined(HOST_WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
+#if defined(WORDS_BIGENDIAN) != defined(TARGET_WORDS_BIGENDIAN)
 #define BSWAP_NEEDED
 #endif
 
@@ -123,7 +123,7 @@ typedef union {
    endian ! */
 typedef union {
     float64 d;
-#if defined(HOST_WORDS_BIGENDIAN) \
+#if defined(WORDS_BIGENDIAN) \
     || (defined(__arm__) && !defined(__VFP_FP__) && !defined(CONFIG_SOFTFLOAT))
     struct {
         uint32_t upper;
@@ -141,7 +141,7 @@ typedef union {
 #ifdef TARGET_SPARC
 typedef union {
     float128 q;
-#if defined(HOST_WORDS_BIGENDIAN) \
+#if defined(WORDS_BIGENDIAN) \
     || (defined(__arm__) && !defined(__VFP_FP__) && !defined(CONFIG_SOFTFLOAT))
     struct {
         uint32_t upmost;
@@ -221,7 +221,7 @@ static inline void stb_p(void *ptr, int v)
 /* NOTE: on arm, putting 2 in /proc/sys/debug/alignment so that the
    kernel handles unaligned load/stores may give better results, but
    it is a system wide setting : bad */
-#if defined(HOST_WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
+#if defined(WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
 
 /* conservative code for little endian unaligned accesses */
 static inline int lduw_le_p(const void *ptr)
@@ -398,7 +398,7 @@ static inline void stfq_le_p(void *ptr, float64 v)
 }
 #endif
 
-#if !defined(HOST_WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
+#if !defined(WORDS_BIGENDIAN) || defined(WORDS_ALIGNED)
 
 static inline int lduw_be_p(const void *ptr)
 {
@@ -624,13 +624,8 @@ static inline void stfq_be_p(void *ptr, float64 v)
 /* On some host systems the guest address space is reserved on the host.
  * This allows the guest address space to be offset to a convenient location.
  */
-#if defined(CONFIG_USE_GUEST_BASE)
-extern unsigned long guest_base;
-extern int have_guest_base;
-#define GUEST_BASE guest_base
-#else
-#define GUEST_BASE 0ul
-#endif
+//#define GUEST_BASE 0x20000000
+#define GUEST_BASE 0
 
 /* All direct uses of g2h and h2g need to go away for usermode softmmu.  */
 #define g2h(x) ((void *)((unsigned long)(x) + GUEST_BASE))

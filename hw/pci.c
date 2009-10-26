@@ -61,8 +61,8 @@ static struct BusInfo pci_bus_info = {
     .print_dev  = pcibus_dev_print,
     .props      = (Property[]) {
         {
-            .name   = "addr",
-            .info   = &qdev_prop_pci_devfn,
+            .name   = "devfn",
+            .info   = &qdev_prop_uint32,
             .offset = offsetof(PCIDevice, devfn),
             .defval = (uint32_t[]) { -1 },
         },
@@ -145,13 +145,11 @@ PCIBus *pci_register_bus(DeviceState *parent, const char *name,
     return bus;
 }
 
-static PCIBus *pci_register_secondary_bus(PCIDevice *dev,
-                                          pci_map_irq_fn map_irq,
-                                          const char *name)
+static PCIBus *pci_register_secondary_bus(PCIDevice *dev, pci_map_irq_fn map_irq)
 {
     PCIBus *bus;
 
-    bus = FROM_QBUS(PCIBus, qbus_create(&pci_bus_info, &dev->qdev, name));
+    bus = qemu_mallocz(sizeof(PCIBus));
     bus->map_irq = map_irq;
     bus->parent_dev = dev;
     bus->next = dev->bus->next;
@@ -782,7 +780,7 @@ PCIDevice *pci_create(const char *name, const char *devaddr)
     }
 
     dev = qdev_create(&bus->qbus, name);
-    qdev_prop_set_uint32(dev, "addr", devfn);
+    qdev_prop_set_uint32(dev, "devfn", devfn);
     return (PCIDevice *)dev;
 }
 
@@ -893,7 +891,7 @@ PCIBus *pci_bridge_init(PCIBus *bus, int devfn, uint16_t vid, uint16_t did,
         PCI_HEADER_TYPE_MULTI_FUNCTION | PCI_HEADER_TYPE_BRIDGE; // header_type
     s->dev.config[0x1E] = 0xa0; // secondary status
 
-    s->bus = pci_register_secondary_bus(&s->dev, map_irq, name);
+    s->bus = pci_register_secondary_bus(&s->dev, map_irq);
     return s->bus;
 }
 
@@ -932,7 +930,7 @@ PCIDevice *pci_create_simple(PCIBus *bus, int devfn, const char *name)
     DeviceState *dev;
 
     dev = qdev_create(&bus->qbus, name);
-    qdev_prop_set_uint32(dev, "addr", devfn);
+    qdev_prop_set_uint32(dev, "devfn", devfn);
     qdev_init(dev);
 
     return (PCIDevice *)dev;

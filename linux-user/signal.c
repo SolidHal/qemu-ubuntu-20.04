@@ -3533,12 +3533,12 @@ struct target_mcontext {
            varies depending on whether we're PPC64 or not: PPC64 splits
            them apart; PPC32 stuffs them together.  */
 #if defined(TARGET_PPC64)
-#define QEMU_NVRREG 34
+#define NVRREG 34
 #else
-#define QEMU_NVRREG 33
+#define NVRREG 33
 #endif
-        ppc_avr_t altivec[QEMU_NVRREG];
-#undef QEMU_NVRREG
+        ppc_avr_t altivec[NVRREG];
+#undef NVRREG
     } mc_vregs __attribute__((__aligned__(16)));
 };
 

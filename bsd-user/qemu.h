@@ -24,7 +24,7 @@ enum BSDType {
 #include "target_signal.h"
 #include "gdbstub.h"
 
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
 #define THREAD __thread
 #else
 #define THREAD
@@ -188,10 +188,13 @@ void mmap_lock(void);
 void mmap_unlock(void);
 void cpu_list_lock(void);
 void cpu_list_unlock(void);
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
 void mmap_fork_start(void);
 void mmap_fork_end(int child);
 #endif
+
+/* main.c */
+extern unsigned long x86_stack_size;
 
 /* user access */
 
@@ -382,7 +385,7 @@ static inline void *lock_user_string(abi_ulong guest_addr)
 #define unlock_user_struct(host_ptr, guest_addr, copy)          \
     unlock_user(host_ptr, guest_addr, (copy) ? sizeof(*host_ptr) : 0)
 
-#if defined(CONFIG_USE_NPTL)
+#if defined(USE_NPTL)
 #include <pthread.h>
 #endif
 

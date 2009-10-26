@@ -1,3 +1,26 @@
+qemu (0.11.0-1) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * New upstream version.
+    - Documents virtio NIC. Closes: #541182.
+    - Increase the maximum TCG op a target instruction op can expand to.
+      Closes: #530645, #542297.
+    - KVM is enabled by default. Closes: #520894.
+  * Drop 65_kfreebsd.patch.
+  * Split the qemu package and use out of tree building. Based on a patch
+    from Vagrant Cascadian. Closes: #524774.
+  * Only recommends debootstrap for qemu-user and qemu-user static. Closes:
+    #543356.
+  * Remove /usr/share/qemu/proll.elf. Closes: bug#542247.
+  * Add build-depends on libcurl4-gnutls-dev, libgnutls-dev and libsasl2-dev
+    to enable new upstream features.
+  * Bump Standards-Version to 3.8.3 (no changes).
+  * Update Vcs-* fields to point to the new git repository.
+  * Add Vagrant Cascadian <vagrant@freegeek.org> to uploaders, and set
+    DM-Upload-Allowed to yes.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Mon, 26 Oct 2009 10:17:57 +0000
+
 qemu (0.10.50+git20090729-1) experimental; urgency=low
 
   [ Josh Triplett ]

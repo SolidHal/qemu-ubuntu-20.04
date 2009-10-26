@@ -49,13 +49,13 @@
 static void tosa_microdrive_attach(PXA2xxState *cpu)
 {
     PCMCIACardState *md;
+    int index;
     BlockDriverState *bs;
-    DriveInfo *dinfo;
 
-    dinfo = drive_get(IF_IDE, 0, 0);
-    if (!dinfo)
+    index = drive_get_index(IF_IDE, 0, 0);
+    if (index == -1)
         return;
-    bs = dinfo->bdrv;
+    bs = drives_table[index].bdrv;
     if (bdrv_is_inserted(bs) && !bdrv_is_removable(bs)) {
         md = dscm1xxxx_init(bs);
         pxa2xx_pcmcia_attach(cpu->pcmcia[0], md);

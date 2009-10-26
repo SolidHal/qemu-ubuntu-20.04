@@ -52,10 +52,9 @@ void drive_hot_add(Monitor *mon, const char *pci_addr, const char *opts)
 {
     int dom, pci_bus;
     unsigned slot;
-    int type, bus;
+    int drive_idx, type, bus;
     int success = 0;
     PCIDevice *dev;
-    DriveInfo *dinfo;
 
     if (pci_read_devaddr(mon, pci_addr, &dom, &pci_bus, &slot)) {
         return;
@@ -67,21 +66,21 @@ void drive_hot_add(Monitor *mon, const char *pci_addr, const char *opts)
         return;
     }
 
-    dinfo = add_init_drive(opts);
-    if (!dinfo)
+    drive_idx = add_init_drive(opts);
+    if (drive_idx < 0)
         return;
-    if (dinfo->devaddr) {
+    if (drives_table[drive_idx].devaddr) {
         monitor_printf(mon, "Parameter addr not supported\n");
         return;
     }
-    type = dinfo->type;
+    type = drives_table[drive_idx].type;
     bus = drive_get_max_bus (type);
 
     switch (type) {
     case IF_SCSI:
         success = 1;
-        lsi_scsi_attach(&dev->qdev, dinfo->bdrv,
-                        dinfo->unit);
+        lsi_scsi_attach(&dev->qdev, drives_table[drive_idx].bdrv,
+                        drives_table[drive_idx].unit);
         break;
     default:
         monitor_printf(mon, "Can't hot-add drive to type %d\n", type);
@@ -89,8 +88,8 @@ void drive_hot_add(Monitor *mon, const char *pci_addr, const char *opts)
 
     if (success)
         monitor_printf(mon, "OK bus %d, unit %d\n",
-                       dinfo->bus,
-                       dinfo->unit);
+                       drives_table[drive_idx].bus,
+                       drives_table[drive_idx].unit);
     return;
 }
 
@@ -99,8 +98,7 @@ static PCIDevice *qemu_pci_hot_add_storage(Monitor *mon,
                                            const char *opts)
 {
     PCIDevice *dev;
-    DriveInfo *dinfo;
-    int type = -1;
+    int type = -1, drive_idx = -1;
     char buf[128];
 
     if (get_param_value(buf, sizeof(buf), "if", opts)) {
@@ -118,10 +116,10 @@ static PCIDevice *qemu_pci_hot_add_storage(Monitor *mon,
     }
 
     if (get_param_value(buf, sizeof(buf), "file", opts)) {
-        dinfo = add_init_drive(opts);
-        if (!dinfo)
+        drive_idx = add_init_drive(opts);
+        if (drive_idx < 0)
             return NULL;
-        if (dinfo->devaddr) {
+        if (drives_table[drive_idx].devaddr) {
             monitor_printf(mon, "Parameter addr not supported\n");
             return NULL;
         }

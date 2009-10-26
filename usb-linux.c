@@ -115,7 +115,7 @@ struct ctrl_struct {
     uint16_t offset;
     uint8_t  state;
     struct   usb_ctrlrequest req;
-    uint8_t  buffer[1024];
+    uint8_t  buffer[2048];
 };
 
 typedef struct USBHostDevice {
@@ -552,6 +552,7 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
     struct usbdevfs_urb *urb;
     AsyncURB *aurb;
     int ret, value, index;
+    int buffer_len;
 
     /* 
      * Process certain standard device requests.
@@ -580,6 +581,13 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
 
     /* The rest are asynchronous */
 
+    buffer_len = 8 + s->ctrl.len;
+    if (buffer_len > sizeof(s->ctrl.buffer)) {
+	    fprintf(stderr, "husb: ctrl buffer too small (%u > %lu)\n",
+		    buffer_len, sizeof(s->ctrl.buffer));
+	    return USB_RET_STALL;
+    }
+
     aurb = async_alloc();
     aurb->hdev   = s;
     aurb->packet = p;
@@ -596,7 +604,7 @@ static int usb_host_handle_control(USBHostDevice *s, USBPacket *p)
     urb->endpoint = p->devep;
 
     urb->buffer        = &s->ctrl.req;
-    urb->buffer_length = 8 + s->ctrl.len;
+    urb->buffer_length = buffer_len;
 
     urb->usercontext = s;
 
@@ -1057,7 +1065,7 @@ static int get_tag_value(char *buf, int buf_size,
  */
 static int usb_host_scan_dev(void *opaque, USBScanFunc *func)
 {
-    FILE *f = 0;
+    FILE *f = NULL;
     char line[1024];
     char buf[1024];
     int bus_num, addr, speed, device_count, class_id, product_id, vendor_id;
@@ -1178,7 +1186,7 @@ static int usb_host_read_file(char *line, size_t line_size, const char *device_f
  */
 static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
 {
-    DIR *dir = 0;
+    DIR *dir = NULL;
     char line[1024];
     int bus_num, addr, speed, class_id, product_id, vendor_id;
     int ret = 0;
@@ -1257,8 +1265,8 @@ static int usb_host_scan_sys(void *opaque, USBScanFunc *func)
 static int usb_host_scan(void *opaque, USBScanFunc *func)
 {
     Monitor *mon = cur_mon;
-    FILE *f = 0;
-    DIR *dir = 0;
+    FILE *f = NULL;
+    DIR *dir = NULL;
     int ret = 0;
     const char *fs_type[] = {"unknown", "proc", "dev", "sys"};
     char devpath[PATH_MAX];
