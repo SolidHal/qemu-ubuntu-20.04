@@ -134,7 +134,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	done
 endif
 
-	dh_install --list-missing
+	dh_install -s --list-missing
 
 binary-indep:
 # Nothing to do.

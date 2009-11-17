@@ -1,3 +1,22 @@
+qemu (0.11.0-3) unstable; urgency=low
+
+  * qemu-system, qemu-user: fix conflicts version. Closes: #556627.
+  * qemu-utils: conflicts with kvm (<= 85+dfsg-4.1), as it also provides
+    qemu-io.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 17 Nov 2009 09:49:24 +0100
+
+qemu (0.11.0-2) unstable; urgency=low
+
+  * Update from stable-0.11 branch.
+  * Move qemu-user.1 and qemu-make-debian-root.8 to the qemu-user
+    package.
+  * Add build-depends on uuid-dev.
+  * Use a specific install file for qemu-utils on GNU/kFreeBSD.
+  * Call dh_install with -s. 
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 17 Nov 2009 09:11:29 +0100
+
 qemu (0.11.0-1) unstable; urgency=low
 
   [ Aurelien Jarno ]
