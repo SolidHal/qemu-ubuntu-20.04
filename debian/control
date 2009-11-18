@@ -16,7 +16,7 @@ Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler,
 Standards-Version: 3.8.3
 Homepage: http://www.qemu.org/
 Vcs-Browser: http://git.debian.org/?p=pkg-qemu/qemu.git
-Vcs-Git: git://git.debian.org/pkg-qemu/qemu.git
+Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
 
 Package: qemu
 Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
@@ -44,7 +44,7 @@ Package: qemu-system
 Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}, vgabios (>= 0.6c-1), bochsbios (>= 2.3.7+20090416-1),
  openhackware, openbios-ppc (>= 1.0-1), openbios-sparc (>= 1.0-1)
-Conflicts: qemu (<< 0.11.0)
+Replaces: qemu (<< 0.11.0-2)
 Recommends: vde2, qemu-utils
 Suggests: samba, kqemu-source
 Description: QEMU full system emulation binaries
@@ -61,7 +61,7 @@ Description: QEMU full system emulation binaries
 Package: qemu-user
 Architecture: amd64 arm armel hppa i386 powerpc sparc ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Conflicts: qemu (<< 0.11.0)
+Replaces: qemu (<< 0.11.0-2)
 Recommends: debootstrap
 Suggests: sudo
 Description: QEMU user mode emulation binaries
