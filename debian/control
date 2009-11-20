@@ -90,6 +90,7 @@ Package: qemu-utils
 Architecture: amd64 arm armel hppa i386 powerpc sparc kfreebsd-i386 kfreebsd-amd64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Conflicts: kvm (<= 85+dfsg-4.1)
+Replaces: qemu (<< 0.11.0-2)
 Description: QEMU utilities
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
  SPARC and x86-64 emulation. By using dynamic translation it achieves

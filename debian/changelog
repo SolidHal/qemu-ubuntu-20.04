@@ -1,3 +1,11 @@
+qemu (0.11.0-6) unstable; urgency=low
+
+  * Update from stable-0.11 branch.
+  * qemu-utils: add Replaces: qemu (<< 0.11.0-2). Closes: #556627, 
+    #556860.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Fri, 20 Nov 2009 08:24:32 +0100
+
 qemu (0.11.0-5) unstable; urgency=low
 
   * Change the Conflicts: into Replaces: to handle the move of /etc/ifup
