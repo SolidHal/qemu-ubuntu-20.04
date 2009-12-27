@@ -1,0 +1,26 @@
+diff --git a/Makefile.target b/Makefile.target
+index f9cd42a..1c9224c 100644
+--- a/Makefile.target
++++ b/Makefile.target
+@@ -431,7 +431,7 @@ ifdef CONFIG_ESD
+ LIBS += -lesd
+ endif
+ ifdef CONFIG_PA
+-LIBS += -lpulse-simple
++LIBS += -lpulse-simple -lpulse
+ endif
+ ifdef CONFIG_DSOUND
+ LIBS += -lole32 -ldxguid
+diff --git a/configure b/configure
+index d58d19b..be35007 100755
+--- a/configure
++++ b/configure
+@@ -1043,7 +1043,7 @@ for drv in $audio_drv_list; do
+     ;;
+ 
+     pa)
+-    audio_drv_probe $drv pulse/simple.h -lpulse-simple \
++    audio_drv_probe $drv pulse/simple.h "-lpulse-simple -lpulse" \
+         "pa_simple *s = NULL; pa_simple_free(s); return 0;"
+     ;;
+ 

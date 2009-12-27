@@ -1,3 +1,33 @@
+qemu (0.11.1-1) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * New upstream version.
+  * Drop build-depends on libfreebsd-dev on GNU/kFreeBSD.
+  * qemu: suggests qemu-user-static.
+  * qemu-user-static: register QEMU with binfmt mecanism. Closes: 
+    #306637.
+  * Bump conflicts on openbios-ppc to (<< 1.0+svn505-1).
+  * Add 01-binutils-gold.diff to fix FTBFS with binutils-gold. Closes:
+    #556301.
+  * Add sparc64 support.
+  * Use new roms location in etherboot package.
+
+  [ Vagrant Cascadian ]
+  * qemu-utils, qemu-user, qemu-system: Set both Conflicts and Replaces for
+    older versions of qemu to ensure proper upgrade path.
+  * Add versioned build-dep on linux-libc-dev to ensure that KVM support is
+    enabled. 
+  * qemu-system: Lower dependencies on vgabios, bochsbios, openhackware,
+    openbios-ppc and openbios-sparc to recommends. Conflict with versions that
+    are incompatible. Closes: #436094.
+  * qemu-utils: Tighten the versioned conflicts with kvm, as not all older
+    versions actually conflict.
+  * qemu-make-debian-root: Apply modified patch from Nicolas Boulenguez that
+    documents usage of -s, exits on error, and mentions that it is normally
+    run as root. Closes: #447034. 
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sun, 27 Dec 2009 12:09:11 +0100
+
 qemu (0.11.0-6) unstable; urgency=low
 
   * Update from stable-0.11 branch.
@@ -52,6 +82,7 @@ qemu (0.11.0-1) unstable; urgency=low
     - Increase the maximum TCG op a target instruction op can expand to.
       Closes: #530645, #542297.
     - KVM is enabled by default. Closes: #520894.
+    - Fix CVE-2009-3616.  Closes: #553589.
   * Drop 65_kfreebsd.patch.
   * Split the qemu package and use out of tree building. Based on a patch
     from Vagrant Cascadian. Closes: #524774.

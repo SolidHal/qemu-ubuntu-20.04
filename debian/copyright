@@ -43,7 +43,7 @@ License:
     In particular, the QEMU virtual CPU core library (libqemu.a) is
     released under the GNU Lesser General Public License version 2 or later.
     On Debian systems, the complete text of the GNU Lesser General Public 
-    License can be found in the file /usr/share/common-licenses/LGPL.
+    License can be found in the file /usr/share/common-licenses/LGPL-2.
 
     Many hardware device emulation sources are released under the BSD license.
     On Debian systems, the complete text of the BSD license be found in the

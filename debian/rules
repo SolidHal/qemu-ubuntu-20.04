@@ -15,6 +15,7 @@ NJOBS := -j $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
 # Architecture/system specific configuration
+DEB_HOST_ARCH = $(shell dpkg-architecture -qDEB_HOST_ARCH)
 DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 DEB_HOST_ARCH_CPU = $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU)
 
@@ -25,16 +26,36 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
        conf_arch += --audio-drv-list=oss,sdl,esd,pa
 endif
 
-ifeq ($(DEB_HOST_ARCH_CPU),i386)
-       conf_arch += --cpu=i386
+# binfmt support
+ALL_BINFMT_TARGETS=alpha arm armeb cris i386 m68k microblaze mips mipsel ppc ppc64 ppc64abi32 sh4 sh4eb sparc sparc32plus sparc64 x86_64
+ifeq ($(DEB_HOST_ARCH),amd64)
+BINFMT_TARGETS=$(filter-out i386 x86_64, $(ALL_BINFMT_TARGETS))
 endif
-ifeq ($(DEB_HOST_ARCH_CPU),sparc)
-       conf_arch += --cpu=sparc
+ifneq (,$(findstring $(DEB_HOST_ARCH), arm armel))
+BINFMT_TARGETS=$(filter-out arm, $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),i386)
+BINFMT_TARGETS=$(filter-out i386, $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),powerpc)
+BINFMT_TARGETS=$(filter-out ppc, $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),ppc64)
+BINFMT_TARGETS=$(filter-out ppc ppc64 ppc64abi32 , $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),sparc)
+BINFMT_TARGETS=$(filter-out sparc sparc32plus sparc64, $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),sparc64)
+BINFMT_TARGETS=$(filter-out sparc sparc32plus sparc64, $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(BINFMT_TARGETS),)
+BINFMT_TARGETS=$(ALL_BINFMT_TARGETS)
 endif
 
 include /usr/share/quilt/quilt.make
 
-configure-stamp: configure
+configure-stamp: configure patch
 	dh_testdir
 
 	# system build
@@ -59,6 +80,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 			--extra-cflags="$(CFLAGS)" \
 			--extra-ldflags="$(LDFLAGS)" \
 			--prefix=/usr \
+			--interp-prefix=/etc/qemu-binfmt/%M \
 			--disable-blobs \
 			--disable-strip \
 			--disable-system \
@@ -71,6 +93,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 			--extra-cflags="$(CFLAGS)" \
 			--extra-ldflags="$(LDFLAGS)" \
 			--prefix=/usr \
+			--interp-prefix=/etc/qemu-binfmt/%M \
 			--disable-blobs \
 			--disable-strip \
 			--disable-system \
@@ -115,10 +138,10 @@ install: build
 
 	mv $(CURDIR)/debian/tmp/usr/bin/qemu $(CURDIR)/debian/tmp/usr/bin/qemu-system-i386
 
-	zcat /usr/share/etherboot/e1000-82540em.zrom.gz > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-e1000.bin
-	zcat /usr/share/etherboot/rtl8029.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-ne2k_pci.bin
-	zcat /usr/share/etherboot/pcnet32.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-pcnet.bin
-	zcat /usr/share/etherboot/rtl8139.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-rtl8139.bin
+	zcat /usr/lib/etherboot/e1000-82540em.zrom.gz > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-e1000.bin
+	zcat /usr/lib/etherboot/rtl8029.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-ne2k_pci.bin
+	zcat /usr/lib/etherboot/pcnet32.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-pcnet.bin
+	zcat /usr/lib/etherboot/rtl8139.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-rtl8139.bin
 
 	for i in bamboo mpc8544ds ; do \
 		dtc -o $(CURDIR)/debian/tmp/usr/share/qemu/$$i.dtb pc-bios/$$i.dts ; \
@@ -132,8 +155,19 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	for target in $(CURDIR)/user-static-build/*-*-user/qemu-* ; do \
 		install -m 755 $$target $(CURDIR)/debian/tmp/usr/bin/$$(basename $$target)-static ; \
 	done
+
+	# binfmt support
+	sed -i -e 's/^BINFMT_TARGETS=.*/BINFMT_TARGETS=\"$(BINFMT_TARGETS)\"/g' \
+		$(CURDIR)/debian/qemu-user-static.prerm \
+		$(CURDIR)/debian/qemu-user-static.postinst
+
+	for target in $(BINFMT_TARGETS) ; do \
+		install -m 644 $(CURDIR)/debian/binfmts/qemu-$$target \
+			$(CURDIR)/debian/qemu-user-static/usr/share/binfmts ; \
+	done
 endif
 
+	# Install files in the various packages
 	dh_install -s --list-missing
 
 binary-indep:
