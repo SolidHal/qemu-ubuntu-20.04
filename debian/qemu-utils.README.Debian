@@ -1,7 +1,7 @@
-qemu-user for Debian
+qemu-utils for Debian
 --------------------
 
-The qemu-user package includes a simple script called qemu-make-debian-root
+The qemu-utils package includes a simple script called qemu-make-debian-root
 under /usr/sbin, which uses debootstrap to create an image suitable for qemu
 with a fresh Debian installation inside.
 

@@ -142,6 +142,7 @@ install: build
 	zcat /usr/lib/etherboot/rtl8029.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-ne2k_pci.bin
 	zcat /usr/lib/etherboot/pcnet32.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-pcnet.bin
 	zcat /usr/lib/etherboot/rtl8139.zrom.gz       > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-rtl8139.bin
+	zcat /usr/lib/etherboot/virtio-net.zrom.gz    > $(CURDIR)/debian/tmp/usr/share/qemu/pxe-virtio.bin
 
 	for i in bamboo mpc8544ds ; do \
 		dtc -o $(CURDIR)/debian/tmp/usr/share/qemu/$$i.dtb pc-bios/$$i.dts ; \

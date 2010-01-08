@@ -1,3 +1,15 @@
+qemu (0.11.1-2) unstable; urgency=low
+
+  * Add versioned build-depends on etherboot.
+  * Add PXE boot support for virtio network adapters.
+  * Move qemu-make-debian-root to qemu-utils package, as it only produces disk
+    images not useable by qemu-user. Lower recommends on debootstrap to
+    suggests. Add Conflicts and Replaces on older versions of qemu-user.
+  * Register /usr/bin/qemu with the alternatives system. Closes: #413840. 
+  * qemu: Add ${misc:Depends} so that debhelper can add dependencies if needed.
+
+ -- Vagrant Cascadian <vagrant@freegeek.org>  Fri, 08 Jan 2010 09:26:11 -0800
+
 qemu (0.11.1-1) unstable; urgency=low
 
   [ Aurelien Jarno ]

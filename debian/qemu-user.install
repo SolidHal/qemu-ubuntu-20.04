@@ -1,4 +1,3 @@
-debian/qemu-make-debian-root usr/sbin/
 debian/tmp/usr/bin/qemu-alpha
 debian/tmp/usr/bin/qemu-armeb
 debian/tmp/usr/bin/qemu-arm

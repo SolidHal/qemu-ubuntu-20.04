@@ -6,7 +6,7 @@ Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku.voipio@iki.fi>
 DM-Upload-Allowed: yes
 Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
- texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot,
+ texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot (>= 5.4.4),
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
  libvdeplug2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
@@ -20,7 +20,7 @@ Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
 
 Package: qemu
 Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: qemu-system, qemu-user [linux-any], qemu-utils
+Depends: ${misc:Depends}, qemu-system, qemu-user [linux-any], qemu-utils
 Suggests: qemu-user-static [linux-any]
 Description: fast processor emulator
  QEMU is a fast processor emulator: currently the package supports
@@ -64,7 +64,6 @@ Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Conflicts: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
-Recommends: debootstrap
 Suggests: sudo
 Description: QEMU user mode emulation binaries
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
@@ -77,7 +76,7 @@ Description: QEMU user mode emulation binaries
 Package: qemu-user-static
 Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Recommends: debootstrap, binfmt-support
+Recommends: binfmt-support
 Suggests: sudo
 Description: QEMU user mode emulation binaries (static version)
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
@@ -91,8 +90,9 @@ Description: QEMU user mode emulation binaries (static version)
 Package: qemu-utils
 Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Conflicts: kvm (= 85+dfsg-4.1), qemu (<< 0.11.0-2) 
-Replaces: qemu (<< 0.11.0-2)
+Suggests: debootstrap
+Conflicts: kvm (= 85+dfsg-4.1), qemu (<< 0.11.0-2), qemu-user (<<0.11.1-2)
+Replaces: qemu (<< 0.11.0-2), qemu-user (<<0.11.1-2)
 Description: QEMU utilities
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
  SPARC and x86-64 emulation. By using dynamic translation it achieves
