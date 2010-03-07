@@ -15,7 +15,7 @@ usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sh4eb.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sparc.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sparc64.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-x86_64.1
-usr/share/bochs/BIOS-qemu-latest usr/share/qemu/bios.bin
+usr/share/seabios/bios.bin usr/share/qemu/bios.bin
 usr/share/vgabios/vgabios.bin usr/share/qemu/vgabios.bin
 usr/share/vgabios/vgabios.cirrus.bin usr/share/qemu/vgabios-cirrus.bin
 usr/share/openhackware/ppc_rom.bin usr/share/qemu/ppc_rom.bin

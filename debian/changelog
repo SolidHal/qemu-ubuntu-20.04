@@ -1,3 +1,37 @@
+qemu (0.12.3+dfsg-1) unstable; urgency=low
+
+  [ Vagrant Cascadian ]
+  * New upstream version:
+    - Fix access to block devices on GNU/kFreeBSD. Closes: #558447.
+    - Correctly update clock when waking up from sleep. Closes: #414165.
+    - Slirp works with other network interfaces. Closes: #407702.
+    - Add the possibility to specify a host to bind to with the -redir
+      option. Closes: #366847.
+    - Fix cirrus graphics card with windows 98. Closes: #522124.
+  * Indicate repackaged upstream tarball by adding "+dfsg" to the version.
+    Closes: #388740.
+  * Remove second libgnutls-dev from build depends.
+  * Update debian/watch with current location of tarball releases.
+  * Drop binutils-gold patch, applied upstream.
+  * Switch from bochsbios to seabios. Update bios.bin symlink and
+    recommends/conflicts.
+  * Bump Standards-Version to 3.8.4 (no changes).
+  * Update my email address to vagrant@debian.org.
+
+  [ Aurelien Jarno ]
+  * Create a kvm group in postinst and set the group of /dev/kvm to kvm.
+    Closes: #570544.
+  * Add mips and mipsel to the list of supported architectures.
+  * Add patches/01_redir_doc.patch to fix a mistake in the redirection
+    documentation.
+  * Add patches/02_kfreebsd.patch to use the legacy USB stack on
+    GNU/kFreeBSD.
+  * Force the depends from qemu on qemu-system, qemu-user and qemu-utils
+    to (>= {source:Version}).
+  * Update openbios related conflicts.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Sun, 07 Mar 2010 09:20:43 -0800
+
 qemu (0.11.1-2) unstable; urgency=low
 
   * Add versioned build-depends on etherboot.

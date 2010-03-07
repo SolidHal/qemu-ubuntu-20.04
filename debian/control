@@ -2,25 +2,25 @@ Source: qemu
 Section: misc
 Priority: optional
 Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
-Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku.voipio@iki.fi>, Vagrant Cascadian <vagrant@freegeek.org>
+Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku.voipio@iki.fi>, Vagrant Cascadian <vagrant@debian.org>
 DM-Upload-Allowed: yes
 Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
- texi2html, sharutils, libgnutls-dev, libesd0-dev, libbrlapi-dev, etherboot (>= 5.4.4),
+ texi2html, sharutils, libesd0-dev, libbrlapi-dev, etherboot (>= 5.4.4),
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
  libvdeplug2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc sparc64 ppc64],
  linux-libc-dev (>= 2.6.30) [amd64 i386 powerpc ppc64]
-Standards-Version: 3.8.3
+Standards-Version: 3.8.4
 Homepage: http://www.qemu.org/
 Vcs-Browser: http://git.debian.org/?p=pkg-qemu/qemu.git
 Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
 
 Package: qemu
-Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${misc:Depends}, qemu-system, qemu-user [linux-any], qemu-utils
+Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
+Depends: ${misc:Depends}, qemu-system (>= ${source:Version}), qemu-user (>= ${source:Version}) [linux-any], qemu-utils (>= ${source:Version})
 Suggests: qemu-user-static [linux-any]
 Description: fast processor emulator
  QEMU is a fast processor emulator: currently the package supports
@@ -42,10 +42,10 @@ Description: fast processor emulator
  This package is a metapackage depending on all qemu-related packages.
 
 Package: qemu-system
-Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
+Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Recommends: vde2, qemu-utils, vgabios, bochsbios, openhackware, openbios-ppc, openbios-sparc
-Conflicts: qemu (<< 0.11.0-2), vgabios (<< 0.6c-1), bochsbios (<< 2.3.7+20090416-1), openbios-ppc (<< 1.0+svn505-1), openbios-sparc (<< 1.0-1)
+Recommends: vde2, qemu-utils, vgabios, seabios, openhackware, openbios-ppc, openbios-sparc
+Conflicts: qemu (<< 0.11.0-2), vgabios (<< 0.6c-1), seabios (<< 0.5.1-2), openbios-ppc (<< 1.0+svn640), openbios-sparc (<< 1.0+svn640)
 Replaces: qemu (<< 0.11.0-2)
 Suggests: samba, kqemu-source
 Description: QEMU full system emulation binaries
@@ -60,7 +60,7 @@ Description: QEMU full system emulation binaries
  machines on a single server.
 
 Package: qemu-user
-Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 ppc64
+Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Conflicts: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
@@ -74,7 +74,7 @@ Description: QEMU user mode emulation binaries
  QEMU can launch Linux processes compiled for one CPU on another CPU.
 
 Package: qemu-user-static
-Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 ppc64
+Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: binfmt-support
 Suggests: sudo
@@ -88,11 +88,11 @@ Description: QEMU user mode emulation binaries (static version)
  one CPU on another CPU.
 
 Package: qemu-utils
-Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
+Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Suggests: debootstrap
-Conflicts: kvm (= 85+dfsg-4.1), qemu (<< 0.11.0-2), qemu-user (<<0.11.1-2)
-Replaces: qemu (<< 0.11.0-2), qemu-user (<<0.11.1-2)
+Conflicts: kvm (= 85+dfsg-4.1), qemu (<< 0.11.0-2), qemu-user (<< 0.11.1-2)
+Replaces: qemu (<< 0.11.0-2), qemu-user (<< 0.11.1-2)
 Description: QEMU utilities
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
  SPARC and x86-64 emulation. By using dynamic translation it achieves
@@ -104,7 +104,7 @@ Description: QEMU utilities
   * qemu-nbd: QEMU disk network block device server
 
 Package: libqemu-dev
-Architecture: amd64 arm armel hppa i386 powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
+Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
 Section: libdevel
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: static libraries and headers for QEMU

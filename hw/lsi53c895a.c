@@ -10,11 +10,11 @@
 /* ??? Need to check if the {read,write}[wl] routines work properly on
    big-endian targets.  */
 
-#include <assert.h>                             \
+#include <assert.h>
 
 #include "hw.h"
 #include "pci.h"
-#include "scsi-disk.h"
+#include "scsi.h"
 #include "block_int.h"
 
 //#define DEBUG_LSI
@@ -30,6 +30,8 @@ do { fprintf(stderr, "lsi_scsi: error: " fmt , ## __VA_ARGS__); exit(1);} while 
 #define BADF(fmt, ...) \
 do { fprintf(stderr, "lsi_scsi: error: " fmt , ## __VA_ARGS__);} while (0)
 #endif
+
+#define LSI_MAX_DEVS 7
 
 #define LSI_SCNTL0_TRG    0x01
 #define LSI_SCNTL0_AAP    0x02
@@ -152,6 +154,9 @@ do { fprintf(stderr, "lsi_scsi: error: " fmt , ## __VA_ARGS__);} while (0)
 #define LSI_CCNTL1_DDAC      0x08
 #define LSI_CCNTL1_ZMOD      0x80
 
+/* Enable Response to Reselection */
+#define LSI_SCID_RRE      0x60
+
 #define LSI_CCNTL1_40BIT (LSI_CCNTL1_EN64TIBMV|LSI_CCNTL1_64TIMOD)
 
 #define PHASE_DO          0
@@ -175,7 +180,7 @@ typedef struct {
 } lsi_queue;
 
 typedef struct {
-    PCIDevice pci_dev;
+    PCIDevice dev;
     int mmio_io_addr;
     int ram_io_addr;
     uint32_t script_ram_base;
@@ -183,7 +188,7 @@ typedef struct {
     int carry; /* ??? Should this be an a visible register somewhere?  */
     int sense;
     /* Action to take at the end of a MSG IN phase.
-       0 = COMMAND, 1 = disconect, 2 = DATA OUT, 3 = DATA IN.  */
+       0 = COMMAND, 1 = disconnect, 2 = DATA OUT, 3 = DATA IN.  */
     int msg_action;
     int msg_len;
     uint8_t msg[LSI_MAX_MSGIN_LEN];
@@ -192,7 +197,7 @@ typedef struct {
      * 2 if processing DMA from lsi_execute_script.
      * 3 if a DMA operation is in progress.  */
     int waiting;
-    SCSIDevice *scsi_dev[LSI_MAX_DEVS];
+    SCSIBus bus;
     SCSIDevice *current_dev;
     int current_lun;
     /* The tag is a combination of the device ID and the SCSI tag.  */
@@ -269,6 +274,11 @@ typedef struct {
     /* Script ram is stored as 32-bit words in host byteorder.  */
     uint32_t script_ram[2048];
 } LSIState;
+
+static inline int lsi_irq_on_rsl(LSIState *s)
+{
+    return (s->sien0 & LSI_SIST0_RSL) && (s->scid & LSI_SCID_RRE);
+}
 
 static void lsi_soft_reset(LSIState *s)
 {
@@ -360,6 +370,7 @@ static int lsi_dma_64bit(LSIState *s)
 static uint8_t lsi_reg_readb(LSIState *s, int offset);
 static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val);
 static void lsi_execute_script(LSIState *s);
+static void lsi_reselect(LSIState *s, uint32_t tag);
 
 static inline uint32_t read_dword(LSIState *s, uint32_t addr)
 {
@@ -380,6 +391,7 @@ static void lsi_stop_script(LSIState *s)
 
 static void lsi_update_irq(LSIState *s)
 {
+    int i;
     int level;
     static int last_level;
 
@@ -410,7 +422,18 @@ static void lsi_update_irq(LSIState *s)
                 level, s->dstat, s->sist1, s->sist0);
         last_level = level;
     }
-    qemu_set_irq(s->pci_dev.irq[0], level);
+    qemu_set_irq(s->dev.irq[0], level);
+
+    if (!level && lsi_irq_on_rsl(s) && !(s->scntl1 & LSI_SCNTL1_CON)) {
+        DPRINTF("Handled IRQs & disconnected, looking for pending "
+                "processes\n");
+        for (i = 0; i < s->active_commands; i++) {
+            if (s->queue[i].pending) {
+                lsi_reselect(s, s->queue[i].tag);
+                break;
+            }
+        }
+    }
 }
 
 /* Stop SCRIPTS execution and raise a SCSI interrupt.  */
@@ -510,8 +533,8 @@ static void lsi_do_dma(LSIState *s, int out)
     s->dbc -= count;
 
     if (s->dma_buf == NULL) {
-        s->dma_buf = s->current_dev->get_buf(s->current_dev,
-                                             s->current_tag);
+        s->dma_buf = s->current_dev->info->get_buf(s->current_dev,
+                                                   s->current_tag);
     }
 
     /* ??? Set SFBR to first data byte.  */
@@ -525,10 +548,10 @@ static void lsi_do_dma(LSIState *s, int out)
         s->dma_buf = NULL;
         if (out) {
             /* Write the data.  */
-            s->current_dev->write_data(s->current_dev, s->current_tag);
+            s->current_dev->info->write_data(s->current_dev, s->current_tag);
         } else {
             /* Request any remaining data.  */
-            s->current_dev->read_data(s->current_dev, s->current_tag);
+            s->current_dev->info->read_data(s->current_dev, s->current_tag);
         }
     } else {
         s->dma_buf += count;
@@ -583,8 +606,12 @@ static void lsi_reselect(LSIState *s, uint32_t tag)
     }
     id = (tag >> 8) & 0xf;
     s->ssid = id | 0x80;
+    /* LSI53C700 Family Compatibility, see LSI53C895A 4-73 */
+    if (!s->dcntl & LSI_DCNTL_COM) {
+        s->sfbr = 1 << (id & 0x7);
+    }
     DPRINTF("Reselected target %d\n", id);
-    s->current_dev = s->scsi_dev[id];
+    s->current_dev = s->bus.devs[id];
     s->current_tag = tag;
     s->scntl1 |= LSI_SCNTL1_CON;
     lsi_set_phase(s, PHASE_MI);
@@ -601,6 +628,10 @@ static void lsi_reselect(LSIState *s, uint32_t tag)
     if (n != s->active_commands) {
         s->queue[n] = s->queue[s->active_commands];
     }
+
+    if (lsi_irq_on_rsl(s)) {
+        lsi_script_scsi_interrupt(s, LSI_SIST0_RSL, 0);
+    }
 }
 
 /* Record that data is available for a queued command.  Returns zero if
@@ -616,7 +647,14 @@ static int lsi_queue_tag(LSIState *s, uint32_t tag, uint32_t arg)
                 BADF("Multiple IO pending for tag %d\n", tag);
             }
             p->pending = arg;
-            if (s->waiting == 1) {
+            /* Reselect if waiting for it, or if reselection triggers an IRQ
+               and the bus is free.
+               Since no interrupt stacking is implemented in the emulation, it
+               is also required that there are no pending interrupts waiting
+               for service from the device driver. */
+            if (s->waiting == 1 ||
+                (lsi_irq_on_rsl(s) && !(s->scntl1 & LSI_SCNTL1_CON) &&
+                 !(s->istat0 & (LSI_ISTAT0_SIP | LSI_ISTAT0_DIP)))) {
                 /* Reselect device.  */
                 lsi_reselect(s, tag);
                 return 0;
@@ -632,10 +670,10 @@ static int lsi_queue_tag(LSIState *s, uint32_t tag, uint32_t arg)
 }
 
 /* Callback to indicate that the SCSI layer has completed a transfer.  */
-static void lsi_command_complete(void *opaque, int reason, uint32_t tag,
+static void lsi_command_complete(SCSIBus *bus, int reason, uint32_t tag,
                                  uint32_t arg)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = DO_UPCAST(LSIState, dev.qdev, bus->qbus.parent);
     int out;
 
     out = (s->sstat1 & PHASE_MASK) == PHASE_DO;
@@ -653,10 +691,13 @@ static void lsi_command_complete(void *opaque, int reason, uint32_t tag,
         return;
     }
 
-    if (s->waiting == 1 || tag != s->current_tag) {
+    if (s->waiting == 1 || tag != s->current_tag ||
+        (lsi_irq_on_rsl(s) && !(s->scntl1 & LSI_SCNTL1_CON))) {
         if (lsi_queue_tag(s, tag, arg))
             return;
     }
+
+    /* host adapter (re)connected */
     DPRINTF("Data ready tag=0x%x len=%d\n", tag, arg);
     s->current_dma_len = arg;
     s->command_complete = 1;
@@ -680,14 +721,14 @@ static void lsi_do_command(LSIState *s)
     cpu_physical_memory_read(s->dnad, buf, s->dbc);
     s->sfbr = buf[0];
     s->command_complete = 0;
-    n = s->current_dev->send_command(s->current_dev, s->current_tag, buf,
-                                     s->current_lun);
+    n = s->current_dev->info->send_command(s->current_dev, s->current_tag, buf,
+                                           s->current_lun);
     if (n > 0) {
         lsi_set_phase(s, PHASE_DI);
-        s->current_dev->read_data(s->current_dev, s->current_tag);
+        s->current_dev->info->read_data(s->current_dev, s->current_tag);
     } else if (n < 0) {
         lsi_set_phase(s, PHASE_DO);
-        s->current_dev->write_data(s->current_dev, s->current_tag);
+        s->current_dev->info->write_data(s->current_dev, s->current_tag);
     }
 
     if (!s->command_complete) {
@@ -784,7 +825,7 @@ static void lsi_do_msgout(LSIState *s)
         s->sfbr = msg;
 
         switch (msg) {
-        case 0x00:
+        case 0x04:
             DPRINTF("MSG: Disconnect\n");
             lsi_disconnect(s);
             break;
@@ -1024,7 +1065,7 @@ again:
             if (insn & (1 << 25)) {
                 id = read_dword(s, s->dsa + sxt24(insn));
             } else {
-                id = addr;
+                id = insn;
             }
             id = (id >> 16) & 0xf;
             if (insn & (1 << 26)) {
@@ -1034,13 +1075,14 @@ again:
             switch (opcode) {
             case 0: /* Select */
                 s->sdid = id;
-                if (s->current_dma_len && (s->ssid & 0xf) == id) {
-                    DPRINTF("Already reselected by target %d\n", id);
+                if (s->scntl1 & LSI_SCNTL1_CON) {
+                    DPRINTF("Already reselected, jumping to alternative address\n");
+                    s->dsp = s->dnad;
                     break;
                 }
                 s->sstat0 |= LSI_SSTAT0_WOA;
                 s->scntl1 &= ~LSI_SCNTL1_IARB;
-                if (id >= LSI_MAX_DEVS || !s->scsi_dev[id]) {
+                if (id >= LSI_MAX_DEVS || !s->bus.devs[id]) {
                     DPRINTF("Selected absent target %d\n", id);
                     lsi_script_scsi_interrupt(s, 0, LSI_SIST1_STO);
                     lsi_disconnect(s);
@@ -1051,7 +1093,7 @@ again:
                 /* ??? Linux drivers compain when this is set.  Maybe
                    it only applies in low-level mode (unimplemented).
                 lsi_script_scsi_interrupt(s, LSI_SIST0_CMP, 0); */
-                s->current_dev = s->scsi_dev[id];
+                s->current_dev = s->bus.devs[id];
                 s->current_tag = id << 8;
                 s->scntl1 |= LSI_SCNTL1_CON;
                 if (insn & (1 << 3)) {
@@ -1060,11 +1102,13 @@ again:
                 lsi_set_phase(s, PHASE_MO);
                 break;
             case 1: /* Disconnect */
-                DPRINTF("Wait Disconect\n");
+                DPRINTF("Wait Disconnect\n");
                 s->scntl1 &= ~LSI_SCNTL1_CON;
                 break;
             case 2: /* Wait Reselect */
-                lsi_wait_reselect(s);
+                if (!lsi_irq_on_rsl(s)) {
+                    lsi_wait_reselect(s);
+                }
                 break;
             case 3: /* Set */
                 DPRINTF("Set%s%s%s%s\n",
@@ -1552,9 +1596,9 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
            SCRIPTS register move instructions are.  */
         s->sfbr = val;
         break;
-    case 0x0a: case 0x0b: 
+    case 0x0a: case 0x0b:
         /* Openserver writes to these readonly registers on startup */
-	return;    
+	return;
     case 0x0c: case 0x0d: case 0x0e: case 0x0f:
         /* Linux writes to these readonly registers on startup.  */
         return;
@@ -1724,14 +1768,14 @@ static void lsi_reg_writeb(LSIState *s, int offset, uint8_t val)
 
 static void lsi_mmio_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
 
     lsi_reg_writeb(s, addr & 0xff, val);
 }
 
 static void lsi_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
 
     addr &= 0xff;
     lsi_reg_writeb(s, addr, val & 0xff);
@@ -1740,7 +1784,7 @@ static void lsi_mmio_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 
 static void lsi_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
 
     addr &= 0xff;
     lsi_reg_writeb(s, addr, val & 0xff);
@@ -1751,14 +1795,14 @@ static void lsi_mmio_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 
 static uint32_t lsi_mmio_readb(void *opaque, target_phys_addr_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
 
     return lsi_reg_readb(s, addr & 0xff);
 }
 
 static uint32_t lsi_mmio_readw(void *opaque, target_phys_addr_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t val;
 
     addr &= 0xff;
@@ -1769,7 +1813,7 @@ static uint32_t lsi_mmio_readw(void *opaque, target_phys_addr_t addr)
 
 static uint32_t lsi_mmio_readl(void *opaque, target_phys_addr_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t val;
     addr &= 0xff;
     val = lsi_reg_readb(s, addr);
@@ -1779,13 +1823,13 @@ static uint32_t lsi_mmio_readl(void *opaque, target_phys_addr_t addr)
     return val;
 }
 
-static CPUReadMemoryFunc *lsi_mmio_readfn[3] = {
+static CPUReadMemoryFunc * const lsi_mmio_readfn[3] = {
     lsi_mmio_readb,
     lsi_mmio_readw,
     lsi_mmio_readl,
 };
 
-static CPUWriteMemoryFunc *lsi_mmio_writefn[3] = {
+static CPUWriteMemoryFunc * const lsi_mmio_writefn[3] = {
     lsi_mmio_writeb,
     lsi_mmio_writew,
     lsi_mmio_writel,
@@ -1793,7 +1837,7 @@ static CPUWriteMemoryFunc *lsi_mmio_writefn[3] = {
 
 static void lsi_ram_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t newval;
     int shift;
 
@@ -1807,7 +1851,7 @@ static void lsi_ram_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
 
 static void lsi_ram_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t newval;
 
     addr &= 0x1fff;
@@ -1823,7 +1867,7 @@ static void lsi_ram_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
 
 static void lsi_ram_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
 
     addr &= 0x1fff;
     s->script_ram[addr >> 2] = val;
@@ -1831,7 +1875,7 @@ static void lsi_ram_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
 
 static uint32_t lsi_ram_readb(void *opaque, target_phys_addr_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t val;
 
     addr &= 0x1fff;
@@ -1842,7 +1886,7 @@ static uint32_t lsi_ram_readb(void *opaque, target_phys_addr_t addr)
 
 static uint32_t lsi_ram_readw(void *opaque, target_phys_addr_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t val;
 
     addr &= 0x1fff;
@@ -1854,19 +1898,19 @@ static uint32_t lsi_ram_readw(void *opaque, target_phys_addr_t addr)
 
 static uint32_t lsi_ram_readl(void *opaque, target_phys_addr_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
 
     addr &= 0x1fff;
     return le32_to_cpu(s->script_ram[addr >> 2]);
 }
 
-static CPUReadMemoryFunc *lsi_ram_readfn[3] = {
+static CPUReadMemoryFunc * const lsi_ram_readfn[3] = {
     lsi_ram_readb,
     lsi_ram_readw,
     lsi_ram_readl,
 };
 
-static CPUWriteMemoryFunc *lsi_ram_writefn[3] = {
+static CPUWriteMemoryFunc * const lsi_ram_writefn[3] = {
     lsi_ram_writeb,
     lsi_ram_writew,
     lsi_ram_writel,
@@ -1874,13 +1918,13 @@ static CPUWriteMemoryFunc *lsi_ram_writefn[3] = {
 
 static uint32_t lsi_io_readb(void *opaque, uint32_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     return lsi_reg_readb(s, addr & 0xff);
 }
 
 static uint32_t lsi_io_readw(void *opaque, uint32_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t val;
     addr &= 0xff;
     val = lsi_reg_readb(s, addr);
@@ -1890,7 +1934,7 @@ static uint32_t lsi_io_readw(void *opaque, uint32_t addr)
 
 static uint32_t lsi_io_readl(void *opaque, uint32_t addr)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     uint32_t val;
     addr &= 0xff;
     val = lsi_reg_readb(s, addr);
@@ -1902,13 +1946,13 @@ static uint32_t lsi_io_readl(void *opaque, uint32_t addr)
 
 static void lsi_io_writeb(void *opaque, uint32_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     lsi_reg_writeb(s, addr & 0xff, val);
 }
 
 static void lsi_io_writew(void *opaque, uint32_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     addr &= 0xff;
     lsi_reg_writeb(s, addr, val & 0xff);
     lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
@@ -1916,7 +1960,7 @@ static void lsi_io_writew(void *opaque, uint32_t addr, uint32_t val)
 
 static void lsi_io_writel(void *opaque, uint32_t addr, uint32_t val)
 {
-    LSIState *s = (LSIState *)opaque;
+    LSIState *s = opaque;
     addr &= 0xff;
     lsi_reg_writeb(s, addr, val & 0xff);
     lsi_reg_writeb(s, addr + 1, (val >> 8) & 0xff);
@@ -1925,11 +1969,11 @@ static void lsi_io_writel(void *opaque, uint32_t addr, uint32_t val)
 }
 
 static void lsi_io_mapfunc(PCIDevice *pci_dev, int region_num,
-                           uint32_t addr, uint32_t size, int type)
+                           pcibus_t addr, pcibus_t size, int type)
 {
-    LSIState *s = (LSIState *)pci_dev;
+    LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
 
-    DPRINTF("Mapping IO at %08x\n", addr);
+    DPRINTF("Mapping IO at %08"FMT_PCIBUS"\n", addr);
 
     register_ioport_write(addr, 256, 1, lsi_io_writeb, s);
     register_ioport_read(addr, 256, 1, lsi_io_readb, s);
@@ -1940,220 +1984,119 @@ static void lsi_io_mapfunc(PCIDevice *pci_dev, int region_num,
 }
 
 static void lsi_ram_mapfunc(PCIDevice *pci_dev, int region_num,
-                            uint32_t addr, uint32_t size, int type)
+                            pcibus_t addr, pcibus_t size, int type)
 {
-    LSIState *s = (LSIState *)pci_dev;
+    LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
 
-    DPRINTF("Mapping ram at %08x\n", addr);
+    DPRINTF("Mapping ram at %08"FMT_PCIBUS"\n", addr);
     s->script_ram_base = addr;
     cpu_register_physical_memory(addr + 0, 0x2000, s->ram_io_addr);
 }
 
 static void lsi_mmio_mapfunc(PCIDevice *pci_dev, int region_num,
-                             uint32_t addr, uint32_t size, int type)
+                             pcibus_t addr, pcibus_t size, int type)
 {
-    LSIState *s = (LSIState *)pci_dev;
+    LSIState *s = DO_UPCAST(LSIState, dev, pci_dev);
 
-    DPRINTF("Mapping registers at %08x\n", addr);
+    DPRINTF("Mapping registers at %08"FMT_PCIBUS"\n", addr);
     cpu_register_physical_memory(addr + 0, 0x400, s->mmio_io_addr);
 }
 
-void lsi_scsi_attach(DeviceState *host, BlockDriverState *bd, int id)
-{
-    LSIState *s = (LSIState *)host;
-
-    if (id < 0) {
-        for (id = 0; id < LSI_MAX_DEVS; id++) {
-            if (s->scsi_dev[id] == NULL)
-                break;
-        }
-    }
-    if (id >= LSI_MAX_DEVS) {
-        BADF("Bad Device ID %d\n", id);
-        return;
-    }
-    if (s->scsi_dev[id]) {
-        DPRINTF("Destroying device %d\n", id);
-        s->scsi_dev[id]->destroy(s->scsi_dev[id]);
-    }
-    DPRINTF("Attaching block device %d\n", id);
-    s->scsi_dev[id] = scsi_generic_init(bd, 1, lsi_command_complete, s);
-    if (s->scsi_dev[id] == NULL)
-        s->scsi_dev[id] = scsi_disk_init(bd, 1, lsi_command_complete, s);
-    bd->private = &s->pci_dev;
-}
-
-static void lsi_scsi_save(QEMUFile *f, void *opaque)
+static void lsi_pre_save(void *opaque)
 {
     LSIState *s = opaque;
 
     assert(s->dma_buf == NULL);
     assert(s->current_dma_len == 0);
     assert(s->active_commands == 0);
-
-    pci_device_save(&s->pci_dev, f);
-
-    qemu_put_sbe32s(f, &s->carry);
-    qemu_put_sbe32s(f, &s->sense);
-    qemu_put_sbe32s(f, &s->msg_action);
-    qemu_put_sbe32s(f, &s->msg_len);
-    qemu_put_buffer(f, s->msg, sizeof (s->msg));
-    qemu_put_sbe32s(f, &s->waiting);
-
-    qemu_put_be32s(f, &s->dsa);
-    qemu_put_be32s(f, &s->temp);
-    qemu_put_be32s(f, &s->dnad);
-    qemu_put_be32s(f, &s->dbc);
-    qemu_put_8s(f, &s->istat0);
-    qemu_put_8s(f, &s->istat1);
-    qemu_put_8s(f, &s->dcmd);
-    qemu_put_8s(f, &s->dstat);
-    qemu_put_8s(f, &s->dien);
-    qemu_put_8s(f, &s->sist0);
-    qemu_put_8s(f, &s->sist1);
-    qemu_put_8s(f, &s->sien0);
-    qemu_put_8s(f, &s->sien1);
-    qemu_put_8s(f, &s->mbox0);
-    qemu_put_8s(f, &s->mbox1);
-    qemu_put_8s(f, &s->dfifo);
-    qemu_put_8s(f, &s->ctest2);
-    qemu_put_8s(f, &s->ctest3);
-    qemu_put_8s(f, &s->ctest4);
-    qemu_put_8s(f, &s->ctest5);
-    qemu_put_8s(f, &s->ccntl0);
-    qemu_put_8s(f, &s->ccntl1);
-    qemu_put_be32s(f, &s->dsp);
-    qemu_put_be32s(f, &s->dsps);
-    qemu_put_8s(f, &s->dmode);
-    qemu_put_8s(f, &s->dcntl);
-    qemu_put_8s(f, &s->scntl0);
-    qemu_put_8s(f, &s->scntl1);
-    qemu_put_8s(f, &s->scntl2);
-    qemu_put_8s(f, &s->scntl3);
-    qemu_put_8s(f, &s->sstat0);
-    qemu_put_8s(f, &s->sstat1);
-    qemu_put_8s(f, &s->scid);
-    qemu_put_8s(f, &s->sxfer);
-    qemu_put_8s(f, &s->socl);
-    qemu_put_8s(f, &s->sdid);
-    qemu_put_8s(f, &s->ssid);
-    qemu_put_8s(f, &s->sfbr);
-    qemu_put_8s(f, &s->stest1);
-    qemu_put_8s(f, &s->stest2);
-    qemu_put_8s(f, &s->stest3);
-    qemu_put_8s(f, &s->sidl);
-    qemu_put_8s(f, &s->stime0);
-    qemu_put_8s(f, &s->respid0);
-    qemu_put_8s(f, &s->respid1);
-    qemu_put_be32s(f, &s->mmrs);
-    qemu_put_be32s(f, &s->mmws);
-    qemu_put_be32s(f, &s->sfs);
-    qemu_put_be32s(f, &s->drs);
-    qemu_put_be32s(f, &s->sbms);
-    qemu_put_be32s(f, &s->dbms);
-    qemu_put_be32s(f, &s->dnad64);
-    qemu_put_be32s(f, &s->pmjad1);
-    qemu_put_be32s(f, &s->pmjad2);
-    qemu_put_be32s(f, &s->rbc);
-    qemu_put_be32s(f, &s->ua);
-    qemu_put_be32s(f, &s->ia);
-    qemu_put_be32s(f, &s->sbc);
-    qemu_put_be32s(f, &s->csbc);
-    qemu_put_buffer(f, (uint8_t *)s->scratch, sizeof (s->scratch));
-    qemu_put_8s(f, &s->sbr);
-
-    qemu_put_buffer(f, (uint8_t *)s->script_ram, sizeof (s->script_ram));
 }
 
-static int lsi_scsi_load(QEMUFile *f, void *opaque, int version_id)
-{
-    LSIState *s = opaque;
-    int ret;
+static const VMStateDescription vmstate_lsi_scsi = {
+    .name = "lsiscsi",
+    .version_id = 0,
+    .minimum_version_id = 0,
+    .minimum_version_id_old = 0,
+    .pre_save = lsi_pre_save,
+    .fields      = (VMStateField []) {
+        VMSTATE_PCI_DEVICE(dev, LSIState),
 
-    if (version_id > 0) {
-        return -EINVAL;
+        VMSTATE_INT32(carry, LSIState),
+        VMSTATE_INT32(sense, LSIState),
+        VMSTATE_INT32(msg_action, LSIState),
+        VMSTATE_INT32(msg_len, LSIState),
+        VMSTATE_BUFFER(msg, LSIState),
+        VMSTATE_INT32(waiting, LSIState),
+
+        VMSTATE_UINT32(dsa, LSIState),
+        VMSTATE_UINT32(temp, LSIState),
+        VMSTATE_UINT32(dnad, LSIState),
+        VMSTATE_UINT32(dbc, LSIState),
+        VMSTATE_UINT8(istat0, LSIState),
+        VMSTATE_UINT8(istat1, LSIState),
+        VMSTATE_UINT8(dcmd, LSIState),
+        VMSTATE_UINT8(dstat, LSIState),
+        VMSTATE_UINT8(dien, LSIState),
+        VMSTATE_UINT8(sist0, LSIState),
+        VMSTATE_UINT8(sist1, LSIState),
+        VMSTATE_UINT8(sien0, LSIState),
+        VMSTATE_UINT8(sien1, LSIState),
+        VMSTATE_UINT8(mbox0, LSIState),
+        VMSTATE_UINT8(mbox1, LSIState),
+        VMSTATE_UINT8(dfifo, LSIState),
+        VMSTATE_UINT8(ctest2, LSIState),
+        VMSTATE_UINT8(ctest3, LSIState),
+        VMSTATE_UINT8(ctest4, LSIState),
+        VMSTATE_UINT8(ctest5, LSIState),
+        VMSTATE_UINT8(ccntl0, LSIState),
+        VMSTATE_UINT8(ccntl1, LSIState),
+        VMSTATE_UINT32(dsp, LSIState),
+        VMSTATE_UINT32(dsps, LSIState),
+        VMSTATE_UINT8(dmode, LSIState),
+        VMSTATE_UINT8(dcntl, LSIState),
+        VMSTATE_UINT8(scntl0, LSIState),
+        VMSTATE_UINT8(scntl1, LSIState),
+        VMSTATE_UINT8(scntl2, LSIState),
+        VMSTATE_UINT8(scntl3, LSIState),
+        VMSTATE_UINT8(sstat0, LSIState),
+        VMSTATE_UINT8(sstat1, LSIState),
+        VMSTATE_UINT8(scid, LSIState),
+        VMSTATE_UINT8(sxfer, LSIState),
+        VMSTATE_UINT8(socl, LSIState),
+        VMSTATE_UINT8(sdid, LSIState),
+        VMSTATE_UINT8(ssid, LSIState),
+        VMSTATE_UINT8(sfbr, LSIState),
+        VMSTATE_UINT8(stest1, LSIState),
+        VMSTATE_UINT8(stest2, LSIState),
+        VMSTATE_UINT8(stest3, LSIState),
+        VMSTATE_UINT8(sidl, LSIState),
+        VMSTATE_UINT8(stime0, LSIState),
+        VMSTATE_UINT8(respid0, LSIState),
+        VMSTATE_UINT8(respid1, LSIState),
+        VMSTATE_UINT32(mmrs, LSIState),
+        VMSTATE_UINT32(mmws, LSIState),
+        VMSTATE_UINT32(sfs, LSIState),
+        VMSTATE_UINT32(drs, LSIState),
+        VMSTATE_UINT32(sbms, LSIState),
+        VMSTATE_UINT32(dbms, LSIState),
+        VMSTATE_UINT32(dnad64, LSIState),
+        VMSTATE_UINT32(pmjad1, LSIState),
+        VMSTATE_UINT32(pmjad2, LSIState),
+        VMSTATE_UINT32(rbc, LSIState),
+        VMSTATE_UINT32(ua, LSIState),
+        VMSTATE_UINT32(ia, LSIState),
+        VMSTATE_UINT32(sbc, LSIState),
+        VMSTATE_UINT32(csbc, LSIState),
+        VMSTATE_BUFFER_UNSAFE(scratch, LSIState, 0, 18 * sizeof(uint32_t)),
+        VMSTATE_UINT8(sbr, LSIState),
+
+        VMSTATE_BUFFER_UNSAFE(script_ram, LSIState, 0, 2048 * sizeof(uint32_t)),
+        VMSTATE_END_OF_LIST()
     }
-
-    if ((ret = pci_device_load(&s->pci_dev, f)) < 0)
-        return ret;
-
-    qemu_get_sbe32s(f, &s->carry);
-    qemu_get_sbe32s(f, &s->sense);
-    qemu_get_sbe32s(f, &s->msg_action);
-    qemu_get_sbe32s(f, &s->msg_len);
-    qemu_get_buffer(f, s->msg, sizeof (s->msg));
-    qemu_get_sbe32s(f, &s->waiting);
-
-    qemu_get_be32s(f, &s->dsa);
-    qemu_get_be32s(f, &s->temp);
-    qemu_get_be32s(f, &s->dnad);
-    qemu_get_be32s(f, &s->dbc);
-    qemu_get_8s(f, &s->istat0);
-    qemu_get_8s(f, &s->istat1);
-    qemu_get_8s(f, &s->dcmd);
-    qemu_get_8s(f, &s->dstat);
-    qemu_get_8s(f, &s->dien);
-    qemu_get_8s(f, &s->sist0);
-    qemu_get_8s(f, &s->sist1);
-    qemu_get_8s(f, &s->sien0);
-    qemu_get_8s(f, &s->sien1);
-    qemu_get_8s(f, &s->mbox0);
-    qemu_get_8s(f, &s->mbox1);
-    qemu_get_8s(f, &s->dfifo);
-    qemu_get_8s(f, &s->ctest2);
-    qemu_get_8s(f, &s->ctest3);
-    qemu_get_8s(f, &s->ctest4);
-    qemu_get_8s(f, &s->ctest5);
-    qemu_get_8s(f, &s->ccntl0);
-    qemu_get_8s(f, &s->ccntl1);
-    qemu_get_be32s(f, &s->dsp);
-    qemu_get_be32s(f, &s->dsps);
-    qemu_get_8s(f, &s->dmode);
-    qemu_get_8s(f, &s->dcntl);
-    qemu_get_8s(f, &s->scntl0);
-    qemu_get_8s(f, &s->scntl1);
-    qemu_get_8s(f, &s->scntl2);
-    qemu_get_8s(f, &s->scntl3);
-    qemu_get_8s(f, &s->sstat0);
-    qemu_get_8s(f, &s->sstat1);
-    qemu_get_8s(f, &s->scid);
-    qemu_get_8s(f, &s->sxfer);
-    qemu_get_8s(f, &s->socl);
-    qemu_get_8s(f, &s->sdid);
-    qemu_get_8s(f, &s->ssid);
-    qemu_get_8s(f, &s->sfbr);
-    qemu_get_8s(f, &s->stest1);
-    qemu_get_8s(f, &s->stest2);
-    qemu_get_8s(f, &s->stest3);
-    qemu_get_8s(f, &s->sidl);
-    qemu_get_8s(f, &s->stime0);
-    qemu_get_8s(f, &s->respid0);
-    qemu_get_8s(f, &s->respid1);
-    qemu_get_be32s(f, &s->mmrs);
-    qemu_get_be32s(f, &s->mmws);
-    qemu_get_be32s(f, &s->sfs);
-    qemu_get_be32s(f, &s->drs);
-    qemu_get_be32s(f, &s->sbms);
-    qemu_get_be32s(f, &s->dbms);
-    qemu_get_be32s(f, &s->dnad64);
-    qemu_get_be32s(f, &s->pmjad1);
-    qemu_get_be32s(f, &s->pmjad2);
-    qemu_get_be32s(f, &s->rbc);
-    qemu_get_be32s(f, &s->ua);
-    qemu_get_be32s(f, &s->ia);
-    qemu_get_be32s(f, &s->sbc);
-    qemu_get_be32s(f, &s->csbc);
-    qemu_get_buffer(f, (uint8_t *)s->scratch, sizeof (s->scratch));
-    qemu_get_8s(f, &s->sbr);
-
-    qemu_get_buffer(f, (uint8_t *)s->script_ram, sizeof (s->script_ram));
-
-    return 0;
-}
+};
 
 static int lsi_scsi_uninit(PCIDevice *d)
 {
-    LSIState *s = (LSIState *) d;
+    LSIState *s = DO_UPCAST(LSIState, dev, d);
 
     cpu_unregister_io_memory(s->mmio_io_addr);
     cpu_unregister_io_memory(s->ram_io_addr);
@@ -2163,12 +2106,12 @@ static int lsi_scsi_uninit(PCIDevice *d)
     return 0;
 }
 
-static void lsi_scsi_init(PCIDevice *dev)
+static int lsi_scsi_init(PCIDevice *dev)
 {
-    LSIState *s = (LSIState *)dev;
+    LSIState *s = DO_UPCAST(LSIState, dev, dev);
     uint8_t *pci_conf;
 
-    pci_conf = s->pci_dev.config;
+    pci_conf = s->dev.config;
 
     /* PCI Vendor ID (word) */
     pci_config_set_vendor_id(pci_conf, PCI_VENDOR_ID_LSI_LOGIC);
@@ -2190,27 +2133,31 @@ static void lsi_scsi_init(PCIDevice *dev)
                                             lsi_ram_writefn, s);
 
     pci_register_bar((struct PCIDevice *)s, 0, 256,
-                           PCI_ADDRESS_SPACE_IO, lsi_io_mapfunc);
+                           PCI_BASE_ADDRESS_SPACE_IO, lsi_io_mapfunc);
     pci_register_bar((struct PCIDevice *)s, 1, 0x400,
-                           PCI_ADDRESS_SPACE_MEM, lsi_mmio_mapfunc);
+                           PCI_BASE_ADDRESS_SPACE_MEMORY, lsi_mmio_mapfunc);
     pci_register_bar((struct PCIDevice *)s, 2, 0x2000,
-                           PCI_ADDRESS_SPACE_MEM, lsi_ram_mapfunc);
+                           PCI_BASE_ADDRESS_SPACE_MEMORY, lsi_ram_mapfunc);
     s->queue = qemu_malloc(sizeof(lsi_queue));
     s->queue_len = 1;
     s->active_commands = 0;
-    s->pci_dev.unregister = lsi_scsi_uninit;
 
     lsi_soft_reset(s);
 
-    scsi_bus_new(&dev->qdev, lsi_scsi_attach);
-
-    register_savevm("lsiscsi", -1, 0, lsi_scsi_save, lsi_scsi_load, s);
+    scsi_bus_new(&s->bus, &dev->qdev, 1, LSI_MAX_DEVS, lsi_command_complete);
+    if (!dev->qdev.hotplugged) {
+        scsi_bus_legacy_handle_cmdline(&s->bus);
+    }
+    return 0;
 }
 
 static PCIDeviceInfo lsi_info = {
-    .qdev.name = "lsi53c895a",
-    .qdev.size = sizeof(LSIState),
-    .init      = lsi_scsi_init,
+    .qdev.name  = "lsi53c895a",
+    .qdev.alias = "lsi",
+    .qdev.size  = sizeof(LSIState),
+    .qdev.vmsd  = &vmstate_lsi_scsi,
+    .init       = lsi_scsi_init,
+    .exit       = lsi_scsi_uninit,
 };
 
 static void lsi53c895a_register_devices(void)

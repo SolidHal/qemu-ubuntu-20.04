@@ -1,2 +1,3 @@
-01-binutils-gold.diff
+01_redir_doc.patch
+02_kfreebsd.patch
 security/leftover.patch

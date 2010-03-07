@@ -180,6 +180,7 @@ binary-arch: build install
 	dh_install -a
 	dh_installdocs -a
 	dh_installman -a
+	dh_installudev -a
 	dh_installchangelogs -a Changelog
 	dh_link -a
 	dh_strip -a
