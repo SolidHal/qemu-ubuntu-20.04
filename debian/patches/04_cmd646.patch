@@ -1,0 +1,74 @@
+commit 18a21890ff2b24bc7f0cdc3807e2fb65e014522b
+Author: Igor V. Kovalenko <igor.v.kovalenko@gmail.com>
+Date:   Sun Dec 13 19:03:31 2009 +0000
+
+    workaround for cmd646 bmdma register access while no dma is active
+    
+    This is a workaround only, and is a partial revert
+    of a few changes to BMDMAState which removed pci_dev
+    field on the way.
+    
+    - cmd646 pci_from_bm() expects bm->unit value to
+    correspond with bm data being passed to callback
+    as opaque pointer. This breaks when write to dma
+    control register of second channel happens when no
+    dma operation is in progress, so bm->unit is zero
+    for second channel, and pci_from_bm() returns garbage
+    pointer. Crash happens shortly after that while
+    dereferencing that pointer.
+    
+    v0->v1: cleaned up dead code from pci_from_bm.
+    
+    Signed-off-by: Igor V. Kovalenko <igor.v.kovalenko@gmail.com>
+    Signed-off-by: Blue Swirl <blauwirbel@gmail.com>
+    (cherry picked from commit 90228ee395b71cdd64e6bc844e3d553eb9ef643f)
+
+diff --git a/hw/ide/cmd646.c b/hw/ide/cmd646.c
+index e1e626e..835c98d 100644
+--- a/hw/ide/cmd646.c
++++ b/hw/ide/cmd646.c
+@@ -70,11 +70,7 @@ static void ide_map(PCIDevice *pci_dev, int region_num,
+ 
+ static PCIIDEState *pci_from_bm(BMDMAState *bm)
+ {
+-    if (bm->unit == 0) {
+-        return container_of(bm, PCIIDEState, bmdma[0]);
+-    } else {
+-        return container_of(bm, PCIIDEState, bmdma[1]);
+-    }
++    return bm->pci_dev;
+ }
+ 
+ static uint32_t bmdma_readb(void *opaque, uint32_t addr)
+@@ -145,6 +141,7 @@ static void bmdma_map(PCIDevice *pci_dev, int region_num,
+         BMDMAState *bm = &d->bmdma[i];
+         d->bus[i].bmdma = bm;
+         bm->bus = d->bus+i;
++        bm->pci_dev = d;
+         qemu_add_vm_change_state_handler(ide_dma_restart_cb, bm);
+ 
+         register_ioport_write(addr, 1, 1, bmdma_cmd_writeb, bm);
+diff --git a/hw/ide/internal.h b/hw/ide/internal.h
+index 8869a08..8615d1a 100644
+--- a/hw/ide/internal.h
++++ b/hw/ide/internal.h
+@@ -481,6 +481,7 @@ struct BMDMAState {
+     uint8_t status;
+     uint32_t addr;
+ 
++    struct PCIIDEState *pci_dev;
+     IDEBus *bus;
+     /* current transfer state */
+     uint32_t cur_addr;
+diff --git a/hw/ide/piix.c b/hw/ide/piix.c
+index de36480..2776ac3 100644
+--- a/hw/ide/piix.c
++++ b/hw/ide/piix.c
+@@ -78,6 +78,7 @@ static void bmdma_map(PCIDevice *pci_dev, int region_num,
+         BMDMAState *bm = &d->bmdma[i];
+         d->bus[i].bmdma = bm;
+         bm->bus = d->bus+i;
++        bm->pci_dev = d;
+         qemu_add_vm_change_state_handler(ide_dma_restart_cb, bm);
+ 
+         register_ioport_write(addr, 1, 1, bmdma_cmd_writeb, bm);

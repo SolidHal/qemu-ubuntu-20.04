@@ -1,3 +1,16 @@
+qemu (0.12.3+dfsg-3) unstable; urgency=low
+
+  * Add symlink for seabios's multiboot.bin.
+  * Change configure-stamp depends to non-phony target $(QUILT_STAMPFN).
+    Closes: #574444.
+  * Fix a crash in cmd646 bmdma code that can be triggered by the guest. 
+    Closes: #574539.
+  * Explain that KQEMU support has been removed in qemu-system.NEWS.
+  * Build-Conflicts with oss4-dev, as this package install a broken
+    <linux/soundcard.h> header. Closes: #575320.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sat, 03 Apr 2010 17:07:23 +0200
+
 qemu (0.12.3+dfsg-2) unstable; urgency=low
 
   [ Aurelien Jarno ]

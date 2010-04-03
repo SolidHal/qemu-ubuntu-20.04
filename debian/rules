@@ -59,7 +59,7 @@ endif
 
 include /usr/share/quilt/quilt.make
 
-configure-stamp: configure patch
+configure-stamp: configure $(QUILT_STAMPFN)
 	dh_testdir
 
 	# system build

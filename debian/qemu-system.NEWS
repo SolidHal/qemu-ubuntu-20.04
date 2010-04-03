@@ -1,3 +1,11 @@
+qemu (0.12.3+dfsg-3) unstable; urgency=low
+
+  Starting with QEMU 0.12.0, KQEMU support has been removed from
+  upstream, as it has not seen active development for a few years now,
+  while causing regressions or limitations for non-KQEMU users.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Wed, 24 Mar 2010 23:14:35 +0100
+
 qemu (0.10.3-2) unstable; urgency=low
 
   Starting with QEMU 0.10.0, it is possible to control how the host
