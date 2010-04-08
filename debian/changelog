@@ -1,3 +1,12 @@
+qemu (0.12.3+dfsg-4) unstable; urgency=low
+
+  * Add 05_bochs_vbe.diff backported from uptream to support vgabios
+    0.6c.
+  * Add 06_sh4.diff containing a few SH4 specific fixes backported from
+    upstream.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Fri, 09 Apr 2010 01:44:38 +0200
+
 qemu (0.12.3+dfsg-3) unstable; urgency=low
 
   * Add symlink for seabios's multiboot.bin.
