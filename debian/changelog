@@ -1,3 +1,12 @@
+qemu (0.12.4+dfsg-1) unstable; urgency=low
+
+  * New upstream stable version:
+    - remove debian/patches/01_redir_doc.patch
+    - remove debian/patches/04_cmd646.patch
+    - update debian/patches/06_sh4.diff
+
+ -- Aurelien Jarno <aurel32@debian.org>  Fri, 07 May 2010 19:43:48 +0200
+
 qemu (0.12.3+dfsg-4) unstable; urgency=low
 
   * Add 05_bochs_vbe.diff backported from uptream to support vgabios

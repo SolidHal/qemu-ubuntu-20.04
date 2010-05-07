@@ -45,113 +45,6 @@ index e4c02f0..8769a12 100644
  	break;
 
 
-commit e781d1285fc3b81d689ba25360c6c272116387fa
-Author: Aurelien Jarno <aurelien@aurel32.net>
-Date:   Tue Feb 2 19:39:11 2010 +0100
-
-    sh7750: handle MMUCR TI bit
-    
-    When the MMUCR TI bit is set, all the UTLB and ITLB entries should be
-    flushed.
-    
-    Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
-
-diff --git a/hw/sh7750.c b/hw/sh7750.c
-index 933bbc0..9c39f4b 100644
---- a/hw/sh7750.c
-+++ b/hw/sh7750.c
-@@ -396,8 +396,11 @@ static void sh7750_mem_writel(void *opaque, target_phys_addr_t addr,
- 	portb_changed(s, temp);
- 	return;
-     case SH7750_MMUCR_A7:
--	s->cpu->mmucr = mem_value;
--	return;
-+        if (mem_value & MMUCR_TI) {
-+            cpu_sh4_invalidate_tlb(s->cpu);
-+        }
-+        s->cpu->mmucr = mem_value & ~MMUCR_TI;
-+        return;
-     case SH7750_PTEH_A7:
-         /* If asid changes, clear all registered tlb entries. */
- 	if ((s->cpu->pteh & 0xff) != (mem_value & 0xff))
-diff --git a/target-sh4/cpu.h b/target-sh4/cpu.h
-index 366e798..015d598 100644
---- a/target-sh4/cpu.h
-+++ b/target-sh4/cpu.h
-@@ -167,6 +167,7 @@ int cpu_sh4_handle_mmu_fault(CPUSH4State * env, target_ulong address, int rw,
- void do_interrupt(CPUSH4State * env);
- 
- void sh4_cpu_list(FILE *f, int (*cpu_fprintf)(FILE *f, const char *fmt, ...));
-+void cpu_sh4_invalidate_tlb(CPUSH4State *s);
- void cpu_sh4_write_mmaped_utlb_addr(CPUSH4State *s, target_phys_addr_t addr,
- 				    uint32_t mem_value);
- 
-@@ -222,6 +223,7 @@ enum {
- /* MMU control register */
- #define MMUCR    0x1F000010
- #define MMUCR_AT (1<<0)
-+#define MMUCR_TI (1<<2)
- #define MMUCR_SV (1<<8)
- #define MMUCR_URC_BITS (6)
- #define MMUCR_URC_OFFSET (10)
-diff --git a/target-sh4/helper.c b/target-sh4/helper.c
-index 088d36a..e7c494f 100644
---- a/target-sh4/helper.c
-+++ b/target-sh4/helper.c
-@@ -574,6 +574,24 @@ void cpu_load_tlb(CPUSH4State * env)
-     entry->tc   = (uint8_t)cpu_ptea_tc(env->ptea);
- }
- 
-+ void cpu_sh4_invalidate_tlb(CPUSH4State *s)
-+{
-+    int i;
-+
-+    /* UTLB */
-+    for (i = 0; i < UTLB_SIZE; i++) {
-+        tlb_t * entry = &s->utlb[i];
-+        entry->v = 0;
-+    }
-+    /* ITLB */
-+    for (i = 0; i < UTLB_SIZE; i++) {
-+        tlb_t * entry = &s->utlb[i];
-+        entry->v = 0;
-+    }
-+
-+    tlb_flush(s, 1);
-+}
-+
- void cpu_sh4_write_mmaped_utlb_addr(CPUSH4State *s, target_phys_addr_t addr,
- 				    uint32_t mem_value)
- {
-
-
-commit 33b8f5546cc16eaa3d89fe133a9843c794b65d6c
-Author: Aurelien Jarno <aurelien@aurel32.net>
-Date:   Mon Feb 1 19:58:46 2010 +0100
-
-    target-sh4: MMU: fix mem_idx computation
-    
-    The mem_idx is wrongly computed. As written in target-sh4/cpu.h, mode 0
-    corresponds to kernel mode (SR_MD = 1), while mode 1 corresponds to user
-    mode (SR_MD = 0).
-    
-    Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
-
-diff --git a/target-sh4/translate.c b/target-sh4/translate.c
-index 8f0a986..bff3188 100644
---- a/target-sh4/translate.c
-+++ b/target-sh4/translate.c
-@@ -1905,7 +1905,7 @@ gen_intermediate_code_internal(CPUState * env, TranslationBlock * tb,
-     ctx.bstate = BS_NONE;
-     ctx.sr = env->sr;
-     ctx.fpscr = env->fpscr;
--    ctx.memidx = (env->sr & SR_MD) ? 1 : 0;
-+    ctx.memidx = (env->sr & SR_MD) == 0 ? 1 : 0;
-     /* We don't know if the delayed pc came from a dynamic or static branch,
-        so assume it is a dynamic branch.  */
-     ctx.delayed_pc = -1; /* use delayed pc from env pointer */
-
-
 commit e6df0efdf7d4e304fe4a099cef625d8e4f60b320
 Author: Aurelien Jarno <aurelien@aurel32.net>
 Date:   Mon Feb 1 20:02:23 2010 +0100
@@ -190,32 +83,6 @@ index e7c494f..f9bf5e2 100644
  
      return tlb_set_page(env, address, physical, prot, mmu_idx, is_softmmu);
  }
-
-
-commit bc13ad29e6b7484ccd5e7ee0f5d0f966585eb4c9
-Author: Aurelien Jarno <aurelien@aurel32.net>
-Date:   Mon Feb 1 20:07:06 2010 +0100
-
-    target-sh4: MMU: fix ITLB priviledge check
-    
-    There is an ITLB access violation if SR_MD=0 (user mode) while
-    the high bit of the protection key is 0 (priviledge mode).
-    
-    Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
-
-diff --git a/target-sh4/helper.c b/target-sh4/helper.c
-index f9bf5e2..589efe4 100644
---- a/target-sh4/helper.c
-+++ b/target-sh4/helper.c
-@@ -377,7 +377,7 @@ static int get_mmu_address(CPUState * env, target_ulong * physical,
- 	n = find_itlb_entry(env, address, use_asid, 1);
- 	if (n >= 0) {
- 	    matching = &env->itlb[n];
--	    if ((env->sr & SR_MD) & !(matching->pr & 2))
-+	    if (!(env->sr & SR_MD) && !(matching->pr & 2))
- 		n = MMU_ITLB_VIOLATION;
- 	    else
- 		*prot = PAGE_READ;
 
 
 commit fc1a70eb8792472b7d18ad21f40763d4b32f9413
@@ -383,31 +250,6 @@ index 2d00dfa..9b3a259 100644
  	start = (entries[i].vpn << 10) & ~(entries[i].size - 1);
  	end = start + entries[i].size - 1;
  	if (address >= start && address <= end) {	/* Match */
-
-
-commit b1563142123593581895049568c5526b1e91da7b
-Author: Aurelien Jarno <aurelien@aurel32.net>
-Date:   Wed Feb 3 18:02:55 2010 +0100
-
-    target-sh4: MMU: fix store queue addresses
-    
-    The store queues are located from 0xe0000000 to 0xe3ffffff.
-    
-    Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
-
-diff --git a/target-sh4/helper.c b/target-sh4/helper.c
-index 9b3a259..0a2a90e 100644
---- a/target-sh4/helper.c
-+++ b/target-sh4/helper.c
-@@ -402,7 +402,7 @@ static int get_physical_address(CPUState * env, target_ulong * physical,
-     if ((address >= 0x80000000 && address < 0xc0000000) ||
- 	address >= 0xe0000000) {
- 	if (!(env->sr & SR_MD)
--	    && (address < 0xe0000000 || address > 0xe4000000)) {
-+	    && (address < 0xe0000000 || address >= 0xe4000000)) {
- 	    /* Unauthorized access in user mode (only store queues are available) */
- 	    fprintf(stderr, "Unauthorized access\n");
- 	    if (rw == 0)
 
 
 commit 2c8bbb9fabadf3687017694bae1008bee7fedc7c
