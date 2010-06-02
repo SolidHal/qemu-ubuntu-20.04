@@ -1,0 +1,270 @@
+diff --git a/aio.c b/aio.c
+index f164a47..2f08655 100644
+--- a/aio.c
++++ b/aio.c
+@@ -113,7 +113,9 @@ void qemu_aio_flush(void)
+         qemu_aio_wait();
+ 
+         QLIST_FOREACH(node, &aio_handlers, node) {
+-            ret |= node->io_flush(node->opaque);
++            if (node->io_flush) {
++                ret |= node->io_flush(node->opaque);
++            }
+         }
+     } while (qemu_bh_poll() || ret > 0);
+ }
+diff --git a/block.c b/block.c
+index 7326bfe..955eeaa 100644
+--- a/block.c
++++ b/block.c
+@@ -1636,7 +1636,19 @@ static void multiwrite_cb(void *opaque, int ret)
+ 
+ static int multiwrite_req_compare(const void *a, const void *b)
+ {
+-    return (((BlockRequest*) a)->sector - ((BlockRequest*) b)->sector);
++    const BlockRequest *req1 = a, *req2 = b;
++
++    /*
++     * Note that we can't simply subtract req2->sector from req1->sector
++     * here as that could overflow the return value.
++     */
++    if (req1->sector > req2->sector) {
++        return 1;
++    } else if (req1->sector < req2->sector) {
++        return -1;
++    } else {
++        return 0;
++    }
+ }
+ 
+ /*
+diff --git a/hw/arm_timer.c b/hw/arm_timer.c
+index 9fef191..9073ffc 100644
+--- a/hw/arm_timer.c
++++ b/hw/arm_timer.c
+@@ -71,7 +71,7 @@ static void arm_timer_recalibrate(arm_timer_state *s, int reload)
+ {
+     uint32_t limit;
+ 
+-    if ((s->control & TIMER_CTRL_PERIODIC) == 0) {
++    if ((s->control & (TIMER_CTRL_PERIODIC | TIMER_CTRL_ONESHOT)) == 0) {
+         /* Free running.  */
+         if (s->control & TIMER_CTRL_32BIT)
+             limit = 0xffffffff;
+@@ -113,7 +113,7 @@ static void arm_timer_write(void *opaque, target_phys_addr_t offset,
+         case 1: freq >>= 4; break;
+         case 2: freq >>= 8; break;
+         }
+-        arm_timer_recalibrate(s, 0);
++        arm_timer_recalibrate(s, s->control & TIMER_CTRL_ENABLE);
+         ptimer_set_freq(s->timer, freq);
+         if (s->control & TIMER_CTRL_ENABLE) {
+             /* Restart the timer if still enabled.  */
+diff --git a/hw/pci.c b/hw/pci.c
+index 8f30f73..f8a82f7 100644
+--- a/hw/pci.c
++++ b/hw/pci.c
+@@ -317,7 +317,7 @@ static VMStateInfo vmstate_info_pci_config = {
+ 
+ static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+ {
+-    PCIDevice *s = container_of(pv, PCIDevice, config);
++    PCIDevice *s = container_of(pv, PCIDevice, irq_state);
+     uint32_t irq_state[PCI_NUM_PINS];
+     int i;
+     for (i = 0; i < PCI_NUM_PINS; ++i) {
+@@ -339,7 +339,7 @@ static int get_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+ static void put_pci_irq_state(QEMUFile *f, void *pv, size_t size)
+ {
+     int i;
+-    PCIDevice *s = container_of(pv, PCIDevice, config);
++    PCIDevice *s = container_of(pv, PCIDevice, irq_state);
+ 
+     for (i = 0; i < PCI_NUM_PINS; ++i) {
+         qemu_put_be32(f, pci_irq_state(s, i));
+diff --git a/hw/virtio-blk.c b/hw/virtio-blk.c
+index 2fd9b3f..0871d20 100644
+--- a/hw/virtio-blk.c
++++ b/hw/virtio-blk.c
+@@ -278,10 +278,20 @@ static void do_multiwrite(BlockDriverState *bs, BlockRequest *blkreq,
+     }
+ }
+ 
+-static void virtio_blk_handle_flush(VirtIOBlockReq *req)
++static void virtio_blk_handle_flush(BlockRequest *blkreq, int *num_writes,
++    VirtIOBlockReq *req, BlockDriverState **old_bs)
+ {
+     BlockDriverAIOCB *acb;
+ 
++    /*
++     * Make sure all outstanding writes are posted to the backing device.
++     */
++    if (*old_bs != NULL) {
++        do_multiwrite(*old_bs, blkreq, *num_writes);
++    }
++    *num_writes = 0;
++    *old_bs = req->dev->bs;
++
+     acb = bdrv_aio_flush(req->dev->bs, virtio_blk_flush_complete, req);
+     if (!acb) {
+         virtio_blk_req_complete(req, VIRTIO_BLK_S_IOERR);
+@@ -344,7 +354,8 @@ static void virtio_blk_handle_request(VirtIOBlockReq *req,
+     req->in = (void *)req->elem.in_sg[req->elem.in_num - 1].iov_base;
+ 
+     if (req->out->type & VIRTIO_BLK_T_FLUSH) {
+-        virtio_blk_handle_flush(req);
++        virtio_blk_handle_flush(mrb->blkreq, &mrb->num_writes,
++            req, &mrb->old_bs);
+     } else if (req->out->type & VIRTIO_BLK_T_SCSI_CMD) {
+         virtio_blk_handle_scsi(req);
+     } else if (req->out->type & VIRTIO_BLK_T_OUT) {
+diff --git a/i386.ld b/i386.ld
+index f2dafec..f8df7bf 100644
+--- a/i386.ld
++++ b/i386.ld
+@@ -39,8 +39,20 @@ SECTIONS
+   .rela.fini     : { *(.rela.fini)	}
+   .rel.bss       : { *(.rel.bss)		}
+   .rela.bss      : { *(.rela.bss)		}
+-  .rel.plt       : { *(.rel.plt)		}
+-  .rela.plt      : { *(.rela.plt)		}
++  .rel.plt      :
++  {
++    *(.rel.plt)
++    PROVIDE_HIDDEN (__rel_iplt_start = .);
++    *(.rel.iplt)
++    PROVIDE_HIDDEN (__rel_iplt_end = .);
++  }
++  .rela.plt       :
++  {
++    *(.rela.plt)
++    PROVIDE_HIDDEN (__rela_iplt_start = .);
++    *(.rela.iplt)
++    PROVIDE_HIDDEN (__rela_iplt_end = .);
++  }
+   .init          : { *(.init)	} =0x47ff041f
+   .text      :
+   {
+diff --git a/qemu-img.c b/qemu-img.c
+index 1d97f2e..2824178 100644
+--- a/qemu-img.c
++++ b/qemu-img.c
+@@ -537,7 +537,7 @@ static int img_convert(int argc, char **argv)
+     BlockDriverState **bs, *out_bs;
+     int64_t total_sectors, nb_sectors, sector_num, bs_offset;
+     uint64_t bs_sectors;
+-    uint8_t buf[IO_BUF_SIZE];
++    uint8_t * buf;
+     const uint8_t *buf1;
+     BlockDriverInfo bdi;
+     QEMUOptionParameter *param = NULL;
+@@ -656,6 +656,7 @@ static int img_convert(int argc, char **argv)
+     bs_i = 0;
+     bs_offset = 0;
+     bdrv_get_geometry(bs[0], &bs_sectors);
++    buf = qemu_malloc(IO_BUF_SIZE);
+ 
+     if (flags & BLOCK_FLAG_COMPRESS) {
+         if (bdrv_get_info(out_bs, &bdi) < 0)
+@@ -788,6 +789,7 @@ static int img_convert(int argc, char **argv)
+             }
+         }
+     }
++    qemu_free(buf);
+     bdrv_delete(out_bs);
+     for (bs_i = 0; bs_i < bs_n; bs_i++)
+         bdrv_delete(bs[bs_i]);
+diff --git a/qemu-monitor.hx b/qemu-monitor.hx
+index 1aa7818..a6a36b8 100644
+--- a/qemu-monitor.hx
++++ b/qemu-monitor.hx
+@@ -888,7 +888,7 @@ ETEXI
+         .name       = "balloon",
+         .args_type  = "value:M",
+         .params     = "target",
+-        .help       = "request VM to change it's memory allocation (in MB)",
++        .help       = "request VM to change its memory allocation (in MB)",
+         .user_print = monitor_user_noop,
+         .mhandler.cmd_new = do_balloon,
+     },
+diff --git a/qemu-sockets.c b/qemu-sockets.c
+index a88b2a7..993ce12 100644
+--- a/qemu-sockets.c
++++ b/qemu-sockets.c
+@@ -130,7 +130,8 @@ int inet_listen_opts(QemuOpts *opts, int port_offset)
+     ai.ai_family = PF_UNSPEC;
+     ai.ai_socktype = SOCK_STREAM;
+ 
+-    if (qemu_opt_get(opts, "port") == NULL) {
++    if ((qemu_opt_get(opts, "host") == NULL) ||
++        (qemu_opt_get(opts, "port") == NULL)) {
+         fprintf(stderr, "%s: host and/or port not specified\n", __FUNCTION__);
+         return -1;
+     }
+diff --git a/target-ppc/helper.c b/target-ppc/helper.c
+index b233d4f..28504b3 100644
+--- a/target-ppc/helper.c
++++ b/target-ppc/helper.c
+@@ -2066,7 +2066,6 @@ static inline void powerpc_excp(CPUState *env, int excp_model, int excp)
+     srr1 = SPR_SRR1;
+     asrr0 = -1;
+     asrr1 = -1;
+-    msr &= ~((target_ulong)0x783F0000);
+     switch (excp) {
+     case POWERPC_EXCP_NONE:
+         /* Should never happen */
+diff --git a/target-ppc/op_helper.c b/target-ppc/op_helper.c
+index e3bd29c..ee8d8bf 100644
+--- a/target-ppc/op_helper.c
++++ b/target-ppc/op_helper.c
+@@ -1646,20 +1646,20 @@ static inline void do_rfi(target_ulong nip, target_ulong msr,
+ void helper_rfi (void)
+ {
+     do_rfi(env->spr[SPR_SRR0], env->spr[SPR_SRR1],
+-           ~((target_ulong)0x0), 1);
++           ~((target_ulong)0x783F0000), 1);
+ }
+ 
+ #if defined(TARGET_PPC64)
+ void helper_rfid (void)
+ {
+     do_rfi(env->spr[SPR_SRR0], env->spr[SPR_SRR1],
+-           ~((target_ulong)0x0), 0);
++           ~((target_ulong)0x783F0000), 0);
+ }
+ 
+ void helper_hrfid (void)
+ {
+     do_rfi(env->spr[SPR_HSRR0], env->spr[SPR_HSRR1],
+-           ~((target_ulong)0x0), 0);
++           ~((target_ulong)0x783F0000), 0);
+ }
+ #endif
+ #endif
+diff --git a/x86_64.ld b/x86_64.ld
+index 24ea77d..46d8d4d 100644
+--- a/x86_64.ld
++++ b/x86_64.ld
+@@ -35,8 +35,20 @@ SECTIONS
+   .rela.got       : { *(.rela.got) }
+   .rel.bss        : { *(.rel.bss .rel.bss.* .rel.gnu.linkonce.b.*) }
+   .rela.bss       : { *(.rela.bss .rela.bss.* .rela.gnu.linkonce.b.*) }
+-  .rel.plt        : { *(.rel.plt) }
+-  .rela.plt       : { *(.rela.plt) }
++  .rel.plt      :
++  {
++    *(.rel.plt)
++    PROVIDE_HIDDEN (__rel_iplt_start = .);
++    *(.rel.iplt)
++    PROVIDE_HIDDEN (__rel_iplt_end = .);
++  }
++  .rela.plt       :
++  {
++    *(.rela.plt)
++    PROVIDE_HIDDEN (__rela_iplt_start = .);
++    *(.rela.iplt)
++    PROVIDE_HIDDEN (__rela_iplt_end = .);
++  }
+   .init           :
+   {
+     KEEP (*(.init))

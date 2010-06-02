@@ -2,4 +2,5 @@
 03_support_pselect_in_linux_user_arm.patch
 05_bochs_vbe.diff
 06_sh4.diff
+99_stable.diff
 security/leftover.patch
