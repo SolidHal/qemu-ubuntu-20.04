@@ -1,3 +1,9 @@
+qemu (0.12.4+dfsg-3) unstable; urgency=low
+
+  * Update 99_stable.diff from the stable branch. 
+
+ -- Aurelien Jarno <aurel32@debian.org>  Wed, 16 Jun 2010 23:07:36 +0200
+
 qemu (0.12.4+dfsg-2) unstable; urgency=low
 
   [ Vagrant Cascadian ]
