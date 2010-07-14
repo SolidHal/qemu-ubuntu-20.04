@@ -1,3 +1,13 @@
+qemu (0.12.4+dfsg-4) unstable; urgency=high
+
+  * Update debian/copyright.  Closes: bug#588911.
+  * Update 99_stable.diff from the stable branch:
+    - Add documentation for the stdio signal option. Closes: bug#588514.
+  * Split out keymaps in the qemu-keymaps package.  Closes: bug#559174.
+  * Bump Standards-Version to 3.9.0 (no changes).
+
+ -- Aurelien Jarno <aurel32@debian.org>  Wed, 14 Jul 2010 15:13:04 +0200
+
 qemu (0.12.4+dfsg-3) unstable; urgency=low
 
   * Update 99_stable.diff from the stable branch. 

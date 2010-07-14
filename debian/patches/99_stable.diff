@@ -13,11 +13,92 @@ index f164a47..2f08655 100644
          }
      } while (qemu_bh_poll() || ret > 0);
  }
+diff --git a/audio/alsaaudio.c b/audio/alsaaudio.c
+index 7698d10..6a9b87a 100644
+--- a/audio/alsaaudio.c
++++ b/audio/alsaaudio.c
+@@ -665,7 +665,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
+         (obt->fmt != req->fmt ||
+          obt->nchannels != req->nchannels ||
+          obt->freq != req->freq)) {
+-        dolog ("Audio paramters for %s\n", typ);
++        dolog ("Audio parameters for %s\n", typ);
+         alsa_dump_info (req, obt);
+     }
+ 
 diff --git a/block.c b/block.c
-index 7326bfe..298414c 100644
+index 7326bfe..1694780 100644
 --- a/block.c
 +++ b/block.c
-@@ -1636,7 +1636,19 @@ static void multiwrite_cb(void *opaque, int ret)
+@@ -452,6 +452,8 @@ int bdrv_open2(BlockDriverState *bs, const char *filename, int flags,
+             (flags & (BDRV_O_CACHE_MASK|BDRV_O_NATIVE_AIO));
+     else
+         open_flags = flags & ~(BDRV_O_FILE | BDRV_O_SNAPSHOT);
++
++    bs->open_flags = open_flags;
+     if (use_bdrv_whitelist && !bdrv_is_whitelisted(drv))
+         ret = -ENOTSUP;
+     else
+@@ -779,6 +781,43 @@ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
+     return count1;
+ }
+ 
++/*
++ * Writes to the file and ensures that no writes are reordered across this
++ * request (acts as a barrier)
++ *
++ * Returns 0 on success, -errno in error cases.
++ */
++int bdrv_pwrite_sync(BlockDriverState *bs, int64_t offset,
++    const void *buf, int count)
++{
++    int ret;
++
++    ret = bdrv_pwrite(bs, offset, buf, count);
++    if (ret < 0) {
++        return ret;
++    }
++
++    /* No flush needed for cache=writethrough, it uses O_DSYNC */
++    if ((bs->open_flags & BDRV_O_CACHE_MASK) != 0) {
++        bdrv_flush(bs);
++    }
++
++    return 0;
++}
++
++/*
++ * Writes to the file and ensures that no writes are reordered across this
++ * request (acts as a barrier)
++ *
++ * Returns 0 on success, -errno in error cases.
++ */
++int bdrv_write_sync(BlockDriverState *bs, int64_t sector_num,
++    const uint8_t *buf, int nb_sectors)
++{
++    return bdrv_pwrite_sync(bs, BDRV_SECTOR_SIZE * sector_num,
++        buf, BDRV_SECTOR_SIZE * nb_sectors);
++}
++
+ /**
+  * Truncate file to 'offset' bytes (needed only for file protocols)
+  */
+@@ -1622,21 +1661,30 @@ static void multiwrite_cb(void *opaque, int ret)
+ 
+     if (ret < 0 && !mcb->error) {
+         mcb->error = ret;
+-        multiwrite_user_cb(mcb);
+     }
+ 
+     mcb->num_requests--;
+     if (mcb->num_requests == 0) {
+-        if (mcb->error == 0) {
+-            multiwrite_user_cb(mcb);
+-        }
++        multiwrite_user_cb(mcb);
+         qemu_free(mcb);
+     }
+ }
  
  static int multiwrite_req_compare(const void *a, const void *b)
  {
@@ -38,7 +119,7 @@ index 7326bfe..298414c 100644
  }
  
  /*
-@@ -1699,7 +1711,7 @@ static int multiwrite_merge(BlockDriverState *bs, BlockRequest *reqs,
+@@ -1699,7 +1747,7 @@ static int multiwrite_merge(BlockDriverState *bs, BlockRequest *reqs,
              // Add the second request
              qemu_iovec_concat(qiov, reqs[i].qiov, reqs[i].qiov->size);
  
@@ -47,11 +128,201 @@ index 7326bfe..298414c 100644
              reqs[outidx].qiov = qiov;
  
              mcb->callbacks[i].free_qiov = reqs[outidx].qiov;
+@@ -1751,8 +1799,29 @@ int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs)
+     // Check for mergable requests
+     num_reqs = multiwrite_merge(bs, reqs, num_reqs, mcb);
+ 
+-    // Run the aio requests
++    /*
++     * Run the aio requests. As soon as one request can't be submitted
++     * successfully, fail all requests that are not yet submitted (we must
++     * return failure for all requests anyway)
++     *
++     * num_requests cannot be set to the right value immediately: If
++     * bdrv_aio_writev fails for some request, num_requests would be too high
++     * and therefore multiwrite_cb() would never recognize the multiwrite
++     * request as completed. We also cannot use the loop variable i to set it
++     * when the first request fails because the callback may already have been
++     * called for previously submitted requests. Thus, num_requests must be
++     * incremented for each request that is submitted.
++     *
++     * The problem that callbacks may be called early also means that we need
++     * to take care that num_requests doesn't become 0 before all requests are
++     * submitted - multiwrite_cb() would consider the multiwrite request
++     * completed. A dummy request that is "completed" by a manual call to
++     * multiwrite_cb() takes care of this.
++     */
++    mcb->num_requests = 1;
++
+     for (i = 0; i < num_reqs; i++) {
++        mcb->num_requests++;
+         acb = bdrv_aio_writev(bs, reqs[i].sector, reqs[i].qiov,
+             reqs[i].nb_sectors, multiwrite_cb, mcb);
+ 
+@@ -1760,23 +1829,25 @@ int bdrv_aio_multiwrite(BlockDriverState *bs, BlockRequest *reqs, int num_reqs)
+             // We can only fail the whole thing if no request has been
+             // submitted yet. Otherwise we'll wait for the submitted AIOs to
+             // complete and report the error in the callback.
+-            if (mcb->num_requests == 0) {
+-                reqs[i].error = -EIO;
++            if (i == 0) {
+                 goto fail;
+             } else {
+-                mcb->num_requests++;
+                 multiwrite_cb(mcb, -EIO);
+                 break;
+             }
+-        } else {
+-            mcb->num_requests++;
+         }
+     }
+ 
++    /* Complete the dummy request */
++    multiwrite_cb(mcb, 0);
++
+     return 0;
+ 
+ fail:
+-    free(mcb);
++    for (i = 0; i < mcb->num_callbacks; i++) {
++        reqs[i].error = -EIO;
++    }
++    qemu_free(mcb);
+     return -1;
+ }
+ 
+diff --git a/block.h b/block.h
+index fa51ddf..762d88a 100644
+--- a/block.h
++++ b/block.h
+@@ -77,6 +77,10 @@ int bdrv_pread(BlockDriverState *bs, int64_t offset,
+                void *buf, int count);
+ int bdrv_pwrite(BlockDriverState *bs, int64_t offset,
+                 const void *buf, int count);
++int bdrv_pwrite_sync(BlockDriverState *bs, int64_t offset,
++    const void *buf, int count);
++int bdrv_write_sync(BlockDriverState *bs, int64_t sector_num,
++    const uint8_t *buf, int nb_sectors);
+ int bdrv_truncate(BlockDriverState *bs, int64_t offset);
+ int64_t bdrv_getlength(BlockDriverState *bs);
+ void bdrv_get_geometry(BlockDriverState *bs, uint64_t *nb_sectors_ptr);
+diff --git a/block/qcow.c b/block/qcow.c
+index 7fc85ae..6a4c30f 100644
+--- a/block/qcow.c
++++ b/block/qcow.c
+@@ -277,8 +277,9 @@ static uint64_t get_cluster_offset(BlockDriverState *bs,
+         /* update the L1 entry */
+         s->l1_table[l1_index] = l2_offset;
+         tmp = cpu_to_be64(l2_offset);
+-        if (bdrv_pwrite(s->hd, s->l1_table_offset + l1_index * sizeof(tmp),
+-                        &tmp, sizeof(tmp)) != sizeof(tmp))
++        if (bdrv_pwrite_sync(s->hd,
++                s->l1_table_offset + l1_index * sizeof(tmp),
++                &tmp, sizeof(tmp)) < 0)
+             return 0;
+         new_l2_table = 1;
+     }
+@@ -306,8 +307,8 @@ static uint64_t get_cluster_offset(BlockDriverState *bs,
+     l2_table = s->l2_cache + (min_index << s->l2_bits);
+     if (new_l2_table) {
+         memset(l2_table, 0, s->l2_size * sizeof(uint64_t));
+-        if (bdrv_pwrite(s->hd, l2_offset, l2_table, s->l2_size * sizeof(uint64_t)) !=
+-            s->l2_size * sizeof(uint64_t))
++        if (bdrv_pwrite_sync(s->hd, l2_offset, l2_table,
++                s->l2_size * sizeof(uint64_t)) < 0)
+             return 0;
+     } else {
+         if (bdrv_pread(s->hd, l2_offset, l2_table, s->l2_size * sizeof(uint64_t)) !=
+@@ -372,8 +373,8 @@ static uint64_t get_cluster_offset(BlockDriverState *bs,
+         /* update L2 table */
+         tmp = cpu_to_be64(cluster_offset);
+         l2_table[l2_index] = tmp;
+-        if (bdrv_pwrite(s->hd,
+-                        l2_offset + l2_index * sizeof(tmp), &tmp, sizeof(tmp)) != sizeof(tmp))
++        if (bdrv_pwrite_sync(s->hd, l2_offset + l2_index * sizeof(tmp),
++                &tmp, sizeof(tmp)) < 0)
+             return 0;
+     }
+     return cluster_offset;
+@@ -821,8 +822,9 @@ static int qcow_make_empty(BlockDriverState *bs)
+     int ret;
+ 
+     memset(s->l1_table, 0, l1_length);
+-    if (bdrv_pwrite(s->hd, s->l1_table_offset, s->l1_table, l1_length) < 0)
+-	return -1;
++    if (bdrv_pwrite_sync(s->hd, s->l1_table_offset, s->l1_table,
++            l1_length) < 0)
++        return -1;
+     ret = bdrv_truncate(s->hd, s->l1_table_offset + l1_length);
+     if (ret < 0)
+         return ret;
 diff --git a/block/qcow2-cluster.c b/block/qcow2-cluster.c
-index c7057b1..b7a5b35 100644
+index c7057b1..0a555dc 100644
 --- a/block/qcow2-cluster.c
 +++ b/block/qcow2-cluster.c
-@@ -231,13 +231,6 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
+@@ -62,8 +62,8 @@ int qcow2_grow_l1_table(BlockDriverState *bs, int min_size)
+ 
+     for(i = 0; i < s->l1_size; i++)
+         new_l1_table[i] = cpu_to_be64(new_l1_table[i]);
+-    ret = bdrv_pwrite(s->hd, new_l1_table_offset, new_l1_table, new_l1_size2);
+-    if (ret != new_l1_size2)
++    ret = bdrv_pwrite_sync(s->hd, new_l1_table_offset, new_l1_table, new_l1_size2);
++    if (ret < 0)
+         goto fail;
+     for(i = 0; i < s->l1_size; i++)
+         new_l1_table[i] = be64_to_cpu(new_l1_table[i]);
+@@ -71,8 +71,8 @@ int qcow2_grow_l1_table(BlockDriverState *bs, int min_size)
+     /* set new table */
+     cpu_to_be32w((uint32_t*)data, new_l1_size);
+     cpu_to_be64w((uint64_t*)(data + 4), new_l1_table_offset);
+-    ret = bdrv_pwrite(s->hd, offsetof(QCowHeader, l1_size), data,sizeof(data));
+-    if (ret != sizeof(data)) {
++    ret = bdrv_pwrite_sync(s->hd, offsetof(QCowHeader, l1_size), data,sizeof(data));
++    if (ret < 0) {
+         goto fail;
+     }
+     qemu_free(s->l1_table);
+@@ -84,7 +84,7 @@ int qcow2_grow_l1_table(BlockDriverState *bs, int min_size)
+  fail:
+     qemu_free(new_l1_table);
+     qcow2_free_clusters(bs, new_l1_table_offset, new_l1_size2);
+-    return ret < 0 ? ret : -EIO;
++    return ret;
+ }
+ 
+ void qcow2_l2_cache_reset(BlockDriverState *bs)
+@@ -188,17 +188,17 @@ static int write_l1_entry(BDRVQcowState *s, int l1_index)
+ {
+     uint64_t buf[L1_ENTRIES_PER_SECTOR];
+     int l1_start_index;
+-    int i;
++    int i, ret;
+ 
+     l1_start_index = l1_index & ~(L1_ENTRIES_PER_SECTOR - 1);
+     for (i = 0; i < L1_ENTRIES_PER_SECTOR; i++) {
+         buf[i] = cpu_to_be64(s->l1_table[l1_start_index + i]);
+     }
+ 
+-    if (bdrv_pwrite(s->hd, s->l1_table_offset + 8 * l1_start_index,
+-        buf, sizeof(buf)) != sizeof(buf))
+-    {
+-        return -1;
++    ret = bdrv_pwrite_sync(s->hd, s->l1_table_offset + 8 * l1_start_index,
++        buf, sizeof(buf));
++    if (ret < 0) {
++        return ret;
+     }
+ 
+     return 0;
+@@ -221,6 +221,7 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
+     uint64_t old_l2_offset;
+     uint64_t *l2_table;
+     int64_t l2_offset;
++    int ret;
+ 
+     old_l2_offset = s->l1_table[l1_index];
+ 
+@@ -231,13 +232,6 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
          return NULL;
      }
  
@@ -65,7 +336,7 @@ index c7057b1..b7a5b35 100644
      /* allocate a new entry in the l2 cache */
  
      min_index = l2_cache_new_entry(bs);
-@@ -251,13 +244,19 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
+@@ -251,13 +245,20 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
          if (bdrv_pread(s->hd, old_l2_offset,
                         l2_table, s->l2_size * sizeof(uint64_t)) !=
              s->l2_size * sizeof(uint64_t))
@@ -73,11 +344,15 @@ index c7057b1..b7a5b35 100644
 +            goto fail;
      }
      /* write the l2 table to the file */
-     if (bdrv_pwrite(s->hd, l2_offset,
-                     l2_table, s->l2_size * sizeof(uint64_t)) !=
-         s->l2_size * sizeof(uint64_t))
+-    if (bdrv_pwrite(s->hd, l2_offset,
+-                    l2_table, s->l2_size * sizeof(uint64_t)) !=
+-        s->l2_size * sizeof(uint64_t))
 -        return NULL;
++    ret = bdrv_pwrite_sync(s->hd, l2_offset, l2_table,
++        s->l2_size * sizeof(uint64_t));
++    if (ret < 0) {
 +        goto fail;
++    }
 +
 +    /* update the L1 entry */
 +    s->l1_table[l1_index] = l2_offset | QCOW_OFLAG_COPIED;
@@ -87,18 +362,60 @@ index c7057b1..b7a5b35 100644
  
      /* update the l2 cache entry */
  
-@@ -265,6 +264,10 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
+@@ -265,6 +266,11 @@ static uint64_t *l2_allocate(BlockDriverState *bs, int l1_index)
      s->l2_cache_counts[min_index] = 1;
  
      return l2_table;
 +
 +fail:
++    s->l1_table[l1_index] = old_l2_offset;
 +    qcow2_l2_cache_reset(bs);
 +    return NULL;
  }
  
  static int count_contiguous_clusters(uint64_t nb_clusters, int cluster_size,
-@@ -672,8 +675,9 @@ int qcow2_alloc_cluster_link_l2(BlockDriverState *bs, QCowL2Meta *m)
+@@ -380,8 +386,8 @@ static int copy_sectors(BlockDriverState *bs, uint64_t start_sect,
+                         s->cluster_data, n, 1,
+                         &s->aes_encrypt_key);
+     }
+-    ret = bdrv_write(s->hd, (cluster_offset >> 9) + n_start,
+-                     s->cluster_data, n);
++    ret = bdrv_write_sync(s->hd, (cluster_offset >> 9) + n_start,
++        s->cluster_data, n);
+     if (ret < 0)
+         return ret;
+     return 0;
+@@ -593,10 +599,10 @@ uint64_t qcow2_alloc_compressed_cluster_offset(BlockDriverState *bs,
+     /* compressed clusters never have the copied flag */
+ 
+     l2_table[l2_index] = cpu_to_be64(cluster_offset);
+-    if (bdrv_pwrite(s->hd,
++    if (bdrv_pwrite_sync(s->hd,
+                     l2_offset + l2_index * sizeof(uint64_t),
+                     l2_table + l2_index,
+-                    sizeof(uint64_t)) != sizeof(uint64_t))
++                    sizeof(uint64_t)) < 0)
+         return 0;
+ 
+     return cluster_offset;
+@@ -614,11 +620,12 @@ static int write_l2_entries(BDRVQcowState *s, uint64_t *l2_table,
+     int start_offset = (8 * l2_index) & ~511;
+     int end_offset = (8 * (l2_index + num) + 511) & ~511;
+     size_t len = end_offset - start_offset;
++    int ret;
+ 
+-    if (bdrv_pwrite(s->hd, l2_offset + start_offset, &l2_table[l2_start_index],
+-        len) != len)
+-    {
+-        return -1;
++    ret = bdrv_pwrite_sync(s->hd, l2_offset + start_offset,
++        &l2_table[l2_start_index], len);
++    if (ret < 0) {
++        return ret;
+     }
+ 
+     return 0;
+@@ -672,8 +679,9 @@ int qcow2_alloc_cluster_link_l2(BlockDriverState *bs, QCowL2Meta *m)
                      (i << s->cluster_bits)) | QCOW_OFLAG_COPIED);
       }
  
@@ -111,9 +428,20 @@ index c7057b1..b7a5b35 100644
      }
  
 diff --git a/block/qcow2-refcount.c b/block/qcow2-refcount.c
-index 5ebbcb6..465d5d3 100644
+index 5ebbcb6..06998da 100644
 --- a/block/qcow2-refcount.c
 +++ b/block/qcow2-refcount.c
+@@ -42,8 +42,8 @@ static int write_refcount_block(BDRVQcowState *s)
+         return 0;
+     }
+ 
+-    if (bdrv_pwrite(s->hd, s->refcount_block_cache_offset,
+-            s->refcount_block_cache, size) != size)
++    if (bdrv_pwrite_sync(s->hd, s->refcount_block_cache_offset,
++            s->refcount_block_cache, size) < 0)
+     {
+         return -EIO;
+     }
 @@ -215,8 +215,6 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
  
      /* Allocate the refcount block itself and mark it as used */
@@ -134,7 +462,7 @@ index 5ebbcb6..465d5d3 100644
          /* The block describes itself, need to update the cache */
          int block_index = (new_block >> s->cluster_bits) &
              ((1 << (s->cluster_bits - REFCOUNT_SHIFT)) - 1);
-@@ -236,6 +238,11 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
+@@ -236,10 +238,15 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
          if (ret < 0) {
              goto fail_block;
          }
@@ -146,7 +474,54 @@ index 5ebbcb6..465d5d3 100644
      }
  
      /* Now the new refcount block needs to be written to disk */
-@@ -395,6 +402,10 @@ static int write_refcount_block_entries(BDRVQcowState *s,
+-    ret = bdrv_pwrite(s->hd, new_block, s->refcount_block_cache,
++    ret = bdrv_pwrite_sync(s->hd, new_block, s->refcount_block_cache,
+         s->cluster_size);
+     if (ret < 0) {
+         goto fail_block;
+@@ -248,7 +255,7 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
+     /* If the refcount table is big enough, just hook the block up there */
+     if (refcount_table_index < s->refcount_table_size) {
+         uint64_t data64 = cpu_to_be64(new_block);
+-        ret = bdrv_pwrite(s->hd,
++        ret = bdrv_pwrite_sync(s->hd,
+             s->refcount_table_offset + refcount_table_index * sizeof(uint64_t),
+             &data64, sizeof(data64));
+         if (ret < 0) {
+@@ -325,7 +332,7 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
+     }
+ 
+     /* Write refcount blocks to disk */
+-    ret = bdrv_pwrite(s->hd, meta_offset, new_blocks,
++    ret = bdrv_pwrite_sync(s->hd, meta_offset, new_blocks,
+         blocks_clusters * s->cluster_size);
+     qemu_free(new_blocks);
+     if (ret < 0) {
+@@ -337,7 +344,7 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
+         cpu_to_be64s(&new_table[i]);
+     }
+ 
+-    ret = bdrv_pwrite(s->hd, table_offset, new_table,
++    ret = bdrv_pwrite_sync(s->hd, table_offset, new_table,
+         table_size * sizeof(uint64_t));
+     if (ret < 0) {
+         goto fail_table;
+@@ -351,7 +358,7 @@ static int64_t alloc_refcount_block(BlockDriverState *bs, int64_t cluster_index)
+     uint8_t data[12];
+     cpu_to_be64w((uint64_t*)data, table_offset);
+     cpu_to_be32w((uint32_t*)(data + 8), table_clusters);
+-    ret = bdrv_pwrite(s->hd, offsetof(QCowHeader, refcount_table_offset),
++    ret = bdrv_pwrite_sync(s->hd, offsetof(QCowHeader, refcount_table_offset),
+         data, sizeof(data));
+     if (ret < 0) {
+         goto fail_table;
+@@ -390,21 +397,26 @@ static int write_refcount_block_entries(BDRVQcowState *s,
+     int64_t refcount_block_offset, int first_index, int last_index)
+ {
+     size_t size;
++    int ret;
+ 
+     if (cache_refcount_updates) {
          return 0;
      }
  
@@ -157,6 +532,473 @@ index 5ebbcb6..465d5d3 100644
      first_index &= ~(REFCOUNTS_PER_SECTOR - 1);
      last_index = (last_index + REFCOUNTS_PER_SECTOR)
          & ~(REFCOUNTS_PER_SECTOR - 1);
+ 
+     size = (last_index - first_index) << REFCOUNT_SHIFT;
+-    if (bdrv_pwrite(s->hd,
++    ret = bdrv_pwrite_sync(s->hd,
+         refcount_block_offset + (first_index << REFCOUNT_SHIFT),
+-        &s->refcount_block_cache[first_index], size) != size)
+-    {
+-        return -EIO;
++        &s->refcount_block_cache[first_index], size);
++    if (ret < 0) {
++        return ret;
+     }
+ 
+     return 0;
+@@ -620,7 +632,7 @@ void qcow2_free_clusters(BlockDriverState *bs,
+     ret = update_refcount(bs, offset, size, -1);
+     if (ret < 0) {
+         fprintf(stderr, "qcow2_free_clusters failed: %s\n", strerror(-ret));
+-        abort();
++        /* TODO Remember the clusters to free them later and avoid leaking */
+     }
+ }
+ 
+@@ -760,8 +772,8 @@ int qcow2_update_snapshot_refcount(BlockDriverState *bs,
+                 }
+             }
+             if (l2_modified) {
+-                if (bdrv_pwrite(s->hd,
+-                                l2_offset, l2_table, l2_size) != l2_size)
++                if (bdrv_pwrite_sync(s->hd,
++                                l2_offset, l2_table, l2_size) < 0)
+                     goto fail;
+             }
+ 
+@@ -782,8 +794,8 @@ int qcow2_update_snapshot_refcount(BlockDriverState *bs,
+     if (l1_modified) {
+         for(i = 0; i < l1_size; i++)
+             cpu_to_be64s(&l1_table[i]);
+-        if (bdrv_pwrite(s->hd, l1_table_offset, l1_table,
+-                        l1_size2) != l1_size2)
++        if (bdrv_pwrite_sync(s->hd, l1_table_offset, l1_table,
++                        l1_size2) < 0)
+             goto fail;
+         for(i = 0; i < l1_size; i++)
+             be64_to_cpus(&l1_table[i]);
+diff --git a/block/qcow2-snapshot.c b/block/qcow2-snapshot.c
+index 8ddaea2..64af361 100644
+--- a/block/qcow2-snapshot.c
++++ b/block/qcow2-snapshot.c
+@@ -158,25 +158,25 @@ static int qcow_write_snapshots(BlockDriverState *bs)
+         h.id_str_size = cpu_to_be16(id_str_size);
+         h.name_size = cpu_to_be16(name_size);
+         offset = align_offset(offset, 8);
+-        if (bdrv_pwrite(s->hd, offset, &h, sizeof(h)) != sizeof(h))
++        if (bdrv_pwrite_sync(s->hd, offset, &h, sizeof(h)) < 0)
+             goto fail;
+         offset += sizeof(h);
+-        if (bdrv_pwrite(s->hd, offset, sn->id_str, id_str_size) != id_str_size)
++        if (bdrv_pwrite_sync(s->hd, offset, sn->id_str, id_str_size) < 0)
+             goto fail;
+         offset += id_str_size;
+-        if (bdrv_pwrite(s->hd, offset, sn->name, name_size) != name_size)
++        if (bdrv_pwrite_sync(s->hd, offset, sn->name, name_size) < 0)
+             goto fail;
+         offset += name_size;
+     }
+ 
+     /* update the various header fields */
+     data64 = cpu_to_be64(snapshots_offset);
+-    if (bdrv_pwrite(s->hd, offsetof(QCowHeader, snapshots_offset),
+-                    &data64, sizeof(data64)) != sizeof(data64))
++    if (bdrv_pwrite_sync(s->hd, offsetof(QCowHeader, snapshots_offset),
++                    &data64, sizeof(data64)) < 0)
+         goto fail;
+     data32 = cpu_to_be32(s->nb_snapshots);
+-    if (bdrv_pwrite(s->hd, offsetof(QCowHeader, nb_snapshots),
+-                    &data32, sizeof(data32)) != sizeof(data32))
++    if (bdrv_pwrite_sync(s->hd, offsetof(QCowHeader, nb_snapshots),
++                    &data32, sizeof(data32)) < 0)
+         goto fail;
+ 
+     /* free the old snapshot table */
+@@ -284,9 +284,8 @@ int qcow2_snapshot_create(BlockDriverState *bs, QEMUSnapshotInfo *sn_info)
+     for(i = 0; i < s->l1_size; i++) {
+         l1_table[i] = cpu_to_be64(s->l1_table[i]);
+     }
+-    if (bdrv_pwrite(s->hd, sn->l1_table_offset,
+-                    l1_table, s->l1_size * sizeof(uint64_t)) !=
+-        (s->l1_size * sizeof(uint64_t)))
++    if (bdrv_pwrite_sync(s->hd, sn->l1_table_offset,
++                    l1_table, s->l1_size * sizeof(uint64_t)) < 0)
+         goto fail;
+     qemu_free(l1_table);
+     l1_table = NULL;
+@@ -335,8 +334,8 @@ int qcow2_snapshot_goto(BlockDriverState *bs, const char *snapshot_id)
+     if (bdrv_pread(s->hd, sn->l1_table_offset,
+                    s->l1_table, l1_size2) != l1_size2)
+         goto fail;
+-    if (bdrv_pwrite(s->hd, s->l1_table_offset,
+-                    s->l1_table, l1_size2) != l1_size2)
++    if (bdrv_pwrite_sync(s->hd, s->l1_table_offset,
++                    s->l1_table, l1_size2) < 0)
+         goto fail;
+     for(i = 0;i < s->l1_size; i++) {
+         be64_to_cpus(&s->l1_table[i]);
+diff --git a/block/qcow2.c b/block/qcow2.c
+index 5d33d6c..35c05e0 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -747,10 +747,11 @@ static int qcow_create2(const char *filename, int64_t total_size,
+ {
+ 
+     int fd, header_size, backing_filename_len, l1_size, i, shift, l2_bits;
+-    int ref_clusters, backing_format_len = 0;
++    int ref_clusters, reftable_clusters, backing_format_len = 0;
+     int rounded_ext_bf_len = 0;
+     QCowHeader header;
+     uint64_t tmp, offset;
++    uint64_t old_ref_clusters;
+     QCowCreateState s1, *s = &s1;
+     QCowExtension ext_bf = {0, 0};
+ 
+@@ -809,17 +810,37 @@ static int qcow_create2(const char *filename, int64_t total_size,
+     header.l1_size = cpu_to_be32(l1_size);
+     offset += align_offset(l1_size * sizeof(uint64_t), s->cluster_size);
+ 
+-    s->refcount_table = qemu_mallocz(s->cluster_size);
++    /* count how many refcount blocks needed */
++
++#define NUM_CLUSTERS(bytes) \
++    (((bytes) + (s->cluster_size) - 1) / (s->cluster_size))
++
++    ref_clusters = NUM_CLUSTERS(NUM_CLUSTERS(offset) * sizeof(uint16_t));
++
++    do {
++        uint64_t image_clusters;
++        old_ref_clusters = ref_clusters;
++
++        /* Number of clusters used for the refcount table */
++        reftable_clusters = NUM_CLUSTERS(ref_clusters * sizeof(uint64_t));
++
++        /* Number of clusters that the whole image will have */
++        image_clusters = NUM_CLUSTERS(offset) + ref_clusters
++            + reftable_clusters;
++
++        /* Number of refcount blocks needed for the image */
++        ref_clusters = NUM_CLUSTERS(image_clusters * sizeof(uint16_t));
++
++    } while (ref_clusters != old_ref_clusters);
++
++    s->refcount_table = qemu_mallocz(reftable_clusters * s->cluster_size);
+ 
+     s->refcount_table_offset = offset;
+     header.refcount_table_offset = cpu_to_be64(offset);
+-    header.refcount_table_clusters = cpu_to_be32(1);
+-    offset += s->cluster_size;
++    header.refcount_table_clusters = cpu_to_be32(reftable_clusters);
++    offset += (reftable_clusters * s->cluster_size);
+     s->refcount_block_offset = offset;
+ 
+-    /* count how many refcount blocks needed */
+-    tmp = offset >> s->cluster_bits;
+-    ref_clusters = (tmp >> (s->cluster_bits - REFCOUNT_SHIFT)) + 1;
+     for (i=0; i < ref_clusters; i++) {
+         s->refcount_table[i] = cpu_to_be64(offset);
+         offset += s->cluster_size;
+@@ -831,7 +852,8 @@ static int qcow_create2(const char *filename, int64_t total_size,
+     qcow2_create_refcount_update(s, 0, header_size);
+     qcow2_create_refcount_update(s, s->l1_table_offset,
+         l1_size * sizeof(uint64_t));
+-    qcow2_create_refcount_update(s, s->refcount_table_offset, s->cluster_size);
++    qcow2_create_refcount_update(s, s->refcount_table_offset,
++        reftable_clusters * s->cluster_size);
+     qcow2_create_refcount_update(s, s->refcount_block_offset,
+         ref_clusters * s->cluster_size);
+ 
+@@ -859,7 +881,8 @@ static int qcow_create2(const char *filename, int64_t total_size,
+         write(fd, &tmp, sizeof(tmp));
+     }
+     lseek(fd, s->refcount_table_offset, SEEK_SET);
+-    write(fd, s->refcount_table, s->cluster_size);
++    write(fd, s->refcount_table,
++        reftable_clusters * s->cluster_size);
+ 
+     lseek(fd, s->refcount_block_offset, SEEK_SET);
+     write(fd, s->refcount_block, ref_clusters * s->cluster_size);
+diff --git a/block/vdi.c b/block/vdi.c
+index 45aa81c..64bf66f 100644
+--- a/block/vdi.c
++++ b/block/vdi.c
+@@ -399,6 +399,15 @@ static int vdi_open(BlockDriverState *bs, const char *filename, int flags)
+     vdi_header_print(&header);
+ #endif
+ 
++    if (header.disk_size % SECTOR_SIZE != 0) {
++        /* 'VBoxManage convertfromraw' can create images with odd disk sizes.
++           We accept them but round the disk size to the next multiple of
++           SECTOR_SIZE. */
++        logout("odd disk size %" PRIu64 " B, round up\n", header.disk_size);
++        header.disk_size += SECTOR_SIZE - 1;
++        header.disk_size &= ~(SECTOR_SIZE - 1);
++    }
++
+     if (header.version != VDI_VERSION_1_1) {
+         logout("unsupported version %u.%u\n",
+                header.version >> 16, header.version & 0xffff);
+@@ -417,9 +426,9 @@ static int vdi_open(BlockDriverState *bs, const char *filename, int flags)
+     } else if (header.block_size != 1 * MiB) {
+         logout("unsupported block size %u B\n", header.block_size);
+         goto fail;
+-    } else if (header.disk_size !=
++    } else if (header.disk_size >
+                (uint64_t)header.blocks_in_image * header.block_size) {
+-        logout("unexpected block number %u B\n", header.blocks_in_image);
++        logout("unsupported disk size %" PRIu64 " B\n", header.disk_size);
+         goto fail;
+     } else if (!uuid_is_null(header.uuid_link)) {
+         logout("link uuid != 0, unsupported\n");
+@@ -831,7 +840,10 @@ static int vdi_create(const char *filename, QEMUOptionParameter *options)
+         return -errno;
+     }
+ 
+-    blocks = bytes / block_size;
++    /* We need enough blocks to store the given disk size,
++       so always round up. */
++    blocks = (bytes + block_size - 1) / block_size;
++
+     bmap_size = blocks * sizeof(uint32_t);
+     bmap_size = ((bmap_size + SECTOR_SIZE - 1) & ~(SECTOR_SIZE -1));
+ 
+diff --git a/block/vmdk.c b/block/vmdk.c
+index 4e48622..cd87279 100644
+--- a/block/vmdk.c
++++ b/block/vmdk.c
+@@ -87,14 +87,6 @@ typedef struct VmdkMetaData {
+     int valid;
+ } VmdkMetaData;
+ 
+-typedef struct ActiveBDRVState{
+-    BlockDriverState *hd;            // active image handler
+-    uint64_t cluster_offset;         // current write offset
+-}ActiveBDRVState;
+-
+-static ActiveBDRVState activeBDRV;
+-
+-
+ static int vmdk_probe(const uint8_t *buf, int buf_size, const char *filename)
+ {
+     uint32_t magic;
+@@ -161,7 +153,7 @@ static int vmdk_write_cid(BlockDriverState *bs, uint32_t cid)
+         pstrcat(desc, sizeof(desc), tmp_desc);
+     }
+ 
+-    if (bdrv_pwrite(s->hd, 0x200, desc, DESC_SIZE) != DESC_SIZE)
++    if (bdrv_pwrite_sync(s->hd, 0x200, desc, DESC_SIZE) < 0)
+         return -1;
+     return 0;
+ }
+@@ -285,7 +277,6 @@ static int vmdk_snapshot_create(const char *filename, const char *backing_file)
+         goto fail_rgd;
+     if (write(snp_fd, rgd_buf, gd_size) == -1)
+         goto fail_rgd;
+-    qemu_free(rgd_buf);
+ 
+     /* write GD */
+     gd_buf = qemu_malloc(gd_size);
+@@ -298,6 +289,7 @@ static int vmdk_snapshot_create(const char *filename, const char *backing_file)
+     if (write(snp_fd, gd_buf, gd_size) == -1)
+         goto fail_gd;
+     qemu_free(gd_buf);
++    qemu_free(rgd_buf);
+ 
+     close(p_fd);
+     close(snp_fd);
+@@ -458,30 +450,28 @@ static uint64_t get_cluster_offset(BlockDriverState *bs, VmdkMetaData *m_data,
+ static int get_whole_cluster(BlockDriverState *bs, uint64_t cluster_offset,
+                              uint64_t offset, int allocate)
+ {
+-    uint64_t parent_cluster_offset;
+     BDRVVmdkState *s = bs->opaque;
+     uint8_t  whole_grain[s->cluster_sectors*512];        // 128 sectors * 512 bytes each = grain size 64KB
+ 
+     // we will be here if it's first write on non-exist grain(cluster).
+     // try to read from parent image, if exist
+     if (bs->backing_hd) {
+-        BDRVVmdkState *ps = bs->backing_hd->opaque;
++        int ret;
+ 
+         if (!vmdk_is_cid_valid(bs))
+             return -1;
+ 
+-        parent_cluster_offset = get_cluster_offset(bs->backing_hd, NULL,
+-            offset, allocate);
+-
+-        if (parent_cluster_offset) {
+-            BDRVVmdkState *act_s = activeBDRV.hd->opaque;
+-
+-            if (bdrv_pread(ps->hd, parent_cluster_offset, whole_grain, ps->cluster_sectors*512) != ps->cluster_sectors*512)
+-                return -1;
++        ret = bdrv_read(bs->backing_hd, offset >> 9, whole_grain,
++            s->cluster_sectors);
++        if (ret < 0) {
++            return -1;
++        }
+ 
+-            //Write grain only into the active image
+-            if (bdrv_pwrite(act_s->hd, activeBDRV.cluster_offset << 9, whole_grain, sizeof(whole_grain)) != sizeof(whole_grain))
+-                return -1;
++        //Write grain only into the active image
++        ret = bdrv_write(s->hd, cluster_offset, whole_grain,
++            s->cluster_sectors);
++        if (ret < 0) {
++            return -1;
+         }
+     }
+     return 0;
+@@ -492,14 +482,14 @@ static int vmdk_L2update(BlockDriverState *bs, VmdkMetaData *m_data)
+     BDRVVmdkState *s = bs->opaque;
+ 
+     /* update L2 table */
+-    if (bdrv_pwrite(s->hd, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
+-                    &(m_data->offset), sizeof(m_data->offset)) != sizeof(m_data->offset))
++    if (bdrv_pwrite_sync(s->hd, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
++                    &(m_data->offset), sizeof(m_data->offset)) < 0)
+         return -1;
+     /* update backup L2 table */
+     if (s->l1_backup_table_offset != 0) {
+         m_data->l2_offset = s->l1_backup_table[m_data->l1_index];
+-        if (bdrv_pwrite(s->hd, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
+-                        &(m_data->offset), sizeof(m_data->offset)) != sizeof(m_data->offset))
++        if (bdrv_pwrite_sync(s->hd, ((int64_t)m_data->l2_offset * 512) + (m_data->l2_index * sizeof(m_data->offset)),
++                        &(m_data->offset), sizeof(m_data->offset)) < 0)
+             return -1;
+     }
+ 
+@@ -567,9 +557,6 @@ static uint64_t get_cluster_offset(BlockDriverState *bs, VmdkMetaData *m_data,
+             cluster_offset >>= 9;
+             tmp = cpu_to_le32(cluster_offset);
+             l2_table[l2_index] = tmp;
+-            // Save the active image state
+-            activeBDRV.cluster_offset = cluster_offset;
+-            activeBDRV.hd = bs;
+         }
+         /* First of all we write grain itself, to avoid race condition
+          * that may to corrupt the image.
+diff --git a/block/vpc.c b/block/vpc.c
+index 950ad58..9e0acf4 100644
+--- a/block/vpc.c
++++ b/block/vpc.c
+@@ -266,7 +266,7 @@ static inline int64_t get_sector_offset(BlockDriverState *bs,
+ 
+         s->last_bitmap_offset = bitmap_offset;
+         memset(bitmap, 0xff, s->bitmap_size);
+-        bdrv_pwrite(s->hd, bitmap_offset, bitmap, s->bitmap_size);
++        bdrv_pwrite_sync(s->hd, bitmap_offset, bitmap, s->bitmap_size);
+     }
+ 
+ //    printf("sector: %" PRIx64 ", index: %x, offset: %x, bioff: %" PRIx64 ", bloff: %" PRIx64 "\n",
+@@ -316,7 +316,7 @@ static int rewrite_footer(BlockDriverState* bs)
+     BDRVVPCState *s = bs->opaque;
+     int64_t offset = s->free_data_block_offset;
+ 
+-    ret = bdrv_pwrite(s->hd, offset, s->footer_buf, HEADER_SIZE);
++    ret = bdrv_pwrite_sync(s->hd, offset, s->footer_buf, HEADER_SIZE);
+     if (ret < 0)
+         return ret;
+ 
+@@ -351,7 +351,8 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
+ 
+     // Initialize the block's bitmap
+     memset(bitmap, 0xff, s->bitmap_size);
+-    bdrv_pwrite(s->hd, s->free_data_block_offset, bitmap, s->bitmap_size);
++    bdrv_pwrite_sync(s->hd, s->free_data_block_offset, bitmap,
++        s->bitmap_size);
+ 
+     // Write new footer (the old one will be overwritten)
+     s->free_data_block_offset += s->block_size + s->bitmap_size;
+@@ -362,7 +363,7 @@ static int64_t alloc_block(BlockDriverState* bs, int64_t sector_num)
+     // Write BAT entry to disk
+     bat_offset = s->bat_offset + (4 * index);
+     bat_value = be32_to_cpu(s->pagetable[index]);
+-    ret = bdrv_pwrite(s->hd, bat_offset, &bat_value, 4);
++    ret = bdrv_pwrite_sync(s->hd, bat_offset, &bat_value, 4);
+     if (ret < 0)
+         goto fail;
+ 
+@@ -470,9 +471,7 @@ static int calculate_geometry(int64_t total_sectors, uint16_t* cyls,
+         }
+     }
+ 
+-    // Note: Rounding up deviates from the Virtual PC behaviour
+-    // However, we need this to avoid truncating images in qemu-img convert
+-    *cyls = (cyls_times_heads + *heads - 1) / *heads;
++    *cyls = cyls_times_heads / *heads;
+ 
+     return 0;
+ }
+@@ -484,9 +483,9 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
+     struct vhd_dyndisk_header* dyndisk_header =
+         (struct vhd_dyndisk_header*) buf;
+     int fd, i;
+-    uint16_t cyls;
+-    uint8_t heads;
+-    uint8_t secs_per_cyl;
++    uint16_t cyls = 0;
++    uint8_t heads = 0;
++    uint8_t secs_per_cyl = 0;
+     size_t block_size, num_bat_entries;
+     int64_t total_sectors = 0;
+ 
+@@ -503,9 +502,14 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
+     if (fd < 0)
+         return -EIO;
+ 
+-    // Calculate matching total_size and geometry
+-    if (calculate_geometry(total_sectors, &cyls, &heads, &secs_per_cyl))
+-        return -EFBIG;
++    /* Calculate matching total_size and geometry. Increase the number of
++       sectors requested until we get enough (or fail). */
++    for (i = 0; total_sectors > (int64_t)cyls * heads * secs_per_cyl; i++) {
++        if (calculate_geometry(total_sectors + i,
++                               &cyls, &heads, &secs_per_cyl)) {
++            return -EFBIG;
++        }
++    }
+     total_sectors = (int64_t) cyls * heads * secs_per_cyl;
+ 
+     // Prepare the Hard Disk Footer
+diff --git a/block/vvfat.c b/block/vvfat.c
+index c1acb35..592d6e6 100644
+--- a/block/vvfat.c
++++ b/block/vvfat.c
+@@ -868,7 +868,8 @@ static int init_directories(BDRVVVFATState* s,
+     {
+ 	direntry_t* entry=array_get_next(&(s->directory));
+ 	entry->attributes=0x28; /* archive | volume label */
+-	snprintf((char*)entry->name,11,"QEMU VVFAT");
++	memcpy(entry->name,"QEMU VVF",8);
++	memcpy(entry->extension,"AT ",3);
+     }
+ 
+     /* Now build FAT, and write back information into directory */
+@@ -2256,7 +2257,11 @@ static int commit_one_file(BDRVVVFATState* s,
+ 	c = c1;
+     }
+ 
+-    ftruncate(fd, size);
++    if (ftruncate(fd, size)) {
++        perror("ftruncate()");
++        close(fd);
++        return -4;
++    }
+     close(fd);
+ 
+     return commit_mappings(s, first_cluster, dir_index);
+diff --git a/block_int.h b/block_int.h
+index 9a3b2e0..631e8c5 100644
+--- a/block_int.h
++++ b/block_int.h
+@@ -127,6 +127,7 @@ struct BlockDriverState {
+     int64_t total_sectors; /* if we are reading a disk image, give its
+                               size in sectors */
+     int read_only; /* if true, the media is read only */
++    int open_flags; /* flags used to open the file, re-used for re-open */
+     int removable; /* if true, the media can be removed */
+     int locked;    /* if true, the media cannot temporarily be ejected */
+     int encrypted; /* if true, the media is encrypted */
 diff --git a/hw/arm_timer.c b/hw/arm_timer.c
 index 9fef191..9073ffc 100644
 --- a/hw/arm_timer.c
@@ -503,6 +1345,37 @@ index 1aa7818..a6a36b8 100644
          .user_print = monitor_user_noop,
          .mhandler.cmd_new = do_balloon,
      },
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 8de71d6..76e0fd7 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -1114,7 +1114,7 @@ DEF("chardev", HAS_ARG, QEMU_OPTION_chardev,
+     "-chardev serial,id=id,path=path\n"
+ #else
+     "-chardev pty,id=id\n"
+-    "-chardev stdio,id=id\n"
++    "-chardev stdio,id=id,[,signal=on|off]\n"
+ #endif
+ #ifdef CONFIG_BRLAPI
+     "-chardev braille,id=id\n"
+@@ -1290,10 +1290,14 @@ not take any options.
+ 
+ @option{pty} is not available on Windows hosts.
+ 
+-@item -chardev stdio ,id=@var{id}
++@item -chardev stdio ,id=@var{id} [,signal=on|off]
+ Connect to standard input and standard output of the qemu process.
+-@option{stdio} does not take any options. @option{stdio} is not available on
+-Windows hosts.
++
++@option{signal} controls if signals are enabled on the terminal, that includes
++exiting QEMU with the key sequence @key{Control-c}. This option is enabled by
++default, use @option{signal=off} to disable it.
++
++@option{stdio} is not available on Windows hosts.
+ 
+ @item -chardev braille ,id=@var{id}
+ 
 diff --git a/qemu-sockets.c b/qemu-sockets.c
 index a88b2a7..993ce12 100644
 --- a/qemu-sockets.c
@@ -517,6 +1390,118 @@ index a88b2a7..993ce12 100644
          fprintf(stderr, "%s: host and/or port not specified\n", __FUNCTION__);
          return -1;
      }
+diff --git a/target-arm/helper.c b/target-arm/helper.c
+index b3aec99..9a30ef1 100644
+--- a/target-arm/helper.c
++++ b/target-arm/helper.c
+@@ -2043,7 +2043,7 @@ static inline uint16_t add16_usat(uint16_t a, uint16_t b)
+ 
+ static inline uint16_t sub16_usat(uint16_t a, uint16_t b)
+ {
+-    if (a < b)
++    if (a > b)
+         return a - b;
+     else
+         return 0;
+@@ -2060,7 +2060,7 @@ static inline uint8_t add8_usat(uint8_t a, uint8_t b)
+ 
+ static inline uint8_t sub8_usat(uint8_t a, uint8_t b)
+ {
+-    if (a < b)
++    if (a > b)
+         return a - b;
+     else
+         return 0;
+diff --git a/target-arm/op_addsub.h b/target-arm/op_addsub.h
+index 29f77ba..c02c92a 100644
+--- a/target-arm/op_addsub.h
++++ b/target-arm/op_addsub.h
+@@ -73,8 +73,8 @@ uint32_t HELPER(glue(PFX,subaddx))(uint32_t a, uint32_t b GE_ARG)
+     uint32_t res = 0;
+     DECLARE_GE;
+ 
+-    ADD16(a, b, 0);
+-    SUB16(a >> 16, b >> 16, 1);
++    ADD16(a, b >> 16, 0);
++    SUB16(a >> 16, b, 1);
+     SET_GE;
+     return res;
+ }
+@@ -84,8 +84,8 @@ uint32_t HELPER(glue(PFX,addsubx))(uint32_t a, uint32_t b GE_ARG)
+     uint32_t res = 0;
+     DECLARE_GE;
+ 
+-    SUB16(a, b, 0);
+-    ADD16(a >> 16, b >> 16, 1);
++    SUB16(a, b >> 16, 0);
++    ADD16(a >> 16, b, 1);
+     SET_GE;
+     return res;
+ }
+diff --git a/target-arm/translate.c b/target-arm/translate.c
+index 45bf772..d910f72 100644
+--- a/target-arm/translate.c
++++ b/target-arm/translate.c
+@@ -561,7 +561,7 @@ static void gen_arm_parallel_addsub(int op1, int op2, TCGv a, TCGv b)
+ 
+ /* For unknown reasons Arm and Thumb-2 use arbitrarily different encodings.  */
+ #define PAS_OP(pfx) \
+-    switch (op2) {  \
++    switch (op1) {  \
+     case 0: gen_pas_helper(glue(pfx,add8)); break; \
+     case 1: gen_pas_helper(glue(pfx,add16)); break; \
+     case 2: gen_pas_helper(glue(pfx,addsubx)); break; \
+@@ -573,7 +573,7 @@ static void gen_thumb2_parallel_addsub(int op1, int op2, TCGv a, TCGv b)
+ {
+     TCGv_ptr tmp;
+ 
+-    switch (op1) {
++    switch (op2) {
+ #define gen_pas_helper(name) glue(gen_helper_,name)(a, a, b, tmp)
+     case 0:
+         tmp = tcg_temp_new_ptr();
+diff --git a/target-i386/translate.c b/target-i386/translate.c
+index 3de65bd..43aa54f 100644
+--- a/target-i386/translate.c
++++ b/target-i386/translate.c
+@@ -5296,6 +5296,7 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
+         break;
+ 
+     case 0x91 ... 0x97: /* xchg R, EAX */
++    do_xchg_reg_eax:
+         ot = dflag + OT_WORD;
+         reg = (b & 7) | REX_B(s);
+         rm = R_EAX;
+@@ -6666,10 +6667,14 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
+         /************************/
+         /* misc */
+     case 0x90: /* nop */
+-        /* XXX: xchg + rex handling */
+         /* XXX: correct lock test for all insn */
+-        if (prefixes & PREFIX_LOCK)
++        if (prefixes & PREFIX_LOCK) {
+             goto illegal_op;
++        }
++        /* If REX_B is set, then this is xchg eax, r8d, not a nop.  */
++        if (REX_B(s)) {
++            goto do_xchg_reg_eax;
++        }
+         if (prefixes & PREFIX_REPZ) {
+             gen_svm_check_intercept(s, pc_start, SVM_EXIT_PAUSE);
+         }
+diff --git a/target-mips/translate.c b/target-mips/translate.c
+index f811f50..43f5bb9 100644
+--- a/target-mips/translate.c
++++ b/target-mips/translate.c
+@@ -2761,7 +2761,7 @@ static void gen_bitops (DisasContext *ctx, uint32_t opc, int rt,
+     case OPC_DINSU:
+         if (lsb > msb)
+             goto fail;
+-        mask = ((1ULL << (msb - lsb + 1)) - 1) << lsb;
++        mask = ((1ULL << (msb - lsb + 1)) - 1) << (lsb + 32);
+         gen_load_gpr(t0, rt);
+         tcg_gen_andi_tl(t0, t0, ~mask);
+         tcg_gen_shli_tl(t1, t1, lsb + 32);
 diff --git a/target-ppc/helper.c b/target-ppc/helper.c
 index b233d4f..28504b3 100644
 --- a/target-ppc/helper.c
