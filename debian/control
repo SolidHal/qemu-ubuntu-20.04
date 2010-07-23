@@ -47,14 +47,14 @@ Architecture: all
 Depends: ${misc:Depends}
 Breaks: qemu (<< 0.11.0-2), qemu-system (<< 0.12.4+dfsg-4)
 Replaces: qemu (<< 0.11.0-2), qemu-system (<< 0.12.4+dfsg-4)
-Description: QEMU utilities
+Description: QEMU keyboard maps
  QEMU is a fast processor emulator: currently the package supports
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
  SPARC and x86-64 emulation. By using dynamic translation it achieves
  reasonable speed while being easy to port on new host CPUs.
  .
- This package provides keymaps to be used by the qemu-system package
- or QEMU derivatives.
+ This package provides keyboard maps to be used by the qemu-system
+ package or QEMU derivatives.
 
 Package: qemu-system
 Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
@@ -62,7 +62,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version})
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
-Suggests: samba, kqemu-source
+Suggests: samba
 Description: QEMU full system emulation binaries
  QEMU is a fast processor emulator: currently the package supports
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,

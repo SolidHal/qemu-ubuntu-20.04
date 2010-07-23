@@ -1,3 +1,11 @@
+qemu (0.12.5+dfsg-1) unstable; urgency=low
+
+  * New upstream stable version.
+  * qemu-system: don't suggests kqemu-source.  Closes: bug#589217.
+  * qemu-keymaps: fix short description.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Fri, 23 Jul 2010 19:02:14 +0200
+
 qemu (0.12.4+dfsg-4) unstable; urgency=high
 
   * Update debian/copyright.  Closes: bug#588911.
