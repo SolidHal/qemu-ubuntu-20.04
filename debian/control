@@ -12,7 +12,8 @@ Build-Depends: debhelper (>= 5), quilt (>= 0.40), nasm, device-tree-compiler,
  libasound2-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libbluetooth-dev [!kfreebsd-i386 !kfreebsd-amd64],
  libgpmg1-dev [amd64 arm armel hppa i386 powerpc sparc sparc64 ppc64],
- linux-libc-dev (>= 2.6.30) [amd64 i386 powerpc ppc64]
+ linux-libc-dev (>= 2.6.30) [amd64 i386 powerpc ppc64],
+ texinfo
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.0
 Homepage: http://www.qemu.org/
@@ -122,16 +123,3 @@ Description: QEMU utilities
   * qemu-img: QEMU disk image utility
   * qemu-io:  QEMU disk exerciser
   * qemu-nbd: QEMU disk network block device server
-
-Package: libqemu-dev
-Architecture: amd64 arm armel hppa i386 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Section: libdevel
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: static libraries and headers for QEMU
- QEMU is a fast processor emulator: currently the package supports
- ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
- SPARC and x86-64 emulation. By using dynamic translation it achieves
- reasonable speed while being easy to port on new host CPUs.
- .
- This package provides header files and static libraries suitable to
- emulate the various CPU supported by QEMU directly in an application.

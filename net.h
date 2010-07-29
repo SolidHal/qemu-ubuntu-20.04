@@ -36,6 +36,7 @@ typedef enum {
     NET_CLIENT_TYPE_DUMP
 } net_client_type;
 
+typedef void (NetPoll)(VLANClientState *, bool enable);
 typedef int (NetCanReceive)(VLANClientState *);
 typedef ssize_t (NetReceive)(VLANClientState *, const uint8_t *, size_t);
 typedef ssize_t (NetReceiveIOV)(VLANClientState *, const struct iovec *, int);
@@ -51,6 +52,7 @@ typedef struct NetClientInfo {
     NetCanReceive *can_receive;
     NetCleanup *cleanup;
     LinkStatusChanged *link_status_changed;
+    NetPoll *poll;
 } NetClientInfo;
 
 struct VLANClientState {
@@ -115,14 +117,11 @@ int qemu_find_nic_model(NICInfo *nd, const char * const *models,
                         const char *default_model);
 
 void do_info_network(Monitor *mon);
-void do_set_link(Monitor *mon, const QDict *qdict);
+int do_set_link(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 /* NIC info */
 
 #define MAX_NICS 8
-enum {
-	NIC_NVECTORS_UNSPECIFIED = -1
-};
 
 struct NICInfo {
     uint8_t macaddr[6];
@@ -132,7 +131,6 @@ struct NICInfo {
     VLANState *vlan;
     VLANClientState *netdev;
     int used;
-    int bootable;
     int nvectors;
 };
 
@@ -165,6 +163,8 @@ void net_check_clients(void);
 void net_cleanup(void);
 void net_host_device_add(Monitor *mon, const QDict *qdict);
 void net_host_device_remove(Monitor *mon, const QDict *qdict);
+int do_netdev_add(Monitor *mon, const QDict *qdict, QObject **ret_data);
+int do_netdev_del(Monitor *mon, const QDict *qdict, QObject **ret_data);
 
 #define DEFAULT_NETWORK_SCRIPT "/etc/qemu-ifup"
 #define DEFAULT_NETWORK_DOWN_SCRIPT "/etc/qemu-ifdown"

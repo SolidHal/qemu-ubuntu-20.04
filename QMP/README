@@ -15,8 +15,9 @@ QMP is JSON[1] based and has the following features:
 
 For more information, please, refer to the following files:
 
-o qmp-spec.txt    QEMU Monitor Protocol current specification
-o qmp-events.txt  List of available asynchronous events
+o qmp-spec.txt      QEMU Monitor Protocol current specification
+o qmp-commands.txt  QMP supported commands
+o qmp-events.txt    List of available asynchronous events
 
 There are also two simple Python scripts available:
 
@@ -52,9 +53,11 @@ $ telnet localhost 4444
 Trying 127.0.0.1...
 Connected to localhost.
 Escape character is '^]'.
-{"QMP": {"capabilities": []}}
+{"QMP": {"version": {"qemu": "0.12.50", "package": ""}, "capabilities": []}}
+{ "execute": "qmp_capabilities" }
+{"return": {}}
 { "execute": "query-version" }
-{"return": {"qemu": "0.11.50", "package": ""}}
+{"return": {"qemu": "0.12.50", "package": ""}}
 
 Contact
 -------

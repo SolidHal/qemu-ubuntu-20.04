@@ -1,3 +1,17 @@
+qemu (0.13.0~rc0+dfsg-1) experimental; urgency=low
+
+  * New upstream release candidate version.
+  * Do not configure audio drivers for qemu-user and qemu-user-static targets. 
+  * Remove patches:
+    - 05_bochs_vbe, applied upstream.
+    - 06_sh4, applied upstream.
+    - 03_support_pselect_in_linux_user_arm, upstream implemented a simpler
+      workaround.
+  * Add Build-Depends on texinfo. 
+  * Drop libqemu-dev package. 
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Thu, 29 Jul 2010 19:51:01 -0400
+
 qemu (0.12.5+dfsg-1) unstable; urgency=low
 
   * New upstream stable version.
