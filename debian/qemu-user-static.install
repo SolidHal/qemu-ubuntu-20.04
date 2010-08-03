@@ -16,3 +16,4 @@ debian/tmp/usr/bin/qemu-sparc32plus-static
 debian/tmp/usr/bin/qemu-sparc64-static
 debian/tmp/usr/bin/qemu-sparc-static
 debian/tmp/usr/bin/qemu-x86_64-static
+debian/qemu-debootstrap usr/sbin

@@ -1,3 +1,16 @@
+qemu (0.13.0~rc0+dfsg-2) experimental; urgency=low
+
+  [ Aurelien Jarno ]
+  * Add ia64 to the list of supported architectures.
+  * Bump Standards-Version to 3.9.1 (no changes).
+  * Update seabios, openbios-ppc and openbios-sparc dependencies.
+  * Add 99_stable.diff to update from the stable-0.13 branch:
+    - Fix sparc FTBFS. Closes: #591249.
+  * Add qemu-debootstrap from Loïc Minier in qemu-static. Closes:
+    #572952.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 03 Aug 2010 07:25:06 +0200
+
 qemu (0.13.0~rc0+dfsg-1) experimental; urgency=low
 
   * New upstream release candidate version.
