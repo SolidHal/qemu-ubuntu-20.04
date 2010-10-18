@@ -330,7 +330,7 @@ BlockDriver *bdrv_find_protocol(const char *filename)
     return NULL;
 }
 
-static BlockDriver *find_image_format(const char *filename)
+static int find_image_format(const char *filename, BlockDriver **pdrv)
 {
     int ret, score, score_max;
     BlockDriver *drv1, *drv;
@@ -338,19 +338,27 @@ static BlockDriver *find_image_format(const char *filename)
     BlockDriverState *bs;
 
     ret = bdrv_file_open(&bs, filename, 0);
-    if (ret < 0)
-        return NULL;
+    if (ret < 0) {
+        *pdrv = NULL;
+        return ret;
+    }
 
     /* Return the raw BlockDriver * to scsi-generic devices or empty drives */
     if (bs->sg || !bdrv_is_inserted(bs)) {
         bdrv_delete(bs);
-        return bdrv_find_format("raw");
+        drv = bdrv_find_format("raw");
+        if (!drv) {
+            ret = -ENOENT;
+        }
+        *pdrv = drv;
+        return ret;
     }
 
     ret = bdrv_pread(bs, 0, buf, sizeof(buf));
     bdrv_delete(bs);
     if (ret < 0) {
-        return NULL;
+        *pdrv = NULL;
+        return ret;
     }
 
     score_max = 0;
@@ -364,7 +372,11 @@ static BlockDriver *find_image_format(const char *filename)
             }
         }
     }
-    return drv;
+    if (!drv) {
+        ret = -ENOENT;
+    }
+    *pdrv = drv;
+    return ret;
 }
 
 /**
@@ -511,7 +523,6 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags,
               BlockDriver *drv)
 {
     int ret;
-    int probed = 0;
 
     if (flags & BDRV_O_SNAPSHOT) {
         BlockDriverState *bs1;
@@ -571,12 +582,10 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags,
 
     /* Find the right image format driver */
     if (!drv) {
-        drv = find_image_format(filename);
-        probed = 1;
+        ret = find_image_format(filename, &drv);
     }
 
     if (!drv) {
-        ret = -ENOENT;
         goto unlink_and_fail;
     }
 
@@ -585,8 +594,6 @@ int bdrv_open(BlockDriverState *bs, const char *filename, int flags,
     if (ret < 0) {
         goto unlink_and_fail;
     }
-
-    bs->probed = probed;
 
     /* If there is a backing file, use it */
     if ((flags & BDRV_O_NO_BACKING) == 0 && bs->backing_file[0] != '\0') {
@@ -732,6 +739,7 @@ int bdrv_check(BlockDriverState *bs, BdrvCheckResult *res)
 int bdrv_commit(BlockDriverState *bs)
 {
     BlockDriver *drv = bs->drv;
+    BlockDriver *backing_drv;
     int64_t i, total_sectors;
     int n, j, ro, open_flags;
     int ret = 0, rw_ret = 0;
@@ -749,7 +757,8 @@ int bdrv_commit(BlockDriverState *bs)
     if (bs->backing_hd->keep_read_only) {
         return -EACCES;
     }
-    
+
+    backing_drv = bs->backing_hd->drv;
     ro = bs->backing_hd->read_only;
     strncpy(filename, bs->backing_hd->filename, sizeof(filename));
     open_flags =  bs->backing_hd->open_flags;
@@ -759,12 +768,14 @@ int bdrv_commit(BlockDriverState *bs)
         bdrv_delete(bs->backing_hd);
         bs->backing_hd = NULL;
         bs_rw = bdrv_new("");
-        rw_ret = bdrv_open(bs_rw, filename, open_flags | BDRV_O_RDWR, drv);
+        rw_ret = bdrv_open(bs_rw, filename, open_flags | BDRV_O_RDWR,
+            backing_drv);
         if (rw_ret < 0) {
             bdrv_delete(bs_rw);
             /* try to re-open read-only */
             bs_ro = bdrv_new("");
-            ret = bdrv_open(bs_ro, filename, open_flags & ~BDRV_O_RDWR, drv);
+            ret = bdrv_open(bs_ro, filename, open_flags & ~BDRV_O_RDWR,
+                backing_drv);
             if (ret < 0) {
                 bdrv_delete(bs_ro);
                 /* drive not functional anymore */
@@ -816,7 +827,8 @@ ro_cleanup:
         bdrv_delete(bs->backing_hd);
         bs->backing_hd = NULL;
         bs_ro = bdrv_new("");
-        ret = bdrv_open(bs_ro, filename, open_flags & ~BDRV_O_RDWR, drv);
+        ret = bdrv_open(bs_ro, filename, open_flags & ~BDRV_O_RDWR,
+            backing_drv);
         if (ret < 0) {
             bdrv_delete(bs_ro);
             /* drive not functional anymore */
@@ -1465,10 +1477,8 @@ int bdrv_has_zero_init(BlockDriverState *bs)
 {
     assert(bs->drv);
 
-    if (bs->drv->no_zero_init) {
-        return 0;
-    } else if (bs->file) {
-        return bdrv_has_zero_init(bs->file);
+    if (bs->drv->bdrv_has_zero_init) {
+        return bs->drv->bdrv_has_zero_init(bs);
     }
 
     return 1;
@@ -1798,6 +1808,11 @@ int bdrv_can_snapshot(BlockDriverState *bs)
     }
 
     return 1;
+}
+
+int bdrv_is_snapshot(BlockDriverState *bs)
+{
+    return !!(bs->open_flags & BDRV_O_SNAPSHOT);
 }
 
 BlockDriverState *bdrv_snapshots(void)
@@ -2502,7 +2517,7 @@ int bdrv_is_inserted(BlockDriverState *bs)
     if (!drv)
         return 0;
     if (!drv->bdrv_is_inserted)
-        return 1;
+        return !bs->tray_open;
     ret = drv->bdrv_is_inserted(bs);
     return ret;
 }
@@ -2544,9 +2559,10 @@ int bdrv_eject(BlockDriverState *bs, int eject_flag)
         ret = drv->bdrv_eject(bs, eject_flag);
     }
     if (ret == -ENOTSUP) {
-        if (eject_flag)
-            bdrv_close(bs);
         ret = 0;
+    }
+    if (ret >= 0) {
+        bs->tray_open = eject_flag;
     }
 
     return ret;

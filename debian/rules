@@ -60,9 +60,7 @@ ifeq ($(BINFMT_TARGETS),)
 BINFMT_TARGETS=$(ALL_BINFMT_TARGETS)
 endif
 
-include /usr/share/quilt/quilt.make
-
-configure-stamp: configure $(QUILT_STAMPFN)
+configure-stamp: configure
 	dh_testdir
 
 	# system build
@@ -128,7 +126,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 endif
 	touch $@
 
-clean: unpatch
+clean:
 	dh_testdir
 	dh_testroot
 	

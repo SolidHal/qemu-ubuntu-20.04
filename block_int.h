@@ -127,8 +127,11 @@ struct BlockDriver {
 
     void (*bdrv_debug_event)(BlockDriverState *bs, BlkDebugEvent event);
 
-    /* Set if newly created images are not guaranteed to contain only zeros */
-    int no_zero_init;
+    /*
+     * Returns 1 if newly created images are guaranteed to contain only
+     * zeros, 0 otherwise.
+     */
+    int (*bdrv_has_zero_init)(BlockDriverState *bs);
 
     QLIST_ENTRY(BlockDriver) list;
 };
@@ -141,10 +144,10 @@ struct BlockDriverState {
     int open_flags; /* flags used to open the file, re-used for re-open */
     int removable; /* if true, the media can be removed */
     int locked;    /* if true, the media cannot temporarily be ejected */
+    int tray_open; /* if true, the virtual tray is open */
     int encrypted; /* if true, the media is encrypted */
     int valid_key; /* if true, a valid encryption key has been set */
     int sg;        /* if true, the device is a /dev/sg* */
-    int probed;    /* if true, format was probed automatically */
     /* event callback when inserting/removing */
     void (*change_cb)(void *opaque);
     void *change_opaque;
@@ -243,7 +246,7 @@ static inline unsigned int get_physical_block_exp(BlockConf *conf)
                        _conf.logical_block_size, 512),                  \
     DEFINE_PROP_UINT16("physical_block_size", _state,                   \
                        _conf.physical_block_size, 512),                 \
-    DEFINE_PROP_UINT16("min_io_size", _state, _conf.min_io_size, 512),  \
-    DEFINE_PROP_UINT32("opt_io_size", _state, _conf.opt_io_size, 512)
+    DEFINE_PROP_UINT16("min_io_size", _state, _conf.min_io_size, 0),  \
+    DEFINE_PROP_UINT32("opt_io_size", _state, _conf.opt_io_size, 0)
 
 #endif /* BLOCK_INT_H */

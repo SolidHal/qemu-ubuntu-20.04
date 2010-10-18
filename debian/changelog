@@ -1,3 +1,20 @@
+qemu (0.13.0+dfsg-1) experimental; urgency=low
+
+  [ Aurelien Jarno ]
+  * mips/mipsel binfmt registration: also match EI_ABIVERSION=1, used by
+    OpenWRT. Closes: #591543.
+  * Build-depends on libattr1-dev to enable VirtFS (9p) support. Closes:
+    #592215.
+  * Use architecture wildcards instead of explicit architecture list.
+
+  [ Vagrant Cascadian ]
+  * Switch to source format 3.0 (quilt).
+  * New upstream version. 
+  * Drop 99_stable.diff, applied in new upstream version.
+  * debian/watch: update to properly handle upstream rc versions.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Mon, 18 Oct 2010 10:22:44 -0700
+
 qemu (0.13.0~rc0+dfsg-2) experimental; urgency=low
 
   [ Aurelien Jarno ]

@@ -81,6 +81,7 @@ typedef struct VirtQueueElement
     unsigned int out_num;
     unsigned int in_num;
     target_phys_addr_t in_addr[VIRTQUEUE_MAX_SIZE];
+    target_phys_addr_t out_addr[VIRTQUEUE_MAX_SIZE];
     struct iovec in_sg[VIRTQUEUE_MAX_SIZE];
     struct iovec out_sg[VIRTQUEUE_MAX_SIZE];
 } VirtQueueElement;
@@ -92,7 +93,7 @@ typedef struct {
     int (*load_config)(void * opaque, QEMUFile *f);
     int (*load_queue)(void * opaque, int n, QEMUFile *f);
     unsigned (*get_features)(void * opaque);
-    int (*set_guest_notifier)(void * opaque, int n, bool assigned);
+    int (*set_guest_notifiers)(void * opaque, bool assigned);
     int (*set_host_notifier)(void * opaque, int n, bool assigned);
 } VirtIOBindings;
 
@@ -142,6 +143,8 @@ void virtqueue_flush(VirtQueue *vq, unsigned int count);
 void virtqueue_fill(VirtQueue *vq, const VirtQueueElement *elem,
                     unsigned int len, unsigned int idx);
 
+void virtqueue_map_sg(struct iovec *sg, target_phys_addr_t *addr,
+    size_t num_sg, int is_write);
 int virtqueue_pop(VirtQueue *vq, VirtQueueElement *elem);
 int virtqueue_avail_bytes(VirtQueue *vq, int in_bytes, int out_bytes);
 
@@ -194,6 +197,7 @@ VirtIODevice *virtio_9p_init(DeviceState *dev, V9fsConf *conf);
 
 
 void virtio_net_exit(VirtIODevice *vdev);
+void virtio_blk_exit(VirtIODevice *vdev);
 
 #define DEFINE_VIRTIO_COMMON_FEATURES(_state, _field) \
 	DEFINE_PROP_BIT("indirect_desc", _state, _field, \

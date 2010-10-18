@@ -28,6 +28,7 @@ typedef struct VirtIOBlock
     BlockConf *conf;
     unsigned short sector_mask;
     char sn[BLOCK_SERIAL_STRLEN];
+    DeviceState *qdev;
 } VirtIOBlock;
 
 static VirtIOBlock *to_virtio_blk(VirtIODevice *vdev)
@@ -479,6 +480,11 @@ static int virtio_blk_load(QEMUFile *f, void *opaque, int version_id)
         qemu_get_buffer(f, (unsigned char*)&req->elem, sizeof(req->elem));
         req->next = s->rq;
         s->rq = req;
+
+        virtqueue_map_sg(req->elem.in_sg, req->elem.in_addr,
+            req->elem.in_num, 1);
+        virtqueue_map_sg(req->elem.out_sg, req->elem.out_addr,
+            req->elem.out_num, 0);
     }
 
     return 0;
@@ -522,9 +528,16 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, BlockConf *conf)
     s->vq = virtio_add_queue(&s->vdev, 128, virtio_blk_handle_output);
 
     qemu_add_vm_change_state_handler(virtio_blk_dma_restart_cb, s);
+    s->qdev = dev;
     register_savevm(dev, "virtio-blk", virtio_blk_id++, 2,
                     virtio_blk_save, virtio_blk_load, s);
     bdrv_set_removable(s->bs, 0);
 
     return &s->vdev;
+}
+
+void virtio_blk_exit(VirtIODevice *vdev)
+{
+    VirtIOBlock *s = to_virtio_blk(vdev);
+    unregister_savevm(s->qdev, "virtio-blk", s);
 }

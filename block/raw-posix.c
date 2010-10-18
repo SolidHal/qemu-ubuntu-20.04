@@ -993,6 +993,11 @@ static int hdev_create(const char *filename, QEMUOptionParameter *options)
     return ret;
 }
 
+static int hdev_has_zero_init(BlockDriverState *bs)
+{
+    return 0;
+}
+
 static BlockDriver bdrv_host_device = {
     .format_name        = "host_device",
     .protocol_name        = "host_device",
@@ -1002,7 +1007,7 @@ static BlockDriver bdrv_host_device = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
-    .no_zero_init       = 1,
+    .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv	= raw_aio_readv,
@@ -1117,7 +1122,7 @@ static BlockDriver bdrv_host_floppy = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
-    .no_zero_init       = 1,
+    .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv     = raw_aio_readv,
@@ -1148,9 +1153,6 @@ static int cdrom_probe_device(const char *filename)
 {
     int fd, ret;
     int prio = 0;
-
-    if (strstart(filename, "/dev/cd", NULL))
-        prio = 50;
 
     fd = open(filename, O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
@@ -1217,7 +1219,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
-    .no_zero_init       = 1,
+    .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv     = raw_aio_readv,
@@ -1340,7 +1342,7 @@ static BlockDriver bdrv_host_cdrom = {
     .bdrv_close         = raw_close,
     .bdrv_create        = hdev_create,
     .create_options     = raw_create_options,
-    .no_zero_init       = 1,
+    .bdrv_has_zero_init = hdev_has_zero_init,
     .bdrv_flush         = raw_flush,
 
     .bdrv_aio_readv     = raw_aio_readv,
