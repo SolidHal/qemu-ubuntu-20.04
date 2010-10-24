@@ -8,8 +8,8 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libesd0-dev, libbrlapi-dev,
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
- libvdeplug2-dev [kfreebsd-any], libasound2-dev [kfreebsd-any],
- libbluetooth-dev [kfreebsd-any], libattr1-dev [kfreebsd-any],
+ libvdeplug2-dev [!kfreebsd-any], libasound2-dev [!kfreebsd-any],
+ libbluetooth-dev [!kfreebsd-any], libattr1-dev,
  libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.30) [linux-any],
  texinfo
 Build-Conflicts: oss4-dev

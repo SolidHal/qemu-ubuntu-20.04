@@ -1,3 +1,10 @@
+qemu (0.13.0+dfsg-2) experimental; urgency=low
+
+  * Fix Build-Depends to exclude kfreebsd-any wildcards where appropriate.
+    Thanks to Jon Severinsson. Closes: #592215
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Sun, 24 Oct 2010 09:02:27 -0700
+
 qemu (0.13.0+dfsg-1) experimental; urgency=low
 
   [ Aurelien Jarno ]
