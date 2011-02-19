@@ -1,3 +1,13 @@
+qemu (0.14.0+dfsg-2) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * Tighten dependencies on openbios-ppc, openbios-sparc and seabios to
+    the versions in upstream 0.14.0.
+  * patches/02_kfreebsd.patch: don't consider futimens/utimensat available
+    if it is a stub.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Sun, 20 Feb 2011 00:36:20 +0100
+
 qemu (0.14.0+dfsg-1) unstable; urgency=low
 
   [ Vagrant Cascadian ]

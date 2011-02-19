@@ -57,7 +57,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel hppa i386 ia64 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-1), seabios (>= 0.6.0+git20100710), openbios-ppc (>= 1.0+svn821), openbios-sparc (>= 1.0+svn821), openhackware, etherboot-qemu
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-1), seabios (>= 0.6.1.2-1), openbios-ppc (>= 1.0+svn1018), openbios-sparc (>= 1.0+svn1018), openhackware, etherboot-qemu
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
