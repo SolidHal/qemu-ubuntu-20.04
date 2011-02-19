@@ -1,3 +1,27 @@
+qemu (0.14.0+dfsg-1) unstable; urgency=low
+
+  [ Vagrant Cascadian ]
+  * New upstream release candidate version.
+  * qemu-user-static: 
+    - Drop binfmt support for emulating amd64 on i386, as it is broken and
+      including it interferes with environments capable of running amd64
+      natively.  Closes: #604712.
+    - Remove binfmt support for installed targets in postinst before installing
+      supported targets, to ensure no-longer-supported targets are actually
+      removed.
+    - Remove binfmt support for installed targets in prerm.
+
+  [ Aurelien Jarno ]
+  * Fix configuration files directory.  Closes: #600735.
+  * Enable AIO support.
+
+  [ Vagrant Cascadian ]
+  * Update debian/copyright to refer to upstream git repositry and clarify
+    which binary blobs are removed to make the dfsg-free tarball.
+  * Refresh debian/patches/security/leftover.patch. 
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Fri, 18 Feb 2011 21:07:01 -0800
+
 qemu (0.13.0+dfsg-2) experimental; urgency=low
 
   * Fix Build-Depends to exclude kfreebsd-any wildcards where appropriate.
@@ -48,6 +72,28 @@ qemu (0.13.0~rc0+dfsg-1) experimental; urgency=low
   * Drop libqemu-dev package. 
 
  -- Vagrant Cascadian <vagrant@debian.org>  Thu, 29 Jul 2010 19:51:01 -0400
+
+qemu (0.12.5+dfsg-3) unstable; urgency=medium
+
+  * qemu-user-static: 
+    - Drop binfmt support for emulating amd64 on i386, as it is broken and
+      including it interferes with environments capable of running amd64
+      natively.  Closes: #604712.
+    - Remove binfmt support for installed targets in postinst before installing
+      supported targets, to ensure no-longer-supported targets are actually
+      removed.
+    - Remove binfmt support for installed targets in prerm.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Sun, 28 Nov 2010 15:57:11 -0800
+
+qemu (0.12.5+dfsg-2) unstable; urgency=low
+
+  * mips/mipsel binfmt registration: also match EI_ABIVERSION=1, used by
+    OpenWRT. Closes: #591543.
+  * Update 99_stable.diff from the stable branch:
+    - Fix windows XP boot with libvirt. Closes: bug#579166.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Tue, 17 Aug 2010 12:56:30 +0200
 
 qemu (0.12.5+dfsg-1) unstable; urgency=low
 

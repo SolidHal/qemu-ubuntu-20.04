@@ -15,13 +15,13 @@ Now maintained as a team by:
 
 The upstream source was downloaded from:
 
-    <http://savannah.nongnu.org/download/qemu/qemu-0.12.4.tar.gz>
+    git://git.qemu.org/qemu.git
 
     All the binary blobs without sources contained in the pc-bios/ directory
-    in the original upstream tarball have been removed starting from Debian
-    package version 0.6.0.dfsg.1-1. Those roms which are free can be found
-    in split packages of their own, represented accordingly in the dependecy
-    relationships.
+    (*.dtb, *.bin, *rom, openbios-*) in the original upstream git repository
+    have been removed starting from Debian package version 0.6.0.dfsg.1-1.
+    Those roms which are free can be found in split packages of their own,
+    represented accordingly in the dependecy relationships.
 
 Upstream Author:
 

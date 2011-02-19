@@ -11,7 +11,7 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler,
  libvdeplug2-dev [!kfreebsd-any], libasound2-dev [!kfreebsd-any],
  libbluetooth-dev [!kfreebsd-any], libattr1-dev,
  libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.30) [linux-any],
- texinfo
+ libaio-dev [linux-any], texinfo
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.1
 Homepage: http://www.qemu.org/

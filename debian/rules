@@ -42,7 +42,10 @@ ifneq (,$(findstring $(DEB_HOST_ARCH), arm armel))
 BINFMT_TARGETS=$(filter-out arm, $(ALL_BINFMT_TARGETS))
 endif
 ifeq ($(DEB_HOST_ARCH),i386)
-BINFMT_TARGETS=$(filter-out i386, $(ALL_BINFMT_TARGETS))
+# Drop support for emulating amd64 on i386, as it is broken and including it
+# interferes with environments capable of running amd64 natively.
+# http://bugs.debian.org/604712
+BINFMT_TARGETS=$(filter-out i386 x86_64, $(ALL_BINFMT_TARGETS))
 endif
 ifeq ($(DEB_HOST_ARCH),powerpc)
 BINFMT_TARGETS=$(filter-out ppc, $(ALL_BINFMT_TARGETS))
@@ -71,6 +74,7 @@ configure-stamp: configure
 			--extra-cflags="$(CFLAGS)" \
 			--extra-ldflags="$(LDFLAGS)" \
 			--prefix=/usr \
+			--sysconfdir=/etc \
 			--disable-blobs \
 			--disable-strip \
 			--disable-linux-user \
@@ -87,6 +91,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 			--extra-cflags="$(CFLAGS)" \
 			--extra-ldflags="$(LDFLAGS)" \
 			--prefix=/usr \
+			--sysconfdir=/etc \
 			--interp-prefix=/etc/qemu-binfmt/%M \
 			--disable-blobs \
 			--disable-strip \
@@ -101,6 +106,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 			--extra-cflags="$(CFLAGS)" \
 			--extra-ldflags="$(LDFLAGS)" \
 			--prefix=/usr \
+			--sysconfdir=/etc \
 			--interp-prefix=/etc/qemu-binfmt/%M \
 			--disable-blobs \
 			--disable-strip \
@@ -160,7 +166,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 	done
 
 	# binfmt support
-	sed -i -e 's/^BINFMT_TARGETS=.*/BINFMT_TARGETS=\"$(BINFMT_TARGETS)\"/g' \
+	sed -i -e 's/^BINFMT_TARGETS=.*/BINFMT_TARGETS=\"$(ALL_BINFMT_TARGETS)\"/g' \
 		$(CURDIR)/debian/qemu-user-static.prerm \
 		$(CURDIR)/debian/qemu-user-static.postinst
 
