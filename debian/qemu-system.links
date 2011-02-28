@@ -20,6 +20,9 @@ usr/share/seabios/optionrom/linuxboot.bin usr/share/qemu/linuxboot.bin
 usr/share/seabios/optionrom/multiboot.bin usr/share/qemu/multiboot.bin
 usr/share/vgabios/vgabios.bin usr/share/qemu/vgabios.bin
 usr/share/vgabios/vgabios.cirrus.bin usr/share/qemu/vgabios-cirrus.bin
+usr/share/vgabios/vgabios.qxl.bin usr/share/qemu/vgabios-qxl.bin
+usr/share/vgabios/vgabios.stdvga.bin usr/share/qemu/vgabios-stdvga.bin
+usr/share/vgabios/vgabios.vmware.bin usr/share/qemu/vgabios-vmware.bin
 usr/share/openhackware/ppc_rom.bin usr/share/qemu/ppc_rom.bin
 usr/share/openbios/openbios-ppc usr/share/qemu/openbios-ppc
 usr/share/openbios/openbios-sparc32 usr/share/qemu/openbios-sparc32

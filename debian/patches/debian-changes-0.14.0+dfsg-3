@@ -1,0 +1,76 @@
+Description: Upstream changes introduced in version 0.14.0+dfsg-3
+ This patch has been created by dpkg-source during the package build.
+ Here's the last changelog entry, hopefully it gives details on why
+ those changes were made:
+ .
+ qemu (0.14.0+dfsg-3) unstable; urgency=low
+ .
+   [ Aurelien Jarno ]
+   * Depends on vgabios (>= 0.6c-3) and add symlinks for qxl, stdvga and
+     vmware bioses.  Closes: #614252, #614169.
+   * Tighten build-depends on linux-libc-dev to (>= 2.6.34), to get
+     vhost-net support.
+   * Build-depends on xfslibs-dev in order to get TRIM support on XFS
+     filesystems.
+   * Build-depends on librados1-dev to get rdb support.  Closes: #614150.
+ .
+ The person named in the Author field signed this changelog entry.
+Author: Aurelien Jarno <aurel32@debian.org>
+Bug-Debian: http://bugs.debian.org/614150
+Bug-Debian: http://bugs.debian.org/614169
+Bug-Debian: http://bugs.debian.org/614252
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <vendor|upstream|other>, <url of original patch>
+Bug: <url in upstream bugtracker>
+Bug-Debian: http://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- qemu-0.14.0+dfsg.orig/usb-bsd.c
++++ qemu-0.14.0+dfsg/usb-bsd.c
+@@ -35,7 +35,7 @@
+ 
+ #include <sys/ioctl.h>
+ #ifndef __DragonFly__
+-#include <legacy/dev/usb/usb.h>
++#include <dev/usb/usb.h>
+ #else
+ #include <bus/usb/usb.h>
+ #endif
+--- qemu-0.14.0+dfsg.orig/configure
++++ qemu-0.14.0+dfsg/configure
+@@ -1981,14 +1981,6 @@ cat > $TMPC << EOF
+ #include <stddef.h>
+ #include <fcntl.h>
+ 
+-#if defined __stub_futimens || defined __stub___futimens
+-choke me
+-#endif
+-
+-#if defined __stub_utimensat || defined __stub___utimensat
+-choke me
+-#endif
+-
+ int main(void)
+ {
+     utimensat(AT_FDCWD, "foo", NULL, 0);
+--- qemu-0.14.0+dfsg.orig/hw/pc.c
++++ qemu-0.14.0+dfsg/hw/pc.c
+@@ -536,9 +536,8 @@ static void bochs_bios_write(void *opaqu
+         /* LGPL'ed VGA BIOS messages */
+     case 0x501:
+     case 0x502:
+-        /* according to documentation, these can be safely ignored */
+         fprintf(stderr, "VGA BIOS panic, line %d\n", val);
+-        break;
++        exit(1);
+     case 0x500:
+     case 0x503:
+ #ifdef DEBUG_BIOS

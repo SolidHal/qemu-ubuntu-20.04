@@ -8,10 +8,10 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libesd0-dev, libbrlapi-dev,
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
- libvdeplug2-dev [!kfreebsd-any], libasound2-dev [!kfreebsd-any],
- libbluetooth-dev [!kfreebsd-any], libattr1-dev,
- libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.30) [linux-any],
- libaio-dev [linux-any], texinfo
+ libvdeplug2-dev [linux-any], libasound2-dev [linux-any],
+ libbluetooth-dev [linux-any], libattr1-dev, librados1-dev [amd64 i386],
+ libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.34) [linux-any],
+ libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.1
 Homepage: http://www.qemu.org/
@@ -57,7 +57,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel hppa i386 ia64 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-1), seabios (>= 0.6.1.2-1), openbios-ppc (>= 1.0+svn1018), openbios-sparc (>= 1.0+svn1018), openhackware, etherboot-qemu
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 0.6.1.2-1), openbios-ppc (>= 1.0+svn1018), openbios-sparc (>= 1.0+svn1018), openhackware, etherboot-qemu
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)

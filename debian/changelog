@@ -1,3 +1,16 @@
+qemu (0.14.0+dfsg-3) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * Depends on vgabios (>= 0.6c-3) and add symlinks for qxl, stdvga and
+    vmware bioses.  Closes: #614252, #614169.
+  * Tighten build-depends on linux-libc-dev to (>= 2.6.34), to get
+    vhost-net support.
+  * Build-depends on xfslibs-dev in order to get TRIM support on XFS
+    filesystems.
+  * Build-depends on librados1-dev to get rdb support.  Closes: #614150.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Mon, 28 Feb 2011 09:06:00 +0100
+
 qemu (0.14.0+dfsg-2) unstable; urgency=low
 
   [ Aurelien Jarno ]
