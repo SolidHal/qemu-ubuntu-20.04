@@ -1,3 +1,10 @@
+qemu (0.14.0+dfsg-4) unstable; urgency=low
+
+  * Reupload without automatically generated patch
+    debian-changes-0.14.0+dfsg-3.
+
+ -- Aurelien Jarno <aurel32@debian.org>  Mon, 28 Feb 2011 15:10:04 +0100
+
 qemu (0.14.0+dfsg-3) unstable; urgency=low
 
   [ Aurelien Jarno ]
