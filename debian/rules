@@ -43,6 +43,12 @@ ifeq ($(DEB_HOST_ARCH),i386)
 # http://bugs.debian.org/604712
 BINFMT_TARGETS=$(filter-out i386 x86_64, $(ALL_BINFMT_TARGETS))
 endif
+ifeq ($(DEB_HOST_ARCH),mips)
+BINFMT_TARGETS=$(filter-out mips, $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),mipsel)
+BINFMT_TARGETS=$(filter-out mipsel, $(ALL_BINFMT_TARGETS))
+endif
 ifeq ($(DEB_HOST_ARCH),powerpc)
 BINFMT_TARGETS=$(filter-out ppc, $(ALL_BINFMT_TARGETS))
 endif
