@@ -9,7 +9,7 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler,
  texi2html, sharutils, libesd0-dev, libbrlapi-dev,
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
  libvdeplug2-dev [linux-any], libasound2-dev [linux-any],
- libbluetooth-dev [linux-any], libattr1-dev, librados1-dev [amd64 i386],
+ libbluetooth-dev [linux-any], libattr1-dev, librados-dev [amd64 i386],
  libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.34) [linux-any],
  libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo
 Build-Conflicts: oss4-dev
