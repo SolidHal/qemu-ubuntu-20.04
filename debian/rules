@@ -34,7 +34,7 @@ ALL_BINFMT_TARGETS=alpha arm armeb cris i386 m68k microblaze mips mipsel ppc ppc
 ifeq ($(DEB_HOST_ARCH),amd64)
 BINFMT_TARGETS=$(filter-out i386 x86_64, $(ALL_BINFMT_TARGETS))
 endif
-ifneq (,$(findstring $(DEB_HOST_ARCH), arm armel))
+ifneq (,$(findstring $(DEB_HOST_ARCH), arm armel armhf))
 BINFMT_TARGETS=$(filter-out arm, $(ALL_BINFMT_TARGETS))
 endif
 ifeq ($(DEB_HOST_ARCH),i386)

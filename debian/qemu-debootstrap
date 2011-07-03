@@ -82,6 +82,14 @@ while [ $# -gt 0 ]; do
             die "option %s requires an argument" "$1"
         fi
       ;;
+      --include|--exclude|--components|--variant|--keyring|--unpack-tarball|--make-tarball|--second-stage-target|--extractor|--private-key|--certificate)
+        if [ $# -ge 2 -a -n "$2" ]; then
+            opts="$opts $(escape "$1") $(escape "$2")"
+            shift 2
+        else
+            die "option %s requires an argument" "$1"
+        fi
+      ;;
       --*)
         opts="$opts $(escape "$1")"
         shift

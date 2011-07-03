@@ -1,3 +1,4 @@
-01_rdb.patch
 02_kfreebsd.patch
 security/leftover.patch
+pcnet-ipxe.patch
+runnning-typo.patch

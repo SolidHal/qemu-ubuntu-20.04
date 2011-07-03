@@ -1,3 +1,26 @@
+qemu (0.14.1+dfsg-2) unstable; urgency=low
+
+  * Add override for qemu-user-static binaries which embed needed libraries.
+  * Add qemu-debootstrap manpage.
+  * Add patch to fix typo in qemu-system-* (runnning -> running).
+  * Update to Standards-Version 3.9.2, no changes necessary.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Sat, 02 Jul 2011 22:29:17 -0700
+
+qemu (0.14.1+dfsg-1) unstable; urgency=low
+
+  * New upstream version.
+  * Depend on ipxe instead of etherboot-qemu.
+  * Add pcnet-ipxe.patch from upstream to fix ipxe with pcnet nic.
+  * Add symlink for network boot with eepro100 cards (i82551, i82557b, 
+    i82559er).
+  * Drop 01_rdb.patch, applied upstream. 
+  * Add support for building on armhf architecture.
+  * Support debootstrap options that require arguments in qemu-debootstrap.
+    Thanks to Stefano Rivera for the patch. Closes: #605660.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Fri, 01 Jul 2011 22:49:40 -0700
+
 qemu (0.14.0+dfsg-5.1) unstable; urgency=low
 
   * Non-maintainer upload.
@@ -1611,3 +1634,4 @@ qemu (0.5.2-1) unstable; urgency=low
   * Initial Release. (Closes: #187407)
 
  -- Paul Russell <prussell@debian.org>  Wed,  3 Mar 2004 02:18:54 +0100
+
