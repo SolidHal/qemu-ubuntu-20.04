@@ -1,3 +1,20 @@
+qemu (0.14.1+dfsg-3) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * Add patches/qemu-ifunc-ppc.patch and patches/qemu-ifunc-sparc.patch
+    to fix FTBFS on ppc and sparc.
+
+  [ Vagrant Cascadian ]
+  * Apply patch to fix qemu-user-static mipsel emulation (Closes: #562887).
+  * Drop support for esd (Closes: #633390). Thanks to Adrian Bunk.
+  * Add dummy debian/rules build-indep/build-arch targets to resolve lintian 
+    warnings and future policy requirements.
+  * Remove needless mention of "Author(s)" which triggers a lintian warning.
+  * Fix maintainer-script-without-set-e lintian checks.
+  * Fix hyphen-used-as-minus-sign lintian check for qemu-debootstrap manpage.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Sat, 23 Jul 2011 10:18:37 +0200
+
 qemu (0.14.1+dfsg-2) unstable; urgency=low
 
   * Add override for qemu-user-static binaries which embed needed libraries.
