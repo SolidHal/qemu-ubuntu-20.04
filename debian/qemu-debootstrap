@@ -126,7 +126,7 @@ esac
 
 if [ "$needs_qemu" = no ]; then
     eval run debootstrap --arch "$deb_arch" $opts $args
-    exit 0
+    exit $?
 fi
 
 qemu_arch=""
