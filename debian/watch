@@ -1,4 +1,4 @@
 version=3
 
 opts=dversionmangle=s/\+dfsg.*$//g,uversionmangle=s/-rc/~rc/g \
-  http://download.savannah.gnu.org/releases/qemu/qemu-(.*).tar.gz debian uupdate
+  http://qemu.org/download .*/qemu-(.*).tar.gz

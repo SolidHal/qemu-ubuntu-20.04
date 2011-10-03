@@ -1,3 +1,13 @@
+qemu (0.15.0+dfsg-1) unstable; urgency=low
+
+  * New upstream version.
+  * Install new qemu-system, qemu-user and qemu-user-static variants: 
+    lm32, microblazeel, s390x, unicore32
+  * Patch from upstream to set QEMU_INCLUDES before QEMU_CFLAGS.
+  * Update debian/watch to check http://qemu.org/download.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Mon, 03 Oct 2011 12:29:18 -0700
+
 qemu (0.15.0~rc2+dfsg-1) experimental; urgency=low
 
   * New upstream version.

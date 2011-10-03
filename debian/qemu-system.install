@@ -2,8 +2,10 @@ debian/qemu-ifup etc/
 debian/tmp/usr/bin/qemu-system-arm
 debian/tmp/usr/bin/qemu-system-cris
 debian/tmp/usr/bin/qemu-system-i386
+debian/tmp/usr/bin/qemu-system-lm32
 debian/tmp/usr/bin/qemu-system-m68k
 debian/tmp/usr/bin/qemu-system-microblaze
+debian/tmp/usr/bin/qemu-system-microblazeel
 debian/tmp/usr/bin/qemu-system-mips
 debian/tmp/usr/bin/qemu-system-mips64
 debian/tmp/usr/bin/qemu-system-mips64el
@@ -11,6 +13,7 @@ debian/tmp/usr/bin/qemu-system-mipsel
 debian/tmp/usr/bin/qemu-system-ppc
 debian/tmp/usr/bin/qemu-system-ppc64
 debian/tmp/usr/bin/qemu-system-ppcemb
+debian/tmp/usr/bin/qemu-system-s390x
 debian/tmp/usr/bin/qemu-system-sh4
 debian/tmp/usr/bin/qemu-system-sh4eb
 debian/tmp/usr/bin/qemu-system-sparc

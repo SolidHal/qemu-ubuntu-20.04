@@ -1,0 +1,45 @@
+commit 76dc3cf82c1fa4afc4b67f60318d90355ded8fb3
+Author: Jiri Denemark <jdenemar@redhat.com>
+Date:   Wed Aug 10 12:04:34 2011 +0200
+
+    build: Move QEMU_INCLUDES before QEMU_CFLAGS
+    
+    This patch fixes build when any of the include paths from QEMU_CFLAGS
+    contains a header file with similar name to a header file in qemu
+    sources. I hit it with error.h included by qapi/qapi-types-core.h. GCC
+    decided to use /usr/include/alsa/error.h instead of qemu's error.h.
+    
+    Tested-by: Michael Roth <mdroth@linux.vnet.ibm.com>
+    Signed-off-by: Jiri Denemark <jdenemar@redhat.com>
+    Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>
+
+diff --git a/rules.mak b/rules.mak
+index 612ae37..1a2622c 100644
+--- a/rules.mak
++++ b/rules.mak
+@@ -15,21 +15,21 @@ MAKEFLAGS += -rR
+ QEMU_DGFLAGS += -MMD -MP -MT $@ -MF $(*D)/$(*F).d
+ 
+ %.o: %.c
+-	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_INCLUDES) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
++	$(call quiet-command,$(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  CC    $(TARGET_DIR)$@")
+ 
+ ifeq ($(LIBTOOL),)
+ %.lo: %.c
+ 	@echo "missing libtool. please install and rerun configure"; exit 1
+ else
+ %.lo: %.c
+-	$(call quiet-command,libtool --mode=compile --quiet --tag=CC $(CC) $(QEMU_CFLAGS) $(QEMU_INCLUDES) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  lt CC $@")
++	$(call quiet-command,libtool --mode=compile --quiet --tag=CC $(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  lt CC $@")
+ endif
+ 
+ %.o: %.S
+-	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_INCLUDES) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  AS    $(TARGET_DIR)$@")
++	$(call quiet-command,$(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  AS    $(TARGET_DIR)$@")
+ 
+ %.o: %.m
+-	$(call quiet-command,$(CC) $(QEMU_CFLAGS) $(QEMU_INCLUDES) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  OBJC  $(TARGET_DIR)$@")
++	$(call quiet-command,$(CC) $(QEMU_INCLUDES) $(QEMU_CFLAGS) $(QEMU_DGFLAGS) $(CFLAGS) -c -o $@ $<,"  OBJC  $(TARGET_DIR)$@")
+ 
+ LINK = $(call quiet-command,$(CC) $(QEMU_CFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(1) $(LIBS),"  LINK  $(TARGET_DIR)$@")
+ 
