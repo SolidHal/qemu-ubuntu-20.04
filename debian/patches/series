@@ -1,6 +1,3 @@
 02_kfreebsd.patch
-security/leftover.patch
-runnning-typo.patch
 qemu-ifunc-ppc.patch
 qemu-ifunc-sparc.patch
-Move_QEMU_INCLUDES_before_QEMU_CFLAGS

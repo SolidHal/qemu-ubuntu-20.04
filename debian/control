@@ -13,7 +13,8 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler,
  librados-dev [amd64 i386], librbd-dev [amd64 i386],
  libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.34) [linux-any],
  libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo,
- python
+ python,
+ libspice-server-dev [amd64], libspice-protocol-dev [amd64]
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.2
 Homepage: http://www.qemu.org/
@@ -59,7 +60,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 0.6.1.2-1), openbios-ppc (>= 1.0+svn1018), openbios-sparc (>= 1.0+svn1018), openhackware, ipxe
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1018), openbios-sparc (>= 1.0+svn1018), openhackware, ipxe
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)

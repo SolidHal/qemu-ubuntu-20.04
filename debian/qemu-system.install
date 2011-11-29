@@ -1,4 +1,5 @@
 debian/qemu-ifup etc/
+debian/tmp/usr/bin/qemu-system-alpha
 debian/tmp/usr/bin/qemu-system-arm
 debian/tmp/usr/bin/qemu-system-cris
 debian/tmp/usr/bin/qemu-system-i386
@@ -19,5 +20,7 @@ debian/tmp/usr/bin/qemu-system-sh4eb
 debian/tmp/usr/bin/qemu-system-sparc
 debian/tmp/usr/bin/qemu-system-sparc64
 debian/tmp/usr/bin/qemu-system-x86_64
+debian/tmp/usr/bin/qemu-system-xtensa
+debian/tmp/usr/bin/qemu-system-xtensaeb
 debian/tmp/usr/share/man/man1/qemu.1
 debian/tmp/usr/share/qemu/*.dtb

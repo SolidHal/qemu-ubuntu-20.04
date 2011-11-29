@@ -1,3 +1,4 @@
+usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-alpha.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-arm.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-cris.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-i386.1
@@ -17,6 +18,8 @@ usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sh4.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sh4eb.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sparc.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-sparc64.1
+usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-xtensa.1
+usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-xtensaeb.1
 usr/share/man/man1/qemu.1 usr/share/man/man1/qemu-system-x86_64.1
 usr/share/seabios/bios.bin usr/share/qemu/bios.bin
 usr/share/seabios/optionrom/linuxboot.bin usr/share/qemu/linuxboot.bin

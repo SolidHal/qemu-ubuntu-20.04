@@ -1,8 +1,27 @@
-qemu (0.15.1+dfsg-1) unstable; urgency=low
+qemu (1.0~rc4+dfsg-1) experimental; urgency=low
+
+  * New upstream version:
+    - Fixes CVE-2011-4111.
+  * remove patches applied upstream:
+    - security/leftover.patch
+    - Move_QEMU_INCLUDES_before_QEMU_CFLAGS
+    - runnning-typo.patch
+  * Install new qemu-system variants:
+    xtensa, xtensaeb, alpha
+  * debian/rules: Drop hack to rename "qemu" binary to "qemu-system-i386", as 
+    upstream now does the same.
+  * Enable spice support on amd64: 
+    - Add Build-Depends: libspice-server-dev, libspice-protocol-dev
+  * debian/rules: use dh_prep instead of "dh_clean -k", which is deprecated.
+  * qemu-system: Bump dependency on seabios to 1.6.3~.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Mon, 28 Nov 2011 23:40:24 -0800
+
+qemu (0.15.1+dfsg-1) UNRELEASED; urgency=low
 
   * New upstream version.
 
- -- Vagrant Cascadian <vagrant@debian.org>  Sun, 06 Nov 2011 10:37:31 -0800
+ -- Vagrant Cascadian <vagrant@debian.org>  Wed, 12 Oct 2011 12:07:23 -0700
 
 qemu (0.15.0+dfsg-1) unstable; urgency=low
 

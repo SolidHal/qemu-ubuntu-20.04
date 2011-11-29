@@ -148,13 +148,11 @@ clean:
 install: build
 	dh_testdir
 	dh_testroot
-	dh_clean -k
+	dh_prep
 	dh_installdirs -a
 	
 	# system build
 	$(MAKE) -C $(CURDIR)/system-build DESTDIR=$(CURDIR)/debian/tmp install
-
-	mv $(CURDIR)/debian/tmp/usr/bin/qemu $(CURDIR)/debian/tmp/usr/bin/qemu-system-i386
 
 	for i in bamboo mpc8544ds ; do \
 		dtc -o $(CURDIR)/debian/tmp/usr/share/qemu/$$i.dtb pc-bios/$$i.dts ; \
