@@ -1,0 +1,62 @@
+Bug-Debian: http://bugs.debian.org/618743
+
+commit 885660bd48efbe3742892e06de7a8898703e0bdc
+Author: Michael Roth <mdroth@linux.vnet.ibm.com>
+Date:   Wed Dec 7 21:48:07 2011 -0600
+
+    network scripts: don't block SIGCHLD before forking
+    
+    This patch fixes a bug where child processes of launch_script() can
+    misbehave due to SIGCHLD being blocked. In the case of `sudo`, this
+    causes a permanent hang.
+    
+    Previously a SIGCHLD handler was added to reap fork_exec()'d zombie
+    processes by calling waitpid(-1, ...). This required other
+    fork()/waitpid() callers to temporarilly block SIGCHILD to avoid
+    having the final wait status being intercepted by the SIGCHLD
+    handler:
+    
+    7c3370d4fe3fa6cda8655f109e4659afc8ca4269
+    
+    Since then, the qemu_add_child_watch() interface was added to allow
+    registration of such processes and reap only from that specific set
+    of PIDs:
+    
+    4d54ec7898bd951007cb6122d5315584bd41d0c4
+    
+    As a result, we can now avoid blocking SIGCHLD in launch_script(), so
+    drop that behavior.
+    
+    Reviewed-by: Jan Kiszka <jan.kiszka@siemens.com>
+    Reviewed-by: Paolo Bonzini <pbonzini@redhat.com>
+    Signed-off-by: Michael Roth <mdroth@linux.vnet.ibm.com>
+    Signed-off-by: Anthony Liguori <aliguori@us.ibm.com>
+
+diff --git a/net/tap.c b/net/tap.c
+index 1f26dc9..6c27a94 100644
+--- a/net/tap.c
++++ b/net/tap.c
+@@ -346,15 +346,10 @@ static TAPState *net_tap_fd_init(VLANState *vlan,
+ 
+ static int launch_script(const char *setup_script, const char *ifname, int fd)
+ {
+-    sigset_t oldmask, mask;
+     int pid, status;
+     char *args[3];
+     char **parg;
+ 
+-    sigemptyset(&mask);
+-    sigaddset(&mask, SIGCHLD);
+-    sigprocmask(SIG_BLOCK, &mask, &oldmask);
+-
+     /* try to launch network script */
+     pid = fork();
+     if (pid == 0) {
+@@ -378,7 +373,6 @@ static int launch_script(const char *setup_script, const char *ifname, int fd)
+         while (waitpid(pid, &status, 0) != pid) {
+             /* loop */
+         }
+-        sigprocmask(SIG_SETMASK, &oldmask, NULL);
+ 
+         if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
+             return 0;

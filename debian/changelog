@@ -1,3 +1,12 @@
+qemu (1.0+dfsg-1) experimental; urgency=low
+
+  * New upstream version.
+  * Add build-dep on libxen-dev to enable xen support. 
+  * Add build-dep on libiscsi-dev to enable iscsi support.
+  * Add patch from upstream to not block SIGCHLD (Closes: #618743).
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Fri, 30 Dec 2011 16:12:03 -0800
+
 qemu (1.0~rc4+dfsg-1) experimental; urgency=low
 
   * New upstream version:
@@ -17,11 +26,26 @@ qemu (1.0~rc4+dfsg-1) experimental; urgency=low
 
  -- Vagrant Cascadian <vagrant@debian.org>  Mon, 28 Nov 2011 23:40:24 -0800
 
-qemu (0.15.1+dfsg-1) UNRELEASED; urgency=low
+qemu (0.15.1+dfsg-3) unstable; urgency=low
+
+  * Add patch from upstream to fix FTBFS on ia64. 
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Fri, 09 Dec 2011 23:48:21 -0800
+
+qemu (0.15.1+dfsg-2) unstable; urgency=low
+
+  * Add patch that fixes a buffer overrun (CVE-2011-4111). 
+  * Enable spice support on amd64:
+    - Add Build-Depends: libspice-server-dev, libspice-protocol-dev
+  * debian/rules: Use dh_prep instead of "dh_clean -k", which is deprecated. 
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Mon, 28 Nov 2011 20:34:50 -0800
+
+qemu (0.15.1+dfsg-1) unstable; urgency=low
 
   * New upstream version.
 
- -- Vagrant Cascadian <vagrant@debian.org>  Wed, 12 Oct 2011 12:07:23 -0700
+ -- Vagrant Cascadian <vagrant@debian.org>  Sun, 06 Nov 2011 10:37:31 -0800
 
 qemu (0.15.0+dfsg-1) unstable; urgency=low
 
