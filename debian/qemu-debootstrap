@@ -118,7 +118,7 @@ if [ "$deb_arch" = "$system_arch" ]; then
 fi
 # bi-arch; TODO test whether the running kernel is actually bi-arch capable
 case "$system_arch-$deb_arch" in
-  amd64-i386|arm-armel|armel-arm|i386-amd64|powerpc-ppc64|ppc64-powerpc|sparc-sparc64|sparc64-sparc)
+  amd64-i386|arm-armel|armel-arm|arm-armhf|armhf-arm|armel-armhf|armhf-armel|i386-amd64|powerpc-ppc64|ppc64-powerpc|sparc-sparc64|sparc64-sparc|s390-s390x|s390x-s390)
     warn "Host architecture might allow running target architecture; disabling QEMU support"
     needs_qemu="no"
   ;;
@@ -131,13 +131,13 @@ fi
 
 qemu_arch=""
 case "$deb_arch" in
-  alpha|arm|armeb|i386|m68k|mips|mipsel|ppc64|sh4|sh4eb|sparc|sparc64)
+  alpha|arm|armeb|i386|m68k|mips|mipsel|ppc64|sh4|sh4eb|sparc|sparc64|s390x)
     qemu_arch="$deb_arch"
   ;;
   amd64)
     qemu_arch="x86_64"
   ;;
-  armel)
+  armel|armhf)
     qemu_arch="arm"
   ;;
   lpia)

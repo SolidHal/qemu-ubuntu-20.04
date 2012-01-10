@@ -13,7 +13,7 @@ if [ "$1" = configure ] ; then
         # priority, as it has been the default qemu for quite some time.
         update-alternatives --install /usr/bin/qemu qemu \
             /usr/bin/qemu-system-i386 20
-        arches="arm cris m68k microblaze mips mips64 mips64el mipsel ppc ppc64 ppcemb sh4 sh4eb sparc sparc64 x86_64"
+        arches="arm cris m68k microblaze mips mips64 mips64el mipsel ppc ppc64 ppcemb s390x sh4 sh4eb sparc sparc64 x86_64"
         for arch in $arches ; do
             update-alternatives --install /usr/bin/qemu qemu \
                 /usr/bin/qemu-system-"$arch" 10

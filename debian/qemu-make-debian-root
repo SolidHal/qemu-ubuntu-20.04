@@ -20,14 +20,17 @@ which debootstrap >/dev/null || {
 KEEPFS=0
 if [ "$1" = "-k" ] || [ "$2" = "-k" ]; then
     KEEPFS=1
-    shift
 fi
 
 SPARSE=0
 if [ "$1" = "-s" ] || [ "$2" = "-s" ]; then
     SPARSE=1
-    shift
 fi
+
+# Remove any options, tacitly assuming them at the beginning.
+#
+[ $KEEPFS -eq 1 ] && shift
+[ $SPARSE -eq 1 ] && shift
 
 if [ $# -lt 4 ]; then
     echo Usage: "$0 [-ks] size-in-MB distrib deburl image [files_to_copy_in_/root]" >&2
@@ -83,8 +86,7 @@ TMP_DIR="$(mktemp -d /tmp/mount.XXXXXX)" || \
 mount -o loop $IMAGE.ext2 $TMP_DIR
 
 # Do debian install on it.
-#debootstrap --exclude=syslinux,at,exim,mailx,libstdc++2.10-glibc2.2,mbr,setserial,fdutils,info,ipchains,lilo,pcmcia-cs,ppp,pppoe,pppoeconf,pppconfig $DISTRO $TMP_DIR $URL
-debootstrap --exclude=syslinux,at,exim,mailx,libstdc++2.10-glibc2.2,mbr,setserial,fdutils,info,ipchains,iptables,lilo,pcmcia-cs,ppp,pppoe,pppoeconf,pppconfig,wget,telnet,cron,logrotate,exim4,exim4-base,exim4-config,exim4-daemon-light,pciutils,modconf,tasksel $DISTRO $TMP_DIR $URL
+debootstrap --variant=minbase $DISTRO $TMP_DIR $URL
 
 # Final configuration.
 cat > $TMP_DIR/etc/fstab <<EOF

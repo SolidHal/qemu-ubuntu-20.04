@@ -24,7 +24,7 @@ Vcs-Browser: http://git.debian.org/?p=pkg-qemu/qemu.git
 Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
 
 Package: qemu
-Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
+Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Depends: ${misc:Depends}, qemu-system (>= ${source:Version}), qemu-user (>= ${source:Version}) [linux-any], qemu-utils (>= ${source:Version})
 Suggests: qemu-user-static [linux-any]
 Description: fast processor emulator
@@ -61,8 +61,8 @@ Description: QEMU keyboard maps
  package or QEMU derivatives.
 
 Package: qemu-system
-Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1018), openbios-sparc (>= 1.0+svn1018), openhackware, ipxe
+Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1047), openbios-sparc (>= 1.0+svn1047), openhackware, ipxe
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
@@ -80,7 +80,7 @@ Description: QEMU full system emulation binaries
  machines on a single server.
 
 Package: qemu-user
-Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc sparc sparc64 ppc64
+Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc ppc64 s390x sparc sparc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
@@ -95,7 +95,7 @@ Description: QEMU user mode emulation binaries
  QEMU can launch Linux processes compiled for one CPU on another CPU.
 
 Package: qemu-user-static
-Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc sparc sparc64 ppc64
+Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc ppc64 s390x sparc sparc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: binfmt-support
 Suggests: sudo
@@ -110,7 +110,7 @@ Description: QEMU user mode emulation binaries (static version)
  one CPU on another CPU.
 
 Package: qemu-utils
-Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc sparc sparc64 kfreebsd-i386 kfreebsd-amd64 ppc64
+Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Suggests: debootstrap
 Conflicts: kvm (= 85+dfsg-4.1)

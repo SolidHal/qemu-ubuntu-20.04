@@ -30,7 +30,7 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
 endif
 
 # binfmt support
-ALL_BINFMT_TARGETS=alpha arm armeb cris i386 m68k microblaze mips mipsel ppc ppc64 ppc64abi32 sh4 sh4eb sparc sparc32plus sparc64 x86_64
+ALL_BINFMT_TARGETS=alpha arm armeb cris i386 m68k microblaze mips mipsel ppc ppc64 ppc64abi32 s390x sh4 sh4eb sparc sparc32plus sparc64 x86_64
 ifeq ($(DEB_HOST_ARCH),amd64)
 BINFMT_TARGETS=$(filter-out i386 x86_64, $(ALL_BINFMT_TARGETS))
 endif
@@ -54,6 +54,9 @@ BINFMT_TARGETS=$(filter-out ppc, $(ALL_BINFMT_TARGETS))
 endif
 ifeq ($(DEB_HOST_ARCH),ppc64)
 BINFMT_TARGETS=$(filter-out ppc ppc64 ppc64abi32 , $(ALL_BINFMT_TARGETS))
+endif
+ifeq ($(DEB_HOST_ARCH),s390x)
+BINFMT_TARGETS=$(filter-out s390x, $(ALL_BINFMT_TARGETS))
 endif
 ifeq ($(DEB_HOST_ARCH),sparc)
 BINFMT_TARGETS=$(filter-out sparc sparc32plus sparc64, $(ALL_BINFMT_TARGETS))
@@ -142,6 +145,7 @@ clean:
 	
 	rm -rf $(CURDIR)/*-build
 	rm -f $(CURDIR)/*-stamp
+	rm -f config.log
 	
 	dh_clean
 
