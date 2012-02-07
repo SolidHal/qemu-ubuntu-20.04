@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
 Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku.voipio@iki.fi>, Vagrant Cascadian <vagrant@debian.org>
 DM-Upload-Allowed: yes
-Build-Depends: debhelper (>= 5), nasm, device-tree-compiler,
+Build-Depends: debhelper (>= 5), nasm, device-tree-compiler, libfdt-dev,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
  texi2html, sharutils, libbrlapi-dev,
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
@@ -62,7 +62,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1047), openbios-sparc (>= 1.0+svn1047), openhackware, ipxe
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1047), openbios-sparc (>= 1.0+svn1047), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
