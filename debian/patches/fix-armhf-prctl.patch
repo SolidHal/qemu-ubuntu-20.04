@@ -1,0 +1,45 @@
+Description: Fix prctl on ARM
+ The only other prctl options which take pointer arguments are
+ all architecture specific, so there didn't seem much point in
+ adding them (they all work like PR_GET_PDEATHSIG in that they
+ pass an int* to be filled in); we'd have to actually emulate them
+ if we cared about them.
+Origin: http://lists.gnu.org/archive/html/qemu-devel/2012-02/msg00322.html
+Bug: http://lists.gnu.org/archive/html/qemu-devel/2012-02/msg00322.html
+Bug-Debian: http://bugs.debian.org/656926
+Bug-Debian: http://bugs.debian.org/651083
+Last-Update: 2012-03-02
+
+--- qemu-1.0+dfsg.orig/linux-user/syscall.c
++++ qemu-1.0+dfsg/linux-user/syscall.c
+@@ -6853,6 +6853,30 @@ abi_long do_syscall(void *cpu_env, int n
+                         goto efault;
+                 }
+                 break;
++#ifdef PR_GET_NAME
++        case PR_GET_NAME:
++        {
++            void *name = lock_user(VERIFY_WRITE, arg2, 16, 1);
++            if (!name) {
++                goto efault;
++            }
++            ret = get_errno(prctl(arg1, (unsigned long)name,
++                                  arg3, arg4, arg5));
++            unlock_user(name, arg2, 16);
++            break;
++        }
++        case PR_SET_NAME:
++        {
++            void *name = lock_user(VERIFY_READ, arg2, 16, 1);
++            if (!name) {
++                goto efault;
++            }
++            ret = get_errno(prctl(arg1, (unsigned long)name,
++                                  arg3, arg4, arg5));
++            unlock_user(name, arg2, 0);
++            break;
++        }
++#endif
+             default:
+                 ret = get_errno(prctl(arg1, arg2, arg3, arg4, arg5));
+                 break;

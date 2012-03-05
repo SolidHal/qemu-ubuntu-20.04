@@ -18,7 +18,7 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler, libfdt-dev,
  libxen-dev [amd64 i386],
  libiscsi-dev
 Build-Conflicts: oss4-dev
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 Homepage: http://www.qemu.org/
 Vcs-Browser: http://git.debian.org/?p=pkg-qemu/qemu.git
 Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
@@ -62,7 +62,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1047), openbios-sparc (>= 1.0+svn1047), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3~), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1047), openbios-sparc (>= 1.0+svn1047), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)

@@ -7,10 +7,10 @@
 DEB_VERSION := $(shell dpkg-parsechangelog | egrep '^Version:' | cut -f 2 -d ' ')
 
 # Compiler flags
-CFLAGS = `dpkg-buildflags --get CFLAGS`
-LDFLAGS = `dpkg-buildflags --get LDFLAGS`
+CFLAGS = $(shell dpkg-buildflags --get CFLAGS)
+LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS)
 LDFLAGS += -Wl,--as-needed
-CFLAGS += `dpkg-buildflags --get CPPFLAGS`
+CFLAGS += $(shell dpkg-buildflags --get CPPFLAGS)
 
 # Support multiple makes at once
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))

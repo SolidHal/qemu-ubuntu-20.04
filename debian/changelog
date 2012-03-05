@@ -1,3 +1,24 @@
+qemu (1.0.1+dfsg-1) unstable; urgency=low
+
+  [ Aurelien Jarno ]
+  * New upstream stable version:
+    - remove debian/patches/fix-malta-i8259
+    - remove debian/patches/qemu-ifunc-ppc.patch
+    - remove debian/patches/x86-fix-cmpxchg.patch
+
+  [ Michael Tokarev ]
+  * apply patch to change backticks `` in debian/rules variables
+    to $(shell) construct, by Allard Hoeve.  (Closes: #660133)
+  * depend on vgabios >= 0.6c-3~ not 0.6c-3, to assist backporting
+
+  [ Hector Oron ]
+  * Fix prctl syscall (Closes: #656926, #651083). 
+
+  [ Vagrant Cascadian ]
+  * Update to Standards-Version 3.9.3, no changes necessary.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Mon, 05 Mar 2012 13:05:14 -0800
+
 qemu (1.0+dfsg-3) unstable; urgency=low
 
   [ Aurelien Jarno ]
