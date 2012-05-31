@@ -10,11 +10,13 @@ Bug-Debian: http://bugs.debian.org/656926
 Bug-Debian: http://bugs.debian.org/651083
 Last-Update: 2012-03-02
 
---- qemu-1.0+dfsg.orig/linux-user/syscall.c
-+++ qemu-1.0+dfsg/linux-user/syscall.c
-@@ -6853,6 +6853,30 @@ abi_long do_syscall(void *cpu_env, int n
-                         goto efault;
-                 }
+Index: qemu/linux-user/syscall.c
+===================================================================
+--- qemu.orig/linux-user/syscall.c	2012-05-07 15:27:34.770038775 -0700
++++ qemu/linux-user/syscall.c	2012-05-07 15:45:39.739418845 -0700
+@@ -7724,6 +7724,30 @@
+             case TARGET_SIG_SETMASK:
+                 how = SIG_SETMASK;
                  break;
 +#ifdef PR_GET_NAME
 +        case PR_GET_NAME:
@@ -41,5 +43,5 @@ Last-Update: 2012-03-02
 +        }
 +#endif
              default:
-                 ret = get_errno(prctl(arg1, arg2, arg3, arg4, arg5));
-                 break;
+                 ret = -TARGET_EINVAL;
+                 goto fail;

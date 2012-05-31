@@ -11,20 +11,11 @@ Date:   Sun Jan 8 13:38:23 2012 +0100
     
     Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
 
-diff --git a/configure b/configure
-index 0309dad..ce39534 100755
---- a/configure
-+++ b/configure
-@@ -2552,7 +2552,7 @@ if test "$smartcard" != "no" ; then
-             libcacard_libs=$($pkg_config --libs nss 2>/dev/null)
-             libcacard_cflags=$($pkg_config --cflags nss 2>/dev/null)
-             QEMU_CFLAGS="$QEMU_CFLAGS $smartcard_cflags $libcacard_cflags"
--            LIBS="$libcacard_libs $LIBS"
-+            libs_softmmu="$libs_softmmu $libcacard_libs"
-         else
-             if test "$smartcard_nss" = "yes"; then
-                 feature_not_found "nss"
-@@ -2572,7 +2572,7 @@ if test "$usb_redir" != "no" ; then
+Index: qemu/configure
+===================================================================
+--- qemu.orig/configure	2012-05-07 15:45:39.579418050 -0700
++++ qemu/configure	2012-05-07 15:45:39.667418496 -0700
+@@ -2649,7 +2649,7 @@
          usb_redir_cflags=$($pkg_config --cflags libusbredirparser 2>/dev/null)
          usb_redir_libs=$($pkg_config --libs libusbredirparser 2>/dev/null)
          QEMU_CFLAGS="$QEMU_CFLAGS $usb_redir_cflags"

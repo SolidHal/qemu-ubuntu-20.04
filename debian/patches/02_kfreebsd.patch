@@ -1,7 +1,7 @@
-diff --git a/usb-bsd.c b/usb-bsd.c
-index 48567a3..a761b61 100644
---- a/usb-bsd.c
-+++ b/usb-bsd.c
+Index: qemu/hw/usb/host-bsd.c
+===================================================================
+--- qemu.orig/hw/usb/host-bsd.c	2012-05-24 20:19:08.825346337 -0700
++++ qemu/hw/usb/host-bsd.c	2012-05-24 20:19:25.709430064 -0700
 @@ -35,7 +35,7 @@
  
  #include <sys/ioctl.h>
@@ -11,9 +11,11 @@ index 48567a3..a761b61 100644
  #else
  #include <bus/usb/usb.h>
  #endif
---- qemu-0.14.0+dfsg.orig/configure
-+++ qemu-0.14.0+dfsg/configure
-@@ -1981,6 +1981,14 @@ cat > $TMPC << EOF
+Index: qemu/configure
+===================================================================
+--- qemu.orig/configure	2012-05-24 20:19:08.825346337 -0700
++++ qemu/configure	2012-05-24 20:19:39.145496689 -0700
+@@ -2305,6 +2305,14 @@
  #include <stddef.h>
  #include <fcntl.h>
  

@@ -13,10 +13,12 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler, libfdt-dev,
  librados-dev [amd64 i386], librbd-dev [amd64 i386],
  libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.34) [linux-any],
  libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo,
+ libbsd-dev [kfreebsd-any],
  python,
  libspice-server-dev [amd64], libspice-protocol-dev [amd64],
  libxen-dev [amd64 i386],
- libiscsi-dev
+ libiscsi-dev,
+ libusbredirparser-dev [linux-any]
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.3
 Homepage: http://www.qemu.org/
@@ -112,6 +114,7 @@ Description: QEMU user mode emulation binaries (static version)
 Package: qemu-utils
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: sharutils
 Suggests: debootstrap
 Conflicts: kvm (= 85+dfsg-4.1)
 Breaks: qemu (<< 0.11.0-2), qemu-user (<< 0.11.1-2)

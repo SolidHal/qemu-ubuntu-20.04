@@ -84,7 +84,6 @@ configure-stamp: configure
 			--disable-strip \
 			--disable-linux-user \
 			--disable-bsd-user \
-			--disable-darwin-user \
 			$(conf_arch) $(conf_audio_drv)
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
