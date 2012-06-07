@@ -2,3 +2,4 @@
 qemu-ifunc-sparc.patch
 configure-nss-usbredir.patch
 fix-armhf-prctl.patch
+do-not-include-libutil.h.patch

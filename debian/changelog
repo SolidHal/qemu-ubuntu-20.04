@@ -1,3 +1,18 @@
+qemu (1.1.0+dfsg-1) unstable; urgency=low
+
+  [ Vagrant Cascadian ]
+  * New upstream release.
+
+  [ Michael Tokarev ]
+  * do-not-include-libutil.h.patch - don't include libutil.h&Co when not
+    needed.  Fixes FTBFS on kFreebsd with recent libbsd-dev.
+  * drop libbsd-dev support on kFreebsd - no longer needed.
+  * do not build USB host support on kFreebsd (qemu uses obsolete,
+    now removed, USB API).  Use the same hack/technique as FreeBSD
+    qemu port does -- changing HOST_USB to "stub" after configure run.
+
+ -- Vagrant Cascadian <vagrant@debian.org>  Thu, 07 Jun 2012 13:44:26 -0700
+
 qemu (1.1.0~rc3+dfsg-1) experimental; urgency=low
 
   * New upstream release candidate.

@@ -86,6 +86,15 @@ configure-stamp: configure
 			--disable-bsd-user \
 			$(conf_arch) $(conf_audio_drv)
 
+ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
+# Hack alert.
+# On recent kFreebsd, old USB host API has been removed,
+# but qemu did not learn to use new USB API.
+# Just do not build USB host support.
+	sed -i 's/^HOST_USB=bsd/HOST_USB=stub/' \
+		$(CURDIR)/system-build/config-host.mak
+endif
+
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 	# user build
 	mkdir -p $(CURDIR)/user-build
