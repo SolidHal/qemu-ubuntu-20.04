@@ -10,7 +10,6 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler, libfdt-dev,
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
  libvdeplug2-dev [linux-any], libasound2-dev [linux-any],
  libbluetooth-dev [linux-any], libattr1-dev, 
- librados-dev [amd64 i386], librbd-dev [amd64 i386],
  libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.34) [linux-any],
  libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo,
  python,
@@ -63,7 +62,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3~), seabios (>= 1.6.3~), openbios-ppc (>= 1.0+svn1047), openbios-sparc (>= 1.0+svn1047), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3~), seabios (>= 1.7.0~), openbios-ppc (>= 1.0+svn1060), openbios-sparc (>= 1.0+svn1060), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)

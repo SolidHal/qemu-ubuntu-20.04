@@ -1,7 +1,36 @@
+qemu (1.1.2+dfsg-1) unstable; urgency=low
+
+  [Michael  Tokarev]
+  * new upstream stable/bugfix release, fixing a LOT of bugs,
+    including CVE-2012-3515 (Closes: #686973, #681985)
+  * bump versioned depends of seabios to 1.7.0~, since this version ships
+    kvmvapic.bin.
+  * ship /usr/share/qemu/qemu-icon.bmp (Closes: #681317)
+  * do not build-depend on ceph (librbd-dev librados-dev), since ceph is
+    having longstanding issues in wheezy.
+  * add tcg_s390-fix-ld_st-with-CONFIG_TCG_PASS_AREG0.patch - upstream fix
+    to un-break s390[x] emulation code.  Similar fixes were included for
+    other platforms in 1.1.2 changeset.  Without this fix, qemu is basically
+    useless on s390.
+  * document -netdev option in the manpage, a long-standing omission
+    (net-add--netdev-options-to-man-page.patch)
+
+  [Vagrant Cascadian]
+  * qemu-system: Add symlinks for extboot.bin, kvmvapic.bin and vapic.bin to 
+    binaries shipped in seabios. Closes: #678217, #678217.
+  * qemu-system: Remove dead link for ne2k_isa.rom, which is not included in 
+    ipxe. Closes: #678217. 
+  * qemu-system: Bump versioned openbios-sparc and openbios-ppc Depends to 
+    1.0+svn1060, to ensure we use at least version which is used by upstream.
+    Wheezy already has the right version, but we should not break partial
+    upgrades.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 09 Sep 2012 18:52:57 +0400
+
 qemu (1.1.0+dfsg-1) unstable; urgency=low
 
   [ Vagrant Cascadian ]
-  * New upstream release.
+  * New upstream release. (Closes: #655604, #655145)
 
   [ Michael Tokarev ]
   * do-not-include-libutil.h.patch - don't include libutil.h&Co when not

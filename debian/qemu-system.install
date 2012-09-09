@@ -24,3 +24,4 @@ debian/tmp/usr/bin/qemu-system-xtensa
 debian/tmp/usr/bin/qemu-system-xtensaeb
 debian/tmp/usr/share/man/man1/qemu.1
 debian/tmp/usr/share/qemu/*.dtb
+pc-bios/qemu-icon.bmp /usr/share/qemu/

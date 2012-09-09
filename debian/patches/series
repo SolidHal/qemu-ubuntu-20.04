@@ -3,3 +3,5 @@ qemu-ifunc-sparc.patch
 configure-nss-usbredir.patch
 fix-armhf-prctl.patch
 do-not-include-libutil.h.patch
+tcg_s390-fix-ld_st-with-CONFIG_TCG_PASS_AREG0.patch
+net-add--netdev-options-to-man-page.patch

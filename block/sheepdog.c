@@ -489,6 +489,7 @@ static int connect_to_sdog(const char *addr, const char *port)
             if (errno == EINTR) {
                 goto reconnect;
             }
+            close(fd);
             break;
         }
 
@@ -1957,7 +1958,7 @@ static int do_load_save_vmstate(BDRVSheepdogState *s, uint8_t *data,
                                 int64_t pos, int size, int load)
 {
     int fd, create;
-    int ret = 0;
+    int ret = 0, remaining = size;
     unsigned int data_len;
     uint64_t vmstate_oid;
     uint32_t vdi_index;
@@ -1968,11 +1969,11 @@ static int do_load_save_vmstate(BDRVSheepdogState *s, uint8_t *data,
         return fd;
     }
 
-    while (size) {
+    while (remaining) {
         vdi_index = pos / SD_DATA_OBJ_SIZE;
         offset = pos % SD_DATA_OBJ_SIZE;
 
-        data_len = MIN(size, SD_DATA_OBJ_SIZE);
+        data_len = MIN(remaining, SD_DATA_OBJ_SIZE);
 
         vmstate_oid = vid_to_vmstate_oid(s->inode.vdi_id, vdi_index);
 
@@ -1993,9 +1994,9 @@ static int do_load_save_vmstate(BDRVSheepdogState *s, uint8_t *data,
         }
 
         pos += data_len;
-        size -= data_len;
-        ret += data_len;
+        remaining -= data_len;
     }
+    ret = size;
 cleanup:
     closesocket(fd);
     return ret;
