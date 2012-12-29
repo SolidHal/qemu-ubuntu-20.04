@@ -29,6 +29,8 @@
 
 /* host loopback address */
 struct in_addr loopback_addr;
+/* host loopback network mask */
+unsigned long loopback_mask;
 
 /* emulated hosts use the MAC addr 52:55:IP:IP:IP:IP */
 static const uint8_t special_ethaddr[ETH_ALEN] = {
@@ -191,6 +193,7 @@ static void slirp_init_once(void)
 #endif
 
     loopback_addr.s_addr = htonl(INADDR_LOOPBACK);
+    loopback_mask = htonl(IN_CLASSA_NET);
 }
 
 static void slirp_state_save(QEMUFile *f, void *opaque);
@@ -200,7 +203,8 @@ Slirp *slirp_init(int restricted, struct in_addr vnetwork,
                   struct in_addr vnetmask, struct in_addr vhost,
                   const char *vhostname, const char *tftp_path,
                   const char *bootfile, struct in_addr vdhcp_start,
-                  struct in_addr vnameserver, void *opaque)
+                  struct in_addr vnameserver, const char **vdnssearch,
+                  void *opaque)
 {
     Slirp *slirp = g_malloc0(sizeof(Slirp));
 
@@ -230,6 +234,10 @@ Slirp *slirp_init(int restricted, struct in_addr vnetwork,
     slirp->vdhcp_startaddr = vdhcp_start;
     slirp->vnameserver_addr = vnameserver;
 
+    if (vdnssearch) {
+        translate_dnssearch(slirp, vdnssearch);
+    }
+
     slirp->opaque = opaque;
 
     register_savevm(NULL, "slirp", 0, 3,
@@ -249,6 +257,7 @@ void slirp_cleanup(Slirp *slirp)
     ip_cleanup(slirp);
     m_cleanup(slirp);
 
+    g_free(slirp->vdnssearch);
     g_free(slirp->tftp_prefix);
     g_free(slirp->bootp_filename);
     g_free(slirp);

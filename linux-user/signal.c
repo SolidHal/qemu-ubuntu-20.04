@@ -202,46 +202,67 @@ void target_to_host_old_sigset(sigset_t *sigset,
 static inline void host_to_target_siginfo_noswap(target_siginfo_t *tinfo,
                                                  const siginfo_t *info)
 {
-    int sig;
-    sig = host_to_target_signal(info->si_signo);
+    int sig = host_to_target_signal(info->si_signo);
     tinfo->si_signo = sig;
     tinfo->si_errno = 0;
     tinfo->si_code = info->si_code;
-    if (sig == SIGILL || sig == SIGFPE || sig == SIGSEGV ||
-        sig == SIGBUS || sig == SIGTRAP) {
-        /* should never come here, but who knows. The information for
-           the target is irrelevant */
+
+    if (sig == TARGET_SIGILL || sig == TARGET_SIGFPE || sig == TARGET_SIGSEGV
+        || sig == TARGET_SIGBUS || sig == TARGET_SIGTRAP) {
+        /* Should never come here, but who knows. The information for
+           the target is irrelevant.  */
         tinfo->_sifields._sigfault._addr = 0;
-    } else if (sig == SIGIO) {
+    } else if (sig == TARGET_SIGIO) {
+        tinfo->_sifields._sigpoll._band = info->si_band;
 	tinfo->_sifields._sigpoll._fd = info->si_fd;
+    } else if (sig == TARGET_SIGCHLD) {
+        tinfo->_sifields._sigchld._pid = info->si_pid;
+        tinfo->_sifields._sigchld._uid = info->si_uid;
+        tinfo->_sifields._sigchld._status
+            = host_to_target_waitstatus(info->si_status);
+        tinfo->_sifields._sigchld._utime = info->si_utime;
+        tinfo->_sifields._sigchld._stime = info->si_stime;
     } else if (sig >= TARGET_SIGRTMIN) {
         tinfo->_sifields._rt._pid = info->si_pid;
         tinfo->_sifields._rt._uid = info->si_uid;
         /* XXX: potential problem if 64 bit */
-        tinfo->_sifields._rt._sigval.sival_ptr =
-            (abi_ulong)(unsigned long)info->si_value.sival_ptr;
+        tinfo->_sifields._rt._sigval.sival_ptr
+            = (abi_ulong)(unsigned long)info->si_value.sival_ptr;
     }
 }
 
 static void tswap_siginfo(target_siginfo_t *tinfo,
                           const target_siginfo_t *info)
 {
-    int sig;
-    sig = info->si_signo;
+    int sig = info->si_signo;
     tinfo->si_signo = tswap32(sig);
     tinfo->si_errno = tswap32(info->si_errno);
     tinfo->si_code = tswap32(info->si_code);
-    if (sig == SIGILL || sig == SIGFPE || sig == SIGSEGV ||
-        sig == SIGBUS || sig == SIGTRAP) {
-        tinfo->_sifields._sigfault._addr =
-            tswapal(info->_sifields._sigfault._addr);
-    } else if (sig == SIGIO) {
-	tinfo->_sifields._sigpoll._fd = tswap32(info->_sifields._sigpoll._fd);
+
+    if (sig == TARGET_SIGILL || sig == TARGET_SIGFPE || sig == TARGET_SIGSEGV
+        || sig == TARGET_SIGBUS || sig == TARGET_SIGTRAP) {
+        tinfo->_sifields._sigfault._addr
+            = tswapal(info->_sifields._sigfault._addr);
+    } else if (sig == TARGET_SIGIO) {
+        tinfo->_sifields._sigpoll._band
+            = tswap32(info->_sifields._sigpoll._band);
+        tinfo->_sifields._sigpoll._fd = tswap32(info->_sifields._sigpoll._fd);
+    } else if (sig == TARGET_SIGCHLD) {
+        tinfo->_sifields._sigchld._pid
+            = tswap32(info->_sifields._sigchld._pid);
+        tinfo->_sifields._sigchld._uid
+            = tswap32(info->_sifields._sigchld._uid);
+        tinfo->_sifields._sigchld._status
+            = tswap32(info->_sifields._sigchld._status);
+        tinfo->_sifields._sigchld._utime
+            = tswapal(info->_sifields._sigchld._utime);
+        tinfo->_sifields._sigchld._stime
+            = tswapal(info->_sifields._sigchld._stime);
     } else if (sig >= TARGET_SIGRTMIN) {
         tinfo->_sifields._rt._pid = tswap32(info->_sifields._rt._pid);
         tinfo->_sifields._rt._uid = tswap32(info->_sifields._rt._uid);
-        tinfo->_sifields._rt._sigval.sival_ptr =
-            tswapal(info->_sifields._rt._sigval.sival_ptr);
+        tinfo->_sifields._rt._sigval.sival_ptr
+            = tswapal(info->_sifields._rt._sigval.sival_ptr);
     }
 }
 
@@ -1844,7 +1865,7 @@ typedef struct {
 } __siginfo_t;
 
 typedef struct {
-        unsigned   long si_float_regs [32];
+        abi_ulong       si_float_regs[32];
         unsigned   long si_fsr;
         unsigned   long si_fpqdepth;
         struct {
@@ -2056,11 +2077,9 @@ restore_fpu_state(CPUSPARCState *env, qemu_siginfo_fpu_t *fpu)
                 return -EFAULT;
 #endif
 
-#if 0
         /* XXX: incorrect */
-        err = __copy_from_user(&env->fpr[0], &fpu->si_float_regs[0],
-	                             (sizeof(unsigned long) * 32));
-#endif
+        err = copy_from_user(&env->fpr[0], fpu->si_float_regs[0],
+                             (sizeof(abi_ulong) * 32));
         err |= __get_user(env->fsr, &fpu->si_fsr);
 #if 0
         err |= __get_user(current->thread.fpqdepth, &fpu->si_fpqdepth);
@@ -2764,7 +2783,6 @@ static void setup_frame(int sig, struct target_sigaction * ka,
 give_sigsegv:
     unlock_user_struct(frame, frame_addr, 1);
     force_sig(TARGET_SIGSEGV/*, current*/);
-    return;
 }
 
 long do_sigreturn(CPUMIPSState *regs)
@@ -2849,7 +2867,7 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
     * Arguments to signal handler:
     *
     *   a0 = signal number
-    *   a1 = pointer to struct siginfo
+    *   a1 = pointer to siginfo_t
     *   a2 = pointer to struct ucontext
     *
     * $25 and PC point to the signal handler, $29 points to the
@@ -2873,7 +2891,6 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
 give_sigsegv:
     unlock_user_struct(frame, frame_addr, 1);
     force_sig(TARGET_SIGSEGV/*, current*/);
-    return;
 }
 
 long do_rt_sigreturn(CPUMIPSState *env)
@@ -3255,7 +3272,7 @@ struct target_signal_frame {
 };
 
 struct rt_signal_frame {
-    struct siginfo info;
+    siginfo_t info;
     struct ucontext uc;
     uint32_t tramp[2];
 };
@@ -3474,9 +3491,9 @@ struct target_signal_frame {
 };
 
 struct rt_signal_frame {
-        struct siginfo *pinfo;
+        siginfo_t *pinfo;
         void *puc;
-        struct siginfo info;
+        siginfo_t info;
         struct ucontext uc;
         uint8_t retcode[8];       /* Trampoline code. */
 };
@@ -3628,6 +3645,235 @@ long do_rt_sigreturn(CPUCRISState *env)
     fprintf(stderr, "CRIS do_rt_sigreturn: not implemented\n");
     return -TARGET_ENOSYS;
 }
+
+#elif defined(TARGET_OPENRISC)
+
+struct target_sigcontext {
+    struct target_pt_regs regs;
+    abi_ulong oldmask;
+    abi_ulong usp;
+};
+
+struct target_ucontext {
+    abi_ulong tuc_flags;
+    abi_ulong tuc_link;
+    target_stack_t tuc_stack;
+    struct target_sigcontext tuc_mcontext;
+    target_sigset_t tuc_sigmask;   /* mask last for extensibility */
+};
+
+struct target_rt_sigframe {
+    abi_ulong pinfo;
+    uint64_t puc;
+    struct target_siginfo info;
+    struct target_sigcontext sc;
+    struct target_ucontext uc;
+    unsigned char retcode[16];  /* trampoline code */
+};
+
+/* This is the asm-generic/ucontext.h version */
+#if 0
+static int restore_sigcontext(CPUOpenRISCState *regs,
+                              struct target_sigcontext *sc)
+{
+    unsigned int err = 0;
+    unsigned long old_usp;
+
+    /* Alwys make any pending restarted system call return -EINTR */
+    current_thread_info()->restart_block.fn = do_no_restart_syscall;
+
+    /* restore the regs from &sc->regs (same as sc, since regs is first)
+     * (sc is already checked for VERIFY_READ since the sigframe was
+     *  checked in sys_sigreturn previously)
+     */
+
+    if (copy_from_user(regs, &sc, sizeof(struct target_pt_regs))) {
+        goto badframe;
+    }
+
+    /* make sure the U-flag is set so user-mode cannot fool us */
+
+    regs->sr &= ~SR_SM;
+
+    /* restore the old USP as it was before we stacked the sc etc.
+     * (we cannot just pop the sigcontext since we aligned the sp and
+     *  stuff after pushing it)
+     */
+
+    err |= __get_user(old_usp, &sc->usp);
+    phx_signal("old_usp 0x%lx", old_usp);
+
+    __PHX__ REALLY           /* ??? */
+    wrusp(old_usp);
+    regs->gpr[1] = old_usp;
+
+    /* TODO: the other ports use regs->orig_XX to disable syscall checks
+     * after this completes, but we don't use that mechanism. maybe we can
+     * use it now ?
+     */
+
+    return err;
+
+badframe:
+    return 1;
+}
+#endif
+
+/* Set up a signal frame.  */
+
+static int setup_sigcontext(struct target_sigcontext *sc,
+                            CPUOpenRISCState *regs,
+                            unsigned long mask)
+{
+    int err = 0;
+    unsigned long usp = regs->gpr[1];
+
+    /* copy the regs. they are first in sc so we can use sc directly */
+
+    /*err |= copy_to_user(&sc, regs, sizeof(struct target_pt_regs));*/
+
+    /* Set the frametype to CRIS_FRAME_NORMAL for the execution of
+       the signal handler. The frametype will be restored to its previous
+       value in restore_sigcontext. */
+    /*regs->frametype = CRIS_FRAME_NORMAL;*/
+
+    /* then some other stuff */
+    err |= __put_user(mask, &sc->oldmask);
+    err |= __put_user(usp, &sc->usp); return err;
+}
+
+static inline unsigned long align_sigframe(unsigned long sp)
+{
+    unsigned long i;
+    i = sp & ~3UL;
+    return i;
+}
+
+static inline abi_ulong get_sigframe(struct target_sigaction *ka,
+                                     CPUOpenRISCState *regs,
+                                     size_t frame_size)
+{
+    unsigned long sp = regs->gpr[1];
+    int onsigstack = on_sig_stack(sp);
+
+    /* redzone */
+    /* This is the X/Open sanctioned signal stack switching.  */
+    if ((ka->sa_flags & SA_ONSTACK) != 0 && !onsigstack) {
+        sp = target_sigaltstack_used.ss_sp + target_sigaltstack_used.ss_size;
+    }
+
+    sp = align_sigframe(sp - frame_size);
+
+    /*
+     * If we are on the alternate signal stack and would overflow it, don't.
+     * Return an always-bogus address instead so we will die with SIGSEGV.
+     */
+
+    if (onsigstack && !likely(on_sig_stack(sp))) {
+        return -1L;
+    }
+
+    return sp;
+}
+
+static void setup_frame(int sig, struct target_sigaction *ka,
+                        target_sigset_t *set, CPUOpenRISCState *env)
+{
+    qemu_log("Not implement.\n");
+}
+
+static void setup_rt_frame(int sig, struct target_sigaction *ka,
+                           target_siginfo_t *info,
+                           target_sigset_t *set, CPUOpenRISCState *env)
+{
+    int err = 0;
+    abi_ulong frame_addr;
+    unsigned long return_ip;
+    struct target_rt_sigframe *frame;
+    abi_ulong info_addr, uc_addr;
+
+    frame_addr = get_sigframe(ka, env, sizeof *frame);
+
+    frame_addr = get_sigframe(ka, env, sizeof(*frame));
+    if (!lock_user_struct(VERIFY_WRITE, frame, frame_addr, 0)) {
+        goto give_sigsegv;
+    }
+
+    info_addr = frame_addr + offsetof(struct target_rt_sigframe, info);
+    err |= __put_user(info_addr, &frame->pinfo);
+    uc_addr = frame_addr + offsetof(struct target_rt_sigframe, uc);
+    err |= __put_user(uc_addr, &frame->puc);
+
+    if (ka->sa_flags & SA_SIGINFO) {
+        err |= copy_siginfo_to_user(&frame->info, info);
+    }
+    if (err) {
+        goto give_sigsegv;
+    }
+
+    /*err |= __clear_user(&frame->uc, offsetof(struct ucontext, uc_mcontext));*/
+    err |= __put_user(0, &frame->uc.tuc_flags);
+    err |= __put_user(0, &frame->uc.tuc_link);
+    err |= __put_user(target_sigaltstack_used.ss_sp,
+                      &frame->uc.tuc_stack.ss_sp);
+    err |= __put_user(sas_ss_flags(env->gpr[1]), &frame->uc.tuc_stack.ss_flags);
+    err |= __put_user(target_sigaltstack_used.ss_size,
+                      &frame->uc.tuc_stack.ss_size);
+    err |= setup_sigcontext(&frame->sc, env, set->sig[0]);
+
+    /*err |= copy_to_user(frame->uc.tuc_sigmask, set, sizeof(*set));*/
+
+    if (err) {
+        goto give_sigsegv;
+    }
+
+    /* trampoline - the desired return ip is the retcode itself */
+    return_ip = (unsigned long)&frame->retcode;
+    /* This is l.ori r11,r0,__NR_sigreturn, l.sys 1 */
+    err |= __put_user(0xa960, (short *)(frame->retcode + 0));
+    err |= __put_user(TARGET_NR_rt_sigreturn, (short *)(frame->retcode + 2));
+    err |= __put_user(0x20000001, (unsigned long *)(frame->retcode + 4));
+    err |= __put_user(0x15000000, (unsigned long *)(frame->retcode + 8));
+
+    if (err) {
+        goto give_sigsegv;
+    }
+
+    /* TODO what is the current->exec_domain stuff and invmap ? */
+
+    /* Set up registers for signal handler */
+    env->pc = (unsigned long)ka->_sa_handler; /* what we enter NOW */
+    env->gpr[9] = (unsigned long)return_ip;     /* what we enter LATER */
+    env->gpr[3] = (unsigned long)sig;           /* arg 1: signo */
+    env->gpr[4] = (unsigned long)&frame->info;  /* arg 2: (siginfo_t*) */
+    env->gpr[5] = (unsigned long)&frame->uc;    /* arg 3: ucontext */
+
+    /* actually move the usp to reflect the stacked frame */
+    env->gpr[1] = (unsigned long)frame;
+
+    return;
+
+give_sigsegv:
+    unlock_user_struct(frame, frame_addr, 1);
+    if (sig == TARGET_SIGSEGV) {
+        ka->_sa_handler = TARGET_SIG_DFL;
+    }
+    force_sig(TARGET_SIGSEGV);
+}
+
+long do_sigreturn(CPUOpenRISCState *env)
+{
+
+    qemu_log("do_sigreturn: not implemented\n");
+    return -TARGET_ENOSYS;
+}
+
+long do_rt_sigreturn(CPUOpenRISCState *env)
+{
+    qemu_log("do_rt_sigreturn: not implemented\n");
+    return -TARGET_ENOSYS;
+}
+/* TARGET_OPENRISC */
 
 #elif defined(TARGET_S390X)
 
@@ -4378,8 +4624,7 @@ static void setup_frame(int sig, struct target_sigaction *ka,
 
 sigsegv:
     unlock_user_struct(frame, frame_addr, 1);
-    if (logfile)
-        fprintf (logfile, "segfaulting from setup_frame\n");
+    qemu_log("segfaulting from setup_frame\n");
     force_sig(TARGET_SIGSEGV);
 }
 
@@ -4447,8 +4692,7 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
 
 sigsegv:
     unlock_user_struct(rt_sf, rt_sf_addr, 1);
-    if (logfile)
-        fprintf (logfile, "segfaulting from setup_rt_frame\n");
+    qemu_log("segfaulting from setup_rt_frame\n");
     force_sig(TARGET_SIGSEGV);
 
 }
@@ -4489,8 +4733,7 @@ long do_sigreturn(CPUPPCState *env)
 sigsegv:
     unlock_user_struct(sr, sr_addr, 1);
     unlock_user_struct(sc, sc_addr, 1);
-    if (logfile)
-        fprintf (logfile, "segfaulting from do_sigreturn\n");
+    qemu_log("segfaulting from do_sigreturn\n");
     force_sig(TARGET_SIGSEGV);
     return 0;
 }
@@ -4552,8 +4795,7 @@ long do_rt_sigreturn(CPUPPCState *env)
 
 sigsegv:
     unlock_user_struct(rt_sf, rt_sf_addr, 1);
-    if (logfile)
-        fprintf (logfile, "segfaulting from do_rt_sigreturn\n");
+    qemu_log("segfaulting from do_rt_sigreturn\n");
     force_sig(TARGET_SIGSEGV);
     return 0;
 }

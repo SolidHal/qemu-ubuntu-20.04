@@ -36,7 +36,7 @@
 
 /* Board init.  */
 
-static void hb_write_secondary(CPUARMState *env, const struct arm_boot_info *info)
+static void hb_write_secondary(ARMCPU *cpu, const struct arm_boot_info *info)
 {
     int n;
     uint32_t smpboot[] = {
@@ -60,8 +60,10 @@ static void hb_write_secondary(CPUARMState *env, const struct arm_boot_info *inf
     rom_add_blob_fixed("smpboot", smpboot, sizeof(smpboot), SMP_BOOT_ADDR);
 }
 
-static void hb_reset_secondary(CPUARMState *env, const struct arm_boot_info *info)
+static void hb_reset_secondary(ARMCPU *cpu, const struct arm_boot_info *info)
 {
+    CPUARMState *env = &cpu->env;
+
     switch (info->nb_cpus) {
     case 4:
         stl_phys_notdirty(SMP_BOOT_REG + 0x30, 0);
@@ -77,7 +79,7 @@ static void hb_reset_secondary(CPUARMState *env, const struct arm_boot_info *inf
 }
 
 #define NUM_REGS      0x200
-static void hb_regs_write(void *opaque, target_phys_addr_t offset,
+static void hb_regs_write(void *opaque, hwaddr offset,
                           uint64_t value, unsigned size)
 {
     uint32_t *regs = opaque;
@@ -93,7 +95,7 @@ static void hb_regs_write(void *opaque, target_phys_addr_t offset,
     regs[offset/4] = value;
 }
 
-static uint64_t hb_regs_read(void *opaque, target_phys_addr_t offset,
+static uint64_t hb_regs_read(void *opaque, hwaddr offset,
                              unsigned size)
 {
     uint32_t *regs = opaque;
@@ -185,12 +187,13 @@ static struct arm_boot_info highbank_binfo;
  * 32-bit host, set the reg value of memory to 0xf7ff00000 in the
  * device tree and pass -m 2047 to QEMU.
  */
-static void highbank_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void highbank_init(QEMUMachineInitArgs *args)
 {
-    CPUARMState *env = NULL;
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
     DeviceState *dev;
     SysBusDevice *busdev;
     qemu_irq *irqp;
@@ -213,10 +216,10 @@ static void highbank_init(ram_addr_t ram_size,
             fprintf(stderr, "Unable to find CPU definition\n");
             exit(1);
         }
-        env = &cpu->env;
+
         /* This will become a QOM property eventually */
         cpu->reset_cbar = GIC_BASE_ADDR;
-        irqp = arm_pic_init_cpu(env);
+        irqp = arm_pic_init_cpu(cpu);
         cpu_irq[n] = irqp[ARM_PIC_CPU_IRQ];
     }
 
@@ -283,7 +286,7 @@ static void highbank_init(ram_addr_t ram_size,
 
     sysbus_create_simple("sysbus-ahci", 0xffe08000, pic[83]);
 
-    if (nd_table[0].vlan) {
+    if (nd_table[0].used) {
         qemu_check_nic_model(&nd_table[0], "xgmac");
         dev = qdev_create(NULL, "xgmac");
         qdev_set_nic_properties(dev, &nd_table[0]);
@@ -316,7 +319,7 @@ static void highbank_init(ram_addr_t ram_size,
     highbank_binfo.loader_start = 0;
     highbank_binfo.write_secondary_boot = hb_write_secondary;
     highbank_binfo.secondary_cpu_reset_hook = hb_reset_secondary;
-    arm_load_kernel(first_cpu, &highbank_binfo);
+    arm_load_kernel(arm_env_get_cpu(first_cpu), &highbank_binfo);
 }
 
 static QEMUMachine highbank_machine = {

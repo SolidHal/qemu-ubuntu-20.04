@@ -29,9 +29,7 @@
 
 #include "qemu-common.h"
 #include "qemu-queue.h"
-#ifdef CONFIG_VNC_THREAD
 #include "qemu-thread.h"
-#endif
 #include "console.h"
 #include "monitor.h"
 #include "audio/audio.h"
@@ -71,7 +69,7 @@ typedef struct VncRectEntry VncRectEntry;
 
 typedef int VncReadEvent(VncState *vs, uint8_t *data, size_t len);
 
-typedef void VncWritePixels(VncState *vs, struct PixelFormat *pf, void *data, int size);
+typedef void VncWritePixels(VncState *vs, void *data, int size);
 
 typedef void VncSendHextileTile(VncState *vs,
                                 int x, int y, int w, int h,
@@ -119,7 +117,8 @@ struct VncSurface
     struct timeval last_freq_check;
     DECLARE_BITMAP(dirty[VNC_MAX_HEIGHT], VNC_MAX_WIDTH / 16);
     VncRectStat stats[VNC_STAT_ROWS][VNC_STAT_COLS];
-    DisplaySurface *ds;
+    pixman_image_t *fb;
+    pixman_format_code_t format;
 };
 
 typedef enum VncShareMode {
@@ -146,16 +145,14 @@ struct VncDisplay
     DisplayState *ds;
     kbd_layout_t *kbd_layout;
     int lock_key_sync;
-#ifdef CONFIG_VNC_THREAD
     QemuMutex mutex;
-#endif
 
     QEMUCursor *cursor;
     int cursor_msize;
     uint8_t *cursor_mask;
 
     struct VncSurface guest;   /* guest visible surface (aka ds->surface) */
-    DisplaySurface *server;  /* vnc server surface */
+    pixman_image_t *server;    /* vnc server surface */
 
     char *display;
     char *password;
@@ -216,7 +213,6 @@ typedef struct VncZywrle {
     int buf[VNC_ZRLE_TILE_WIDTH * VNC_ZRLE_TILE_HEIGHT];
 } VncZywrle;
 
-#ifdef CONFIG_VNC_THREAD
 struct VncRect
 {
     int x;
@@ -238,14 +234,6 @@ struct VncJob
     QLIST_HEAD(, VncRectEntry) rectangles;
     QTAILQ_ENTRY(VncJob) next;
 };
-#else
-struct VncJob
-{
-    VncState *vs;
-    int rectangles;
-    size_t saved_offset;
-};
-#endif
 
 struct VncState
 {
@@ -288,7 +276,9 @@ struct VncState
     Buffer input;
     /* current output mode information */
     VncWritePixels *write_pixels;
-    DisplaySurface clientds;
+    PixelFormat client_pf;
+    pixman_format_code_t client_format;
+    bool client_be;
 
     CaptureVoiceOut *audio_cap;
     struct audsettings as;
@@ -300,13 +290,9 @@ struct VncState
     QEMUPutLEDEntry *led;
 
     bool abort;
-#ifndef CONFIG_VNC_THREAD
-    VncJob job;
-#else
     QemuMutex output_mutex;
     QEMUBH *bh;
     Buffer jobs_buffer;
-#endif
 
     /* Encoding specific, if you add something here, don't forget to
      *  update vnc_async_encoding_start()
@@ -510,9 +496,6 @@ void vnc_read_when(VncState *vs, VncReadEvent *func, size_t expecting);
 
 
 /* Buffer I/O functions */
-uint8_t read_u8(uint8_t *data, size_t offset);
-uint16_t read_u16(uint8_t *data, size_t offset);
-int32_t read_s32(uint8_t *data, size_t offset);
 uint32_t read_u32(uint8_t *data, size_t offset);
 
 /* Protocol stage functions */
@@ -524,8 +507,6 @@ void start_auth_vnc(VncState *vs);
 
 /* Buffer management */
 void buffer_reserve(Buffer *buffer, size_t len);
-int buffer_empty(Buffer *buffer);
-uint8_t *buffer_end(Buffer *buffer);
 void buffer_reset(Buffer *buffer);
 void buffer_free(Buffer *buffer);
 void buffer_append(Buffer *buffer, const void *data, size_t len);
@@ -543,6 +524,14 @@ static inline uint32_t vnc_has_feature(VncState *vs, int feature) {
 /* Framebuffer */
 void vnc_framebuffer_update(VncState *vs, int x, int y, int w, int h,
                             int32_t encoding);
+
+/* server fb is in PIXMAN_x8r8g8b8 */
+#define VNC_SERVER_FB_FORMAT PIXMAN_FORMAT(32, PIXMAN_TYPE_ARGB, 0, 8, 8, 8)
+#define VNC_SERVER_FB_BITS   (PIXMAN_FORMAT_BPP(VNC_SERVER_FB_FORMAT))
+#define VNC_SERVER_FB_BYTES  ((VNC_SERVER_FB_BITS+7)/8)
+
+void *vnc_server_fb_ptr(VncDisplay *vd, int x, int y);
+int vnc_server_fb_stride(VncDisplay *vd);
 
 void vnc_convert_pixel(VncState *vs, uint8_t *buf, uint32_t v);
 double vnc_update_freq(VncState *vs, int x, int y, int w, int h);

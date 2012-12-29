@@ -14,6 +14,7 @@
 #include "qemu-common.h"
 #include "qemu-error.h"
 #include "trace.h"
+#include "hw/block-common.h"
 #include "blockdev.h"
 #include "virtio-blk.h"
 #include "scsi-defs.h"
@@ -63,31 +64,22 @@ static void virtio_blk_req_complete(VirtIOBlockReq *req, int status)
 }
 
 static int virtio_blk_handle_rw_error(VirtIOBlockReq *req, int error,
-    int is_read)
+    bool is_read)
 {
-    BlockErrorAction action = bdrv_get_on_error(req->dev->bs, is_read);
+    BlockErrorAction action = bdrv_get_error_action(req->dev->bs, is_read, error);
     VirtIOBlock *s = req->dev;
 
-    if (action == BLOCK_ERR_IGNORE) {
-        bdrv_emit_qmp_error_event(s->bs, BDRV_ACTION_IGNORE, is_read);
-        return 0;
-    }
-
-    if ((error == ENOSPC && action == BLOCK_ERR_STOP_ENOSPC)
-            || action == BLOCK_ERR_STOP_ANY) {
+    if (action == BDRV_ACTION_STOP) {
         req->next = s->rq;
         s->rq = req;
-        bdrv_emit_qmp_error_event(s->bs, BDRV_ACTION_STOP, is_read);
-        vm_stop(RUN_STATE_IO_ERROR);
-        bdrv_iostatus_set_err(s->bs, error);
-    } else {
+    } else if (action == BDRV_ACTION_REPORT) {
         virtio_blk_req_complete(req, VIRTIO_BLK_S_IOERR);
         bdrv_acct_done(s->bs, &req->acct);
         g_free(req);
-        bdrv_emit_qmp_error_event(s->bs, BDRV_ACTION_REPORT, is_read);
     }
 
-    return 1;
+    bdrv_error_action(s->bs, action, is_read, error);
+    return action != BDRV_ACTION_IGNORE;
 }
 
 static void virtio_blk_rw_complete(void *opaque, int ret)
@@ -97,7 +89,7 @@ static void virtio_blk_rw_complete(void *opaque, int ret)
     trace_virtio_blk_rw_complete(req, ret);
 
     if (ret) {
-        int is_read = !(ldl_p(&req->out->type) & VIRTIO_BLK_T_OUT);
+        bool is_read = !(ldl_p(&req->out->type) & VIRTIO_BLK_T_OUT);
         if (virtio_blk_handle_rw_error(req, -ret, is_read))
             return;
     }
@@ -479,19 +471,17 @@ static void virtio_blk_update_config(VirtIODevice *vdev, uint8_t *config)
     VirtIOBlock *s = to_virtio_blk(vdev);
     struct virtio_blk_config blkcfg;
     uint64_t capacity;
-    int cylinders, heads, secs;
     int blk_size = s->conf->logical_block_size;
 
     bdrv_get_geometry(s->bs, &capacity);
-    bdrv_get_geometry_hint(s->bs, &cylinders, &heads, &secs);
     memset(&blkcfg, 0, sizeof(blkcfg));
     stq_raw(&blkcfg.capacity, capacity);
     stl_raw(&blkcfg.seg_max, 128 - 2);
-    stw_raw(&blkcfg.cylinders, cylinders);
+    stw_raw(&blkcfg.cylinders, s->conf->cyls);
     stl_raw(&blkcfg.blk_size, blk_size);
     stw_raw(&blkcfg.min_io_size, s->conf->min_io_size / blk_size);
     stw_raw(&blkcfg.opt_io_size, s->conf->opt_io_size / blk_size);
-    blkcfg.heads = heads;
+    blkcfg.heads = s->conf->heads;
     /*
      * We must ensure that the block device capacity is a multiple of
      * the logical block size. If that is not the case, lets use
@@ -503,15 +493,25 @@ static void virtio_blk_update_config(VirtIODevice *vdev, uint8_t *config)
      * divided by 512 - instead it is the amount of blk_size blocks
      * per track (cylinder).
      */
-    if (bdrv_getlength(s->bs) /  heads / secs % blk_size) {
-        blkcfg.sectors = secs & ~s->sector_mask;
+    if (bdrv_getlength(s->bs) /  s->conf->heads / s->conf->secs % blk_size) {
+        blkcfg.sectors = s->conf->secs & ~s->sector_mask;
     } else {
-        blkcfg.sectors = secs;
+        blkcfg.sectors = s->conf->secs;
     }
     blkcfg.size_max = 0;
     blkcfg.physical_block_exp = get_physical_block_exp(s->conf);
     blkcfg.alignment_offset = 0;
+    blkcfg.wce = bdrv_enable_write_cache(s->bs);
     memcpy(config, &blkcfg, sizeof(struct virtio_blk_config));
+}
+
+static void virtio_blk_set_config(VirtIODevice *vdev, const uint8_t *config)
+{
+    VirtIOBlock *s = to_virtio_blk(vdev);
+    struct virtio_blk_config blkcfg;
+
+    memcpy(&blkcfg, config, sizeof(blkcfg));
+    bdrv_set_enable_write_cache(s->bs, blkcfg.wce != 0);
 }
 
 static uint32_t virtio_blk_get_features(VirtIODevice *vdev, uint32_t features)
@@ -525,12 +525,25 @@ static uint32_t virtio_blk_get_features(VirtIODevice *vdev, uint32_t features)
     features |= (1 << VIRTIO_BLK_F_SCSI);
 
     if (bdrv_enable_write_cache(s->bs))
-        features |= (1 << VIRTIO_BLK_F_WCACHE);
-    
+        features |= (1 << VIRTIO_BLK_F_WCE);
+
     if (bdrv_is_read_only(s->bs))
         features |= 1 << VIRTIO_BLK_F_RO;
 
     return features;
+}
+
+static void virtio_blk_set_status(VirtIODevice *vdev, uint8_t status)
+{
+    VirtIOBlock *s = to_virtio_blk(vdev);
+    uint32_t features;
+
+    if (!(status & VIRTIO_CONFIG_S_DRIVER_OK)) {
+        return;
+    }
+
+    features = vdev->guest_features;
+    bdrv_set_enable_write_cache(s->bs, !!(features & (1 << VIRTIO_BLK_F_WCE)));
 }
 
 static void virtio_blk_save(QEMUFile *f, void *opaque)
@@ -590,9 +603,7 @@ static const BlockDevOps virtio_block_ops = {
 VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
 {
     VirtIOBlock *s;
-    int cylinders, heads, secs;
     static int virtio_blk_id;
-    DriveInfo *dinfo;
 
     if (!blk->conf.bs) {
         error_report("drive property not set");
@@ -603,12 +614,9 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
         return NULL;
     }
 
-    if (!blk->serial) {
-        /* try to fall back to value set with legacy -drive serial=... */
-        dinfo = drive_get_by_blockdev(blk->conf.bs);
-        if (*dinfo->serial) {
-            blk->serial = strdup(dinfo->serial);
-        }
+    blkconf_serial(&blk->conf, &blk->serial);
+    if (blkconf_geometry(&blk->conf, NULL, 65535, 255, 255) < 0) {
+        return NULL;
     }
 
     s = (VirtIOBlock *)virtio_common_init("virtio-blk", VIRTIO_ID_BLOCK,
@@ -616,14 +624,15 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
                                           sizeof(VirtIOBlock));
 
     s->vdev.get_config = virtio_blk_update_config;
+    s->vdev.set_config = virtio_blk_set_config;
     s->vdev.get_features = virtio_blk_get_features;
+    s->vdev.set_status = virtio_blk_set_status;
     s->vdev.reset = virtio_blk_reset;
     s->bs = blk->conf.bs;
     s->conf = &blk->conf;
     s->blk = blk;
     s->rq = NULL;
     s->sector_mask = (s->conf->logical_block_size / BDRV_SECTOR_SIZE) - 1;
-    bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
 
     s->vq = virtio_add_queue(&s->vdev, 128, virtio_blk_handle_output);
 

@@ -15,7 +15,7 @@
 #include "net.h"
 #include "sysemu.h"
 #include "boards.h"
-#include "pc.h"
+#include "serial.h"
 #include "qemu-timer.h"
 #include "ptimer.h"
 #include "block.h"
@@ -182,12 +182,12 @@ static void eth_rx_desc_get(uint32_t addr, mv88w8618_rx_desc *desc)
     le32_to_cpus(&desc->next);
 }
 
-static int eth_can_receive(VLANClientState *nc)
+static int eth_can_receive(NetClientState *nc)
 {
     return 1;
 }
 
-static ssize_t eth_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
+static ssize_t eth_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
     mv88w8618_eth_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
     uint32_t desc_addr;
@@ -266,7 +266,7 @@ static void eth_send(mv88w8618_eth_state *s, int queue_index)
     } while (desc_addr != s->tx_queue[queue_index]);
 }
 
-static uint64_t mv88w8618_eth_read(void *opaque, target_phys_addr_t offset,
+static uint64_t mv88w8618_eth_read(void *opaque, hwaddr offset,
                                    unsigned size)
 {
     mv88w8618_eth_state *s = opaque;
@@ -308,7 +308,7 @@ static uint64_t mv88w8618_eth_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void mv88w8618_eth_write(void *opaque, target_phys_addr_t offset,
+static void mv88w8618_eth_write(void *opaque, hwaddr offset,
                                 uint64_t value, unsigned size)
 {
     mv88w8618_eth_state *s = opaque;
@@ -366,7 +366,7 @@ static const MemoryRegionOps mv88w8618_eth_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void eth_cleanup(VLANClientState *nc)
+static void eth_cleanup(NetClientState *nc)
 {
     mv88w8618_eth_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -374,7 +374,7 @@ static void eth_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_mv88w8618_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = eth_can_receive,
     .receive = eth_receive,
@@ -526,7 +526,7 @@ static void lcd_refresh(void *opaque)
                   ds_get_bits_per_pixel(s->ds));
     }
 
-    dpy_update(s->ds, 0, 0, 128*3, 64*3);
+    dpy_gfx_update(s->ds, 0, 0, 128*3, 64*3);
 }
 
 static void lcd_invalidate(void *opaque)
@@ -540,7 +540,7 @@ static void musicpal_lcd_gpio_brigthness_in(void *opaque, int irq, int level)
     s->brightness |= level << irq;
 }
 
-static uint64_t musicpal_lcd_read(void *opaque, target_phys_addr_t offset,
+static uint64_t musicpal_lcd_read(void *opaque, hwaddr offset,
                                   unsigned size)
 {
     musicpal_lcd_state *s = opaque;
@@ -554,7 +554,7 @@ static uint64_t musicpal_lcd_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void musicpal_lcd_write(void *opaque, target_phys_addr_t offset,
+static void musicpal_lcd_write(void *opaque, hwaddr offset,
                                uint64_t value, unsigned size)
 {
     musicpal_lcd_state *s = opaque;
@@ -682,7 +682,7 @@ static void mv88w8618_pic_set_irq(void *opaque, int irq, int level)
     mv88w8618_pic_update(s);
 }
 
-static uint64_t mv88w8618_pic_read(void *opaque, target_phys_addr_t offset,
+static uint64_t mv88w8618_pic_read(void *opaque, hwaddr offset,
                                    unsigned size)
 {
     mv88w8618_pic_state *s = opaque;
@@ -696,7 +696,7 @@ static uint64_t mv88w8618_pic_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void mv88w8618_pic_write(void *opaque, target_phys_addr_t offset,
+static void mv88w8618_pic_write(void *opaque, hwaddr offset,
                                 uint64_t value, unsigned size)
 {
     mv88w8618_pic_state *s = opaque;
@@ -815,7 +815,7 @@ static void mv88w8618_timer_init(SysBusDevice *dev, mv88w8618_timer_state *s,
     s->ptimer = ptimer_init(bh);
 }
 
-static uint64_t mv88w8618_pit_read(void *opaque, target_phys_addr_t offset,
+static uint64_t mv88w8618_pit_read(void *opaque, hwaddr offset,
                                    unsigned size)
 {
     mv88w8618_pit_state *s = opaque;
@@ -831,7 +831,7 @@ static uint64_t mv88w8618_pit_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void mv88w8618_pit_write(void *opaque, target_phys_addr_t offset,
+static void mv88w8618_pit_write(void *opaque, hwaddr offset,
                                 uint64_t value, unsigned size)
 {
     mv88w8618_pit_state *s = opaque;
@@ -957,7 +957,7 @@ typedef struct mv88w8618_flashcfg_state {
 } mv88w8618_flashcfg_state;
 
 static uint64_t mv88w8618_flashcfg_read(void *opaque,
-                                        target_phys_addr_t offset,
+                                        hwaddr offset,
                                         unsigned size)
 {
     mv88w8618_flashcfg_state *s = opaque;
@@ -971,7 +971,7 @@ static uint64_t mv88w8618_flashcfg_read(void *opaque,
     }
 }
 
-static void mv88w8618_flashcfg_write(void *opaque, target_phys_addr_t offset,
+static void mv88w8618_flashcfg_write(void *opaque, hwaddr offset,
                                      uint64_t value, unsigned size)
 {
     mv88w8618_flashcfg_state *s = opaque;
@@ -1032,7 +1032,7 @@ static TypeInfo mv88w8618_flashcfg_info = {
 
 #define MP_BOARD_REVISION       0x31
 
-static uint64_t musicpal_misc_read(void *opaque, target_phys_addr_t offset,
+static uint64_t musicpal_misc_read(void *opaque, hwaddr offset,
                                    unsigned size)
 {
     switch (offset) {
@@ -1044,7 +1044,7 @@ static uint64_t musicpal_misc_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void musicpal_misc_write(void *opaque, target_phys_addr_t offset,
+static void musicpal_misc_write(void *opaque, hwaddr offset,
                                 uint64_t value, unsigned size)
 {
 }
@@ -1068,7 +1068,7 @@ static void musicpal_misc_init(SysBusDevice *dev)
 #define MP_WLAN_MAGIC1          0x11c
 #define MP_WLAN_MAGIC2          0x124
 
-static uint64_t mv88w8618_wlan_read(void *opaque, target_phys_addr_t offset,
+static uint64_t mv88w8618_wlan_read(void *opaque, hwaddr offset,
                                     unsigned size)
 {
     switch (offset) {
@@ -1084,7 +1084,7 @@ static uint64_t mv88w8618_wlan_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void mv88w8618_wlan_write(void *opaque, target_phys_addr_t offset,
+static void mv88w8618_wlan_write(void *opaque, hwaddr offset,
                                  uint64_t value, unsigned size)
 {
 }
@@ -1202,7 +1202,7 @@ static void musicpal_gpio_pin_event(void *opaque, int pin, int level)
     }
 }
 
-static uint64_t musicpal_gpio_read(void *opaque, target_phys_addr_t offset,
+static uint64_t musicpal_gpio_read(void *opaque, hwaddr offset,
                                    unsigned size)
 {
     musicpal_gpio_state *s = opaque;
@@ -1241,7 +1241,7 @@ static uint64_t musicpal_gpio_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void musicpal_gpio_write(void *opaque, target_phys_addr_t offset,
+static void musicpal_gpio_write(void *opaque, hwaddr offset,
                                 uint64_t value, unsigned size)
 {
     musicpal_gpio_state *s = opaque;
@@ -1508,12 +1508,13 @@ static struct arm_boot_info musicpal_binfo = {
     .board_id = 0x20e,
 };
 
-static void musicpal_init(ram_addr_t ram_size,
-               const char *boot_device,
-               const char *kernel_filename, const char *kernel_cmdline,
-               const char *initrd_filename, const char *cpu_model)
+static void musicpal_init(QEMUMachineInitArgs *args)
 {
-    CPUARMState *env;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
+    ARMCPU *cpu;
     qemu_irq *cpu_pic;
     qemu_irq pic[32];
     DeviceState *dev;
@@ -1533,12 +1534,12 @@ static void musicpal_init(ram_addr_t ram_size,
     if (!cpu_model) {
         cpu_model = "arm926";
     }
-    env = cpu_init(cpu_model);
-    if (!env) {
+    cpu = cpu_arm_init(cpu_model);
+    if (!cpu) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
-    cpu_pic = arm_pic_init_cpu(env);
+    cpu_pic = arm_pic_init_cpu(cpu);
 
     /* For now we use a fixed - the original - RAM size */
     memory_region_init_ram(ram, "musicpal.ram", MP_RAM_DEFAULT_SIZE);
@@ -1583,7 +1584,7 @@ static void musicpal_init(ram_addr_t ram_size,
          * image is smaller than 32 MB.
          */
 #ifdef TARGET_WORDS_BIGENDIAN
-        pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, NULL,
+        pflash_cfi02_register(0x100000000ULL-MP_FLASH_SIZE_MAX, NULL,
                               "musicpal.flash", flash_size,
                               dinfo->bdrv, 0x10000,
                               (flash_size + 0xffff) >> 16,
@@ -1591,7 +1592,7 @@ static void musicpal_init(ram_addr_t ram_size,
                               2, 0x00BF, 0x236D, 0x0000, 0x0000,
                               0x5555, 0x2AAA, 1);
 #else
-        pflash_cfi02_register(0-MP_FLASH_SIZE_MAX, NULL,
+        pflash_cfi02_register(0x100000000ULL-MP_FLASH_SIZE_MAX, NULL,
                               "musicpal.flash", flash_size,
                               dinfo->bdrv, 0x10000,
                               (flash_size + 0xffff) >> 16,
@@ -1651,7 +1652,7 @@ static void musicpal_init(ram_addr_t ram_size,
     musicpal_binfo.kernel_filename = kernel_filename;
     musicpal_binfo.kernel_cmdline = kernel_cmdline;
     musicpal_binfo.initrd_filename = initrd_filename;
-    arm_load_kernel(env, &musicpal_binfo);
+    arm_load_kernel(cpu, &musicpal_binfo);
 }
 
 static QEMUMachine musicpal_machine = {

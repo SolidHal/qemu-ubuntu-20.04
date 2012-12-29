@@ -28,7 +28,6 @@
 #include "module.h"
 #include "signal.h"
 #include "qerror.h"
-#include "error_int.h"
 #include "qapi/qmp-core.h"
 #include "qga/channel.h"
 #ifdef _WIN32
@@ -41,8 +40,8 @@
 #else
 #define QGA_VIRTIO_PATH_DEFAULT "\\\\.\\Global\\org.qemu.guest_agent.0"
 #endif
-#define QGA_PIDFILE_DEFAULT "/var/run/qemu-ga.pid"
-#define QGA_STATEDIR_DEFAULT "/tmp"
+#define QGA_STATEDIR_DEFAULT CONFIG_QEMU_LOCALSTATEDIR "/run"
+#define QGA_PIDFILE_DEFAULT QGA_STATEDIR_DEFAULT "/qemu-ga.pid"
 #define QGA_SENTINEL_BYTE 0xFF
 
 struct GAState {
@@ -115,12 +114,10 @@ static gboolean register_signal_handlers(void)
     ret = sigaction(SIGINT, &sigact, NULL);
     if (ret == -1) {
         g_error("error configuring signal handler: %s", strerror(errno));
-        return false;
     }
     ret = sigaction(SIGTERM, &sigact, NULL);
     if (ret == -1) {
         g_error("error configuring signal handler: %s", strerror(errno));
-        return false;
     }
 
     return true;
@@ -258,7 +255,7 @@ static bool ga_open_pidfile(const char *pidfile)
         g_critical("Failed to truncate pid file");
         goto fail;
     }
-    sprintf(pidstr, "%d", getpid());
+    snprintf(pidstr, sizeof(pidstr), "%d\n", getpid());
     if (write(pidfd, pidstr, strlen(pidstr)) != strlen(pidstr)) {
         g_critical("Failed to write pid file");
         goto fail;
@@ -520,7 +517,7 @@ static void process_event(JSONMessageParser *parser, QList *tokens)
         } else {
             g_warning("failed to parse event: %s", error_get_pretty(err));
         }
-        qdict_put_obj(qdict, "error", error_get_qobject(err));
+        qdict_put_obj(qdict, "error", qmp_build_error_object(err));
         error_free(err);
     } else {
         qdict = qobject_to_qdict(obj);
@@ -537,7 +534,7 @@ static void process_event(JSONMessageParser *parser, QList *tokens)
             qdict = qdict_new();
             g_warning("unrecognized payload format");
             error_set(&err, QERR_UNSUPPORTED);
-            qdict_put_obj(qdict, "error", error_get_qobject(err));
+            qdict_put_obj(qdict, "error", qmp_build_error_object(err));
             error_free(err);
         }
         ret = send_response(s, QOBJECT(qdict));
@@ -741,7 +738,7 @@ int main(int argc, char **argv)
             break;
         case 'b': {
             char **list_head, **list;
-            if (*optarg == '?') {
+            if (is_help_option(optarg)) {
                 list_head = list = qmp_get_command_list();
                 while (*list != NULL) {
                     printf("%s\n", *list);

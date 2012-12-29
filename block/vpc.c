@@ -265,6 +265,12 @@ static int vpc_open(BlockDriverState *bs, int flags)
     return err;
 }
 
+static int vpc_reopen_prepare(BDRVReopenState *state,
+                              BlockReopenQueue *queue, Error **errp)
+{
+    return 0;
+}
+
 /*
  * Returns the absolute byte offset of the given sector in the image file.
  * If the sector is not allocated, -1 is returned instead.
@@ -678,7 +684,7 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     }
 
     /* Create the file */
-    fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
+    fd = qemu_open(filename, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0644);
     if (fd < 0) {
         return -EIO;
     }
@@ -744,7 +750,7 @@ static int vpc_create(const char *filename, QEMUOptionParameter *options)
     }
 
  fail:
-    close(fd);
+    qemu_close(fd);
     return ret;
 }
 
@@ -783,6 +789,7 @@ static BlockDriver bdrv_vpc = {
     .bdrv_probe     = vpc_probe,
     .bdrv_open      = vpc_open,
     .bdrv_close     = vpc_close,
+    .bdrv_reopen_prepare = vpc_reopen_prepare,
     .bdrv_create    = vpc_create,
 
     .bdrv_read              = vpc_co_read,

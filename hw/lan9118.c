@@ -384,7 +384,7 @@ static void phy_update_link(lan9118_state *s)
     phy_update_irq(s);
 }
 
-static void lan9118_set_link(VLANClientState *nc)
+static void lan9118_set_link(NetClientState *nc)
 {
     phy_update_link(DO_UPCAST(NICState, nc, nc)->opaque);
 }
@@ -456,7 +456,7 @@ static void lan9118_reset(DeviceState *d)
     lan9118_reload_eeprom(s);
 }
 
-static int lan9118_can_receive(VLANClientState *nc)
+static int lan9118_can_receive(NetClientState *nc)
 {
     return 1;
 }
@@ -500,7 +500,7 @@ static int lan9118_filter(lan9118_state *s, const uint8_t *addr)
         }
     } else {
         /* Hash matching  */
-        hash = (crc32(~0, addr, 6) >> 26);
+        hash = compute_mcast_idx(addr);
         if (hash & 0x20) {
             return (s->mac_hashh >> (hash & 0x1f)) & 1;
         } else {
@@ -509,7 +509,7 @@ static int lan9118_filter(lan9118_state *s, const uint8_t *addr)
     }
 }
 
-static ssize_t lan9118_receive(VLANClientState *nc, const uint8_t *buf,
+static ssize_t lan9118_receive(NetClientState *nc, const uint8_t *buf,
                                size_t size)
 {
     lan9118_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
@@ -1000,7 +1000,7 @@ static void lan9118_tick(void *opaque)
     lan9118_update(s);
 }
 
-static void lan9118_writel(void *opaque, target_phys_addr_t offset,
+static void lan9118_writel(void *opaque, hwaddr offset,
                            uint64_t val, unsigned size)
 {
     lan9118_state *s = (lan9118_state *)opaque;
@@ -1134,7 +1134,7 @@ static void lan9118_writel(void *opaque, target_phys_addr_t offset,
     lan9118_update(s);
 }
 
-static void lan9118_writew(void *opaque, target_phys_addr_t offset,
+static void lan9118_writew(void *opaque, hwaddr offset,
                            uint32_t val)
 {
     lan9118_state *s = (lan9118_state *)opaque;
@@ -1161,20 +1161,22 @@ static void lan9118_writew(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void lan9118_16bit_mode_write(void *opaque, target_phys_addr_t offset,
+static void lan9118_16bit_mode_write(void *opaque, hwaddr offset,
                                      uint64_t val, unsigned size)
 {
     switch (size) {
     case 2:
-        return lan9118_writew(opaque, offset, (uint32_t)val);
+        lan9118_writew(opaque, offset, (uint32_t)val);
+        return;
     case 4:
-        return lan9118_writel(opaque, offset, val, size);
+        lan9118_writel(opaque, offset, val, size);
+        return;
     }
 
     hw_error("lan9118_write: Bad size 0x%x\n", size);
 }
 
-static uint64_t lan9118_readl(void *opaque, target_phys_addr_t offset,
+static uint64_t lan9118_readl(void *opaque, hwaddr offset,
                               unsigned size)
 {
     lan9118_state *s = (lan9118_state *)opaque;
@@ -1248,7 +1250,7 @@ static uint64_t lan9118_readl(void *opaque, target_phys_addr_t offset,
     return 0;
 }
 
-static uint32_t lan9118_readw(void *opaque, target_phys_addr_t offset)
+static uint32_t lan9118_readw(void *opaque, hwaddr offset)
 {
     lan9118_state *s = (lan9118_state *)opaque;
     uint32_t val;
@@ -1276,7 +1278,7 @@ static uint32_t lan9118_readw(void *opaque, target_phys_addr_t offset)
     return val;
 }
 
-static uint64_t lan9118_16bit_mode_read(void *opaque, target_phys_addr_t offset,
+static uint64_t lan9118_16bit_mode_read(void *opaque, hwaddr offset,
                                         unsigned size)
 {
     switch (size) {
@@ -1302,7 +1304,7 @@ static const MemoryRegionOps lan9118_16bit_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void lan9118_cleanup(VLANClientState *nc)
+static void lan9118_cleanup(NetClientState *nc)
 {
     lan9118_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -1310,7 +1312,7 @@ static void lan9118_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_lan9118_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = lan9118_can_receive,
     .receive = lan9118_receive,

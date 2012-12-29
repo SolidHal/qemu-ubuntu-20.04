@@ -19,20 +19,29 @@
 #include "hw.h"
 #include "monitor.h"
 #include "sysbus.h"
+#include "sysemu.h"
 #include "isa.h"
 #include "exec-memory.h"
 
 static ISABus *isabus;
-target_phys_addr_t isa_mem_base = 0;
+hwaddr isa_mem_base = 0;
 
 static void isabus_dev_print(Monitor *mon, DeviceState *dev, int indent);
 static char *isabus_get_fw_dev_path(DeviceState *dev);
 
-static struct BusInfo isa_bus_info = {
-    .name      = "ISA",
-    .size      = sizeof(ISABus),
-    .print_dev = isabus_dev_print,
-    .get_fw_dev_path = isabus_get_fw_dev_path,
+static void isa_bus_class_init(ObjectClass *klass, void *data)
+{
+    BusClass *k = BUS_CLASS(klass);
+
+    k->print_dev = isabus_dev_print;
+    k->get_fw_dev_path = isabus_get_fw_dev_path;
+}
+
+static const TypeInfo isa_bus_info = {
+    .name = TYPE_ISA_BUS,
+    .parent = TYPE_BUS,
+    .instance_size = sizeof(ISABus),
+    .class_init = isa_bus_class_init,
 };
 
 ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io)
@@ -46,7 +55,7 @@ ISABus *isa_bus_new(DeviceState *dev, MemoryRegion *address_space_io)
         qdev_init_nofail(dev);
     }
 
-    isabus = FROM_QBUS(ISABus, qbus_create(&isa_bus_info, dev, NULL));
+    isabus = FROM_QBUS(ISABus, qbus_create(TYPE_ISA_BUS, dev, NULL));
     isabus->address_space_io = address_space_io;
     return isabus;
 }
@@ -158,6 +167,25 @@ ISADevice *isa_create_simple(ISABus *bus, const char *name)
     return dev;
 }
 
+ISADevice *isa_vga_init(ISABus *bus)
+{
+    switch (vga_interface_type) {
+    case VGA_CIRRUS:
+        return isa_create_simple(bus, "isa-cirrus-vga");
+    case VGA_QXL:
+        fprintf(stderr, "%s: qxl: no PCI bus\n", __func__);
+        return NULL;
+    case VGA_STD:
+        return isa_create_simple(bus, "isa-vga");
+    case VGA_VMWARE:
+        fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __func__);
+        return NULL;
+    case VGA_NONE:
+    default:
+        return NULL;
+    }
+}
+
 static void isabus_dev_print(Monitor *mon, DeviceState *dev, int indent)
 {
     ISADevice *d = ISA_DEVICE(dev);
@@ -198,7 +226,7 @@ static void isa_device_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *k = DEVICE_CLASS(klass);
     k->init = isa_qdev_init;
-    k->bus_info = &isa_bus_info;
+    k->bus_type = TYPE_ISA_BUS;
 }
 
 static TypeInfo isa_device_type_info = {
@@ -212,6 +240,7 @@ static TypeInfo isa_device_type_info = {
 
 static void isabus_register_types(void)
 {
+    type_register_static(&isa_bus_info);
     type_register_static(&isabus_bridge_info);
     type_register_static(&isa_device_type_info);
 }
@@ -227,7 +256,7 @@ static char *isabus_get_fw_dev_path(DeviceState *dev)
         snprintf(path + off, sizeof(path) - off, "@%04x", d->ioport_id);
     }
 
-    return strdup(path);
+    return g_strdup(path);
 }
 
 MemoryRegion *isa_address_space(ISADevice *dev)

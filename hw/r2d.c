@@ -127,7 +127,7 @@ static void r2d_fpga_irq_set(void *opaque, int n, int level)
     update_irl(fpga);
 }
 
-static uint32_t r2d_fpga_read(void *opaque, target_phys_addr_t addr)
+static uint32_t r2d_fpga_read(void *opaque, hwaddr addr)
 {
     r2d_fpga_t *s = opaque;
 
@@ -146,7 +146,7 @@ static uint32_t r2d_fpga_read(void *opaque, target_phys_addr_t addr)
 }
 
 static void
-r2d_fpga_write(void *opaque, target_phys_addr_t addr, uint32_t value)
+r2d_fpga_write(void *opaque, hwaddr addr, uint32_t value)
 {
     r2d_fpga_t *s = opaque;
 
@@ -178,7 +178,7 @@ static const MemoryRegionOps r2d_fpga_ops = {
 };
 
 static qemu_irq *r2d_fpga_init(MemoryRegion *sysmem,
-                               target_phys_addr_t base, qemu_irq irl)
+                               hwaddr base, qemu_irq irl)
 {
     r2d_fpga_t *s;
 
@@ -192,16 +192,16 @@ static qemu_irq *r2d_fpga_init(MemoryRegion *sysmem,
 }
 
 typedef struct ResetData {
-    CPUSH4State *env;
+    SuperHCPU *cpu;
     uint32_t vector;
 } ResetData;
 
 static void main_cpu_reset(void *opaque)
 {
     ResetData *s = (ResetData *)opaque;
-    CPUSH4State *env = s->env;
+    CPUSH4State *env = &s->cpu->env;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(s->cpu));
     env->pc = s->vector;
 }
 
@@ -219,11 +219,13 @@ static struct QEMU_PACKED
     char kernel_cmdline[256];
 } boot_params;
 
-static void r2d_init(ram_addr_t ram_size,
-              const char *boot_device,
-	      const char *kernel_filename, const char *kernel_cmdline,
-	      const char *initrd_filename, const char *cpu_model)
+static void r2d_init(QEMUMachineInitArgs *args)
 {
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
+    SuperHCPU *cpu;
     CPUSH4State *env;
     ResetData *reset_info;
     struct SH7750State *s;
@@ -235,16 +237,19 @@ static void r2d_init(ram_addr_t ram_size,
     SysBusDevice *busdev;
     MemoryRegion *address_space_mem = get_system_memory();
 
-    if (!cpu_model)
+    if (cpu_model == NULL) {
         cpu_model = "SH7751R";
+    }
 
-    env = cpu_init(cpu_model);
-    if (!env) {
+    cpu = cpu_sh4_init(cpu_model);
+    if (cpu == NULL) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
+    env = &cpu->env;
+
     reset_info = g_malloc0(sizeof(ResetData));
-    reset_info->env = env;
+    reset_info->cpu = cpu;
     reset_info->vector = env->pc;
     qemu_register_reset(main_cpu_reset, reset_info);
 
@@ -328,6 +333,8 @@ static void r2d_init(ram_addr_t ram_size,
     }
 
     if (kernel_cmdline) {
+        /* I see no evidence that this .kernel_cmdline buffer requires
+           NUL-termination, so using strncpy should be ok. */
         strncpy(boot_params.kernel_cmdline, kernel_cmdline,
                 sizeof(boot_params.kernel_cmdline));
     }

@@ -27,6 +27,8 @@ int kvmppc_smt_threads(void);
 off_t kvmppc_alloc_rma(const char *name, MemoryRegion *sysmem);
 void *kvmppc_create_spapr_tce(uint32_t liobn, uint32_t window_size, int *pfd);
 int kvmppc_remove_spapr_tce(void *table, int pfd, uint32_t window_size);
+int kvmppc_reset_htab(int shift_hint);
+uint64_t kvmppc_rma_size(uint64_t current_size, unsigned int hash_shift);
 #endif /* !CONFIG_USER_ONLY */
 const ppc_def_t *kvmppc_host_cpu_def(void);
 int kvmppc_fixup_cpu(CPUPPCState *env);
@@ -54,6 +56,11 @@ static inline uint32_t kvmppc_get_dfp(void)
 }
 
 static inline int kvmppc_get_hypercall(CPUPPCState *env, uint8_t *buf, int buf_len)
+{
+    return -1;
+}
+
+static inline int kvmppc_read_segment_page_sizes(uint32_t *prop, int maxcells)
 {
     return -1;
 }
@@ -89,6 +96,23 @@ static inline int kvmppc_remove_spapr_tce(void *table, int pfd,
 {
     return -1;
 }
+
+static inline int kvmppc_reset_htab(int shift_hint)
+{
+    return -1;
+}
+
+static inline uint64_t kvmppc_rma_size(uint64_t current_size,
+                                       unsigned int hash_shift)
+{
+    return ram_size;
+}
+
+static inline int kvmppc_update_sdr1(CPUPPCState *env)
+{
+    return 0;
+}
+
 #endif /* !CONFIG_USER_ONLY */
 
 static inline const ppc_def_t *kvmppc_host_cpu_def(void)

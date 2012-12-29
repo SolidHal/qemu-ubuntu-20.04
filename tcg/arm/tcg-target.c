@@ -145,12 +145,6 @@ static void patch_reloc(uint8_t *code_ptr, int type,
     }
 }
 
-/* maximum number of register used for input function arguments */
-static inline int tcg_target_get_call_iarg_regs_count(int flags)
-{
-    return 4;
-}
-
 /* parse target specific constraints */
 static int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
 {
@@ -176,7 +170,7 @@ static int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
            so don't use these. */
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R0);
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R1);
-#if defined(CONFIG_TCG_PASS_AREG0) && (TARGET_LONG_BITS == 64)
+#if TARGET_LONG_BITS == 64
         /* If we're passing env to the helper as r0 and need a regpair
          * for the address then r2 will be overwritten as we're setting
          * up the args to the helper.
@@ -204,8 +198,7 @@ static int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
            use these. */
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R0);
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R1);
-#if defined(CONFIG_SOFTMMU) && \
-    defined(CONFIG_TCG_PASS_AREG0) && (TARGET_LONG_BITS == 64)
+#if defined(CONFIG_SOFTMMU) && (TARGET_LONG_BITS == 64)
         /* Avoid clashes with registers being used for helper args */
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R2);
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R3);
@@ -223,7 +216,7 @@ static int target_parse_constraint(TCGArgConstraint *ct, const char **pct_str)
 #ifdef CONFIG_SOFTMMU
         /* r2 is still needed to load data_reg, so don't use it. */
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R2);
-#if defined(CONFIG_TCG_PASS_AREG0) && (TARGET_LONG_BITS == 64)
+#if TARGET_LONG_BITS == 64
         /* Avoid clashes with registers being used for helper args */
         tcg_regset_reset_reg(ct->u.regs, TCG_REG_R3);
 #endif
@@ -342,7 +335,7 @@ enum arm_cond_code_e {
     COND_AL = 0xe,
 };
 
-static const uint8_t tcg_cond_to_arm_cond[10] = {
+static const uint8_t tcg_cond_to_arm_cond[] = {
     [TCG_COND_EQ] = COND_EQ,
     [TCG_COND_NE] = COND_NE,
     [TCG_COND_LT] = COND_LT,
@@ -471,6 +464,21 @@ static inline void tcg_out_movi32(TCGContext *s,
             opc = ARITH_ORR;
             rn = rd;
         } while (arg);
+    }
+}
+
+static inline void tcg_out_dat_rI(TCGContext *s, int cond, int opc, TCGArg dst,
+                                  TCGArg lhs, TCGArg rhs, int rhs_is_const)
+{
+    /* Emit either the reg,imm or reg,reg form of a data-processing insn.
+     * rhs must satisfy the "rI" constraint.
+     */
+    if (rhs_is_const) {
+        int rot = encode_imm(rhs);
+        assert(rot >= 0);
+        tcg_out_dat_imm(s, cond, opc, dst, lhs, rotl(rhs, rot) | (rot << 7));
+    } else {
+        tcg_out_dat_reg(s, cond, opc, dst, lhs, rhs, SHIFT_IMM_LSL(0));
     }
 }
 
@@ -603,6 +611,22 @@ static inline void tcg_out_bswap16(TCGContext *s, int cond, int rd, int rn)
     }
 }
 
+/* swap the two low bytes assuming that the two high input bytes and the
+   two high output bit can hold any value. */
+static inline void tcg_out_bswap16st(TCGContext *s, int cond, int rd, int rn)
+{
+    if (use_armv6_instructions) {
+        /* rev16 */
+        tcg_out32(s, 0x06bf0fb0 | (cond << 28) | (rd << 12) | rn);
+    } else {
+        tcg_out_dat_reg(s, cond, ARITH_MOV,
+                        TCG_REG_R8, 0, rn, SHIFT_IMM_LSR(8));
+        tcg_out_dat_imm(s, cond, ARITH_AND, TCG_REG_R8, TCG_REG_R8, 0xff);
+        tcg_out_dat_reg(s, cond, ARITH_ORR,
+                        rd, TCG_REG_R8, rn, SHIFT_IMM_LSL(8));
+    }
+}
+
 static inline void tcg_out_bswap32(TCGContext *s, int cond, int rd, int rn)
 {
     if (use_armv6_instructions) {
@@ -629,6 +653,22 @@ static inline void tcg_out_ld32_12(TCGContext *s, int cond,
     else
         tcg_out32(s, (cond << 28) | 0x05100000 |
                         (rn << 16) | (rd << 12) | ((-im) & 0xfff));
+}
+
+/* Offset pre-increment with base writeback.  */
+static inline void tcg_out_ld32_12wb(TCGContext *s, int cond,
+                                     int rd, int rn, tcg_target_long im)
+{
+    /* ldr with writeback and both register equals is UNPREDICTABLE */
+    assert(rd != rn);
+
+    if (im >= 0) {
+        tcg_out32(s, (cond << 28) | 0x05b00000 |
+                        (rn << 16) | (rd << 12) | (im & 0xfff));
+    } else {
+        tcg_out32(s, (cond << 28) | 0x05300000 |
+                        (rn << 16) | (rd << 12) | ((-im) & 0xfff));
+    }
 }
 
 static inline void tcg_out_st32_12(TCGContext *s, int cond,
@@ -954,7 +994,6 @@ static inline void tcg_out_goto_label(TCGContext *s, int cond, int label_index)
 
 #include "../../softmmu_defs.h"
 
-#ifdef CONFIG_TCG_PASS_AREG0
 /* helper signature: helper_ld_mmu(CPUState *env, target_ulong addr,
    int mmu_idx) */
 static const void * const qemu_ld_helpers[4] = {
@@ -972,25 +1011,6 @@ static const void * const qemu_st_helpers[4] = {
     helper_stl_mmu,
     helper_stq_mmu,
 };
-#else
-/* legacy helper signature: __ld_mmu(target_ulong addr, int
-   mmu_idx) */
-static void *qemu_ld_helpers[4] = {
-    __ldb_mmu,
-    __ldw_mmu,
-    __ldl_mmu,
-    __ldq_mmu,
-};
-
-/* legacy helper signature: __st_mmu(target_ulong addr, uintxx_t val,
-   int mmu_idx) */
-static void *qemu_st_helpers[4] = {
-    __stb_mmu,
-    __stw_mmu,
-    __stl_mmu,
-    __stq_mmu,
-};
-#endif
 
 /* Helper routines for marshalling helper function arguments into
  * the correct registers and stack.
@@ -1083,7 +1103,7 @@ static inline void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
 {
     int addr_reg, data_reg, data_reg2, bswap;
 #ifdef CONFIG_SOFTMMU
-    int mem_index, s_bits;
+    int mem_index, s_bits, tlb_offset;
     TCGReg argreg;
 # if TARGET_LONG_BITS == 64
     int addr_reg2;
@@ -1123,19 +1143,15 @@ static inline void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
                     TCG_REG_R0, TCG_REG_R8, CPU_TLB_SIZE - 1);
     tcg_out_dat_reg(s, COND_AL, ARITH_ADD, TCG_REG_R0, TCG_AREG0,
                     TCG_REG_R0, SHIFT_IMM_LSL(CPU_TLB_ENTRY_BITS));
-    /* In the
-     *  ldr r1 [r0, #(offsetof(CPUArchState, tlb_table[mem_index][0].addr_read))]
-     * below, the offset is likely to exceed 12 bits if mem_index != 0 and
-     * not exceed otherwise, so use an
-     *  add r0, r0, #(mem_index * sizeof *CPUArchState.tlb_table)
-     * before.
-     */
-    if (mem_index)
+    /* We assume that the offset is contained within 20 bits.  */
+    tlb_offset = offsetof(CPUArchState, tlb_table[mem_index][0].addr_read);
+    assert(tlb_offset & ~0xfffff == 0);
+    if (tlb_offset > 0xfff) {
         tcg_out_dat_imm(s, COND_AL, ARITH_ADD, TCG_REG_R0, TCG_REG_R0,
-                        (mem_index << (TLB_SHIFT & 1)) |
-                        ((16 - (TLB_SHIFT >> 1)) << 8));
-    tcg_out_ld32_12(s, COND_AL, TCG_REG_R1, TCG_REG_R0,
-                    offsetof(CPUArchState, tlb_table[0][0].addr_read));
+                        0xa00 | (tlb_offset >> 12));
+        tlb_offset &= 0xfff;
+    }
+    tcg_out_ld32_12wb(s, COND_AL, TCG_REG_R1, TCG_REG_R0, tlb_offset);
     tcg_out_dat_reg(s, COND_AL, ARITH_CMP, 0, TCG_REG_R1,
                     TCG_REG_R8, SHIFT_IMM_LSL(TARGET_PAGE_BITS));
     /* Check alignment.  */
@@ -1143,15 +1159,14 @@ static inline void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
         tcg_out_dat_imm(s, COND_EQ, ARITH_TST,
                         0, addr_reg, (1 << s_bits) - 1);
 #  if TARGET_LONG_BITS == 64
-    /* XXX: possibly we could use a block data load or writeback in
-     * the first access.  */
-    tcg_out_ld32_12(s, COND_EQ, TCG_REG_R1, TCG_REG_R0,
-                    offsetof(CPUArchState, tlb_table[0][0].addr_read) + 4);
+    /* XXX: possibly we could use a block data load in the first access.  */
+    tcg_out_ld32_12(s, COND_EQ, TCG_REG_R1, TCG_REG_R0, 4);
     tcg_out_dat_reg(s, COND_EQ, ARITH_CMP, 0,
                     TCG_REG_R1, addr_reg2, SHIFT_IMM_LSL(0));
 #  endif
     tcg_out_ld32_12(s, COND_EQ, TCG_REG_R1, TCG_REG_R0,
-                    offsetof(CPUArchState, tlb_table[0][0].addend));
+                    offsetof(CPUTLBEntry, addend)
+                    - offsetof(CPUTLBEntry, addr_read));
 
     switch (opc) {
     case 0:
@@ -1203,9 +1218,7 @@ static inline void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
      * trash by moving the earlier arguments into them.
      */
     argreg = TCG_REG_R0;
-#ifdef CONFIG_TCG_PASS_AREG0
     argreg = tcg_out_arg_reg32(s, argreg, TCG_AREG0);
-#endif
 #if TARGET_LONG_BITS == 64
     argreg = tcg_out_arg_reg64(s, argreg, addr_reg, addr_reg2);
 #else
@@ -1226,20 +1239,11 @@ static inline void tcg_out_qemu_ld(TCGContext *s, const TCGArg *args, int opc)
     case 1:
     case 2:
     default:
-        if (data_reg != TCG_REG_R0) {
-            tcg_out_dat_reg(s, COND_AL, ARITH_MOV,
-                            data_reg, 0, TCG_REG_R0, SHIFT_IMM_LSL(0));
-        }
+        tcg_out_mov_reg(s, COND_AL, data_reg, TCG_REG_R0);
         break;
     case 3:
-        if (data_reg != TCG_REG_R0) {
-            tcg_out_dat_reg(s, COND_AL, ARITH_MOV,
-                            data_reg, 0, TCG_REG_R0, SHIFT_IMM_LSL(0));
-        }
-        if (data_reg2 != TCG_REG_R1) {
-            tcg_out_dat_reg(s, COND_AL, ARITH_MOV,
-                            data_reg2, 0, TCG_REG_R1, SHIFT_IMM_LSL(0));
-        }
+        tcg_out_mov_reg(s, COND_AL, data_reg, TCG_REG_R0);
+        tcg_out_mov_reg(s, COND_AL, data_reg2, TCG_REG_R1);
         break;
     }
 
@@ -1311,7 +1315,7 @@ static inline void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
 {
     int addr_reg, data_reg, data_reg2, bswap;
 #ifdef CONFIG_SOFTMMU
-    int mem_index, s_bits;
+    int mem_index, s_bits, tlb_offset;
     TCGReg argreg;
 # if TARGET_LONG_BITS == 64
     int addr_reg2;
@@ -1348,19 +1352,15 @@ static inline void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
                     TCG_REG_R0, TCG_REG_R8, CPU_TLB_SIZE - 1);
     tcg_out_dat_reg(s, COND_AL, ARITH_ADD, TCG_REG_R0,
                     TCG_AREG0, TCG_REG_R0, SHIFT_IMM_LSL(CPU_TLB_ENTRY_BITS));
-    /* In the
-     *  ldr r1 [r0, #(offsetof(CPUArchState, tlb_table[mem_index][0].addr_write))]
-     * below, the offset is likely to exceed 12 bits if mem_index != 0 and
-     * not exceed otherwise, so use an
-     *  add r0, r0, #(mem_index * sizeof *CPUArchState.tlb_table)
-     * before.
-     */
-    if (mem_index)
+    /* We assume that the offset is contained within 20 bits.  */
+    tlb_offset = offsetof(CPUArchState, tlb_table[mem_index][0].addr_write);
+    assert(tlb_offset & ~0xfffff == 0);
+    if (tlb_offset > 0xfff) {
         tcg_out_dat_imm(s, COND_AL, ARITH_ADD, TCG_REG_R0, TCG_REG_R0,
-                        (mem_index << (TLB_SHIFT & 1)) |
-                        ((16 - (TLB_SHIFT >> 1)) << 8));
-    tcg_out_ld32_12(s, COND_AL, TCG_REG_R1, TCG_REG_R0,
-                    offsetof(CPUArchState, tlb_table[0][0].addr_write));
+                        0xa00 | (tlb_offset >> 12));
+        tlb_offset &= 0xfff;
+    }
+    tcg_out_ld32_12wb(s, COND_AL, TCG_REG_R1, TCG_REG_R0, tlb_offset);
     tcg_out_dat_reg(s, COND_AL, ARITH_CMP, 0, TCG_REG_R1,
                     TCG_REG_R8, SHIFT_IMM_LSL(TARGET_PAGE_BITS));
     /* Check alignment.  */
@@ -1368,15 +1368,14 @@ static inline void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
         tcg_out_dat_imm(s, COND_EQ, ARITH_TST,
                         0, addr_reg, (1 << s_bits) - 1);
 #  if TARGET_LONG_BITS == 64
-    /* XXX: possibly we could use a block data load or writeback in
-     * the first access.  */
-    tcg_out_ld32_12(s, COND_EQ, TCG_REG_R1, TCG_REG_R0,
-                    offsetof(CPUArchState, tlb_table[0][0].addr_write) + 4);
+    /* XXX: possibly we could use a block data load in the first access.  */
+    tcg_out_ld32_12(s, COND_EQ, TCG_REG_R1, TCG_REG_R0, 4);
     tcg_out_dat_reg(s, COND_EQ, ARITH_CMP, 0,
                     TCG_REG_R1, addr_reg2, SHIFT_IMM_LSL(0));
 #  endif
     tcg_out_ld32_12(s, COND_EQ, TCG_REG_R1, TCG_REG_R0,
-                    offsetof(CPUArchState, tlb_table[0][0].addend));
+                    offsetof(CPUTLBEntry, addend)
+                    - offsetof(CPUTLBEntry, addr_write));
 
     switch (opc) {
     case 0:
@@ -1384,7 +1383,7 @@ static inline void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
         break;
     case 1:
         if (bswap) {
-            tcg_out_bswap16(s, COND_EQ, TCG_REG_R0, data_reg);
+            tcg_out_bswap16st(s, COND_EQ, TCG_REG_R0, data_reg);
             tcg_out_st16_r(s, COND_EQ, TCG_REG_R0, addr_reg, TCG_REG_R1);
         } else {
             tcg_out_st16_r(s, COND_EQ, data_reg, addr_reg, TCG_REG_R1);
@@ -1421,9 +1420,7 @@ static inline void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
      * trash by moving the earlier arguments into them.
      */
     argreg = TCG_REG_R0;
-#ifdef CONFIG_TCG_PASS_AREG0
     argreg = tcg_out_arg_reg32(s, argreg, TCG_AREG0);
-#endif
 #if TARGET_LONG_BITS == 64
     argreg = tcg_out_arg_reg64(s, argreg, addr_reg, addr_reg2);
 #else
@@ -1472,7 +1469,7 @@ static inline void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, int opc)
         break;
     case 1:
         if (bswap) {
-            tcg_out_bswap16(s, COND_AL, TCG_REG_R0, data_reg);
+            tcg_out_bswap16st(s, COND_AL, TCG_REG_R0, data_reg);
             tcg_out_st16_8(s, COND_AL, TCG_REG_R0, addr_reg, 0);
         } else {
             tcg_out_st16_8(s, COND_AL, data_reg, addr_reg, 0);
@@ -1561,12 +1558,6 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
         else
             tcg_out_callr(s, COND_AL, args[0]);
         break;
-    case INDEX_op_jmp:
-        if (const_args[0])
-            tcg_out_goto(s, COND_AL, args[0]);
-        else
-            tcg_out_bx(s, COND_AL, args[0]);
-        break;
     case INDEX_op_br:
         tcg_out_goto_label(s, COND_AL, args[0]);
         break;
@@ -1603,6 +1594,15 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
     case INDEX_op_movi_i32:
         tcg_out_movi32(s, COND_AL, args[0], args[1]);
         break;
+    case INDEX_op_movcond_i32:
+        /* Constraints mean that v2 is always in the same register as dest,
+         * so we only need to do "if condition passed, move v1 to dest".
+         */
+        tcg_out_dat_rI(s, COND_AL, ARITH_CMP, 0,
+                       args[1], args[2], const_args[2]);
+        tcg_out_dat_rI(s, tcg_cond_to_arm_cond[args[5]],
+                       ARITH_MOV, args[0], 0, args[3], const_args[3]);
+        break;
     case INDEX_op_add_i32:
         c = ARITH_ADD;
         goto gen_arith;
@@ -1622,14 +1622,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
         c = ARITH_EOR;
         /* Fall through.  */
     gen_arith:
-        if (const_args[2]) {
-            int rot;
-            rot = encode_imm(args[2]);
-            tcg_out_dat_imm(s, COND_AL, c,
-                            args[0], args[1], rotl(args[2], rot) | (rot << 7));
-        } else
-            tcg_out_dat_reg(s, COND_AL, c,
-                            args[0], args[1], args[2], SHIFT_IMM_LSL(0));
+        tcg_out_dat_rI(s, COND_AL, c, args[0], args[1], args[2], const_args[2]);
         break;
     case INDEX_op_add2_i32:
         tcg_out_dat_reg2(s, COND_AL, ARITH_ADD, ARITH_ADC,
@@ -1689,15 +1682,8 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
         break;
 
     case INDEX_op_brcond_i32:
-        if (const_args[1]) {
-            int rot;
-            rot = encode_imm(args[1]);
-            tcg_out_dat_imm(s, COND_AL, ARITH_CMP, 0,
-                            args[0], rotl(args[1], rot) | (rot << 7));
-        } else {
-            tcg_out_dat_reg(s, COND_AL, ARITH_CMP, 0,
-                            args[0], args[1], SHIFT_IMM_LSL(0));
-        }
+        tcg_out_dat_rI(s, COND_AL, ARITH_CMP, 0,
+                       args[0], args[1], const_args[1]);
         tcg_out_goto_label(s, tcg_cond_to_arm_cond[args[2]], args[3]);
         break;
     case INDEX_op_brcond2_i32:
@@ -1716,15 +1702,8 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
         tcg_out_goto_label(s, tcg_cond_to_arm_cond[args[4]], args[5]);
         break;
     case INDEX_op_setcond_i32:
-        if (const_args[2]) {
-            int rot;
-            rot = encode_imm(args[2]);
-            tcg_out_dat_imm(s, COND_AL, ARITH_CMP, 0,
-                            args[1], rotl(args[2], rot) | (rot << 7));
-        } else {
-            tcg_out_dat_reg(s, COND_AL, ARITH_CMP, 0,
-                            args[1], args[2], SHIFT_IMM_LSL(0));
-        }
+        tcg_out_dat_rI(s, COND_AL, ARITH_CMP, 0,
+                       args[1], args[2], const_args[2]);
         tcg_out_dat_imm(s, tcg_cond_to_arm_cond[args[3]],
                         ARITH_MOV, args[0], 0, 1);
         tcg_out_dat_imm(s, tcg_cond_to_arm_cond[tcg_invert_cond(args[3])],
@@ -1800,7 +1779,6 @@ static const TCGTargetOpDef arm_op_defs[] = {
     { INDEX_op_exit_tb, { } },
     { INDEX_op_goto_tb, { } },
     { INDEX_op_call, { "ri" } },
-    { INDEX_op_jmp, { "ri" } },
     { INDEX_op_br, { } },
 
     { INDEX_op_mov_i32, { "r", "r" } },
@@ -1835,6 +1813,7 @@ static const TCGTargetOpDef arm_op_defs[] = {
 
     { INDEX_op_brcond_i32, { "r", "rI" } },
     { INDEX_op_setcond_i32, { "r", "r", "rI" } },
+    { INDEX_op_movcond_i32, { "r", "r", "rI", "rI", "0" } },
 
     /* TODO: "r", "r", "r", "r", "ri", "ri" */
     { INDEX_op_add2_i32, { "r", "r", "r", "r", "r", "r" } },

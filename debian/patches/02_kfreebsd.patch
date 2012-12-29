@@ -1,10 +1,8 @@
-Index: qemu/configure
-===================================================================
---- qemu.orig/configure	2012-05-24 20:19:08.825346337 -0700
-+++ qemu/configure	2012-05-24 20:19:39.145496689 -0700
-@@ -2305,6 +2305,14 @@
- #include <stddef.h>
+--- a/configure
++++ b/configure
+@@ -2406,6 +2406,14 @@
  #include <fcntl.h>
+ #include <sys/stat.h>
  
 +#if defined __stub_futimens || defined __stub___futimens
 +choke me

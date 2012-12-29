@@ -19,12 +19,11 @@
 #include "qemu-log.h"
 #include "migration.h"
 #include "main-loop.h"
+#include "sysemu.h"
 #include "qemu_socket.h"
 #include "slirp/libslirp.h"
 
 #include <sys/time.h>
-
-FILE *logfile;
 
 struct QEMUBH
 {
@@ -32,7 +31,17 @@ struct QEMUBH
     void *opaque;
 };
 
+const char *qemu_get_vm_name(void)
+{
+    return NULL;
+}
+
 Monitor *cur_mon;
+
+void vm_stop(RunState state)
+{
+    abort();
+}
 
 int monitor_cur_is_qmp(void)
 {
@@ -61,7 +70,7 @@ void monitor_protocol_event(MonitorEvent event, QObject *data)
 
 int64_t cpu_get_clock(void)
 {
-    return qemu_get_clock_ns(rt_clock);
+    return get_clock_realtime();
 }
 
 int64_t cpu_get_icount(void)
@@ -81,13 +90,6 @@ int use_icount;
 
 void qemu_clock_warp(QEMUClock *clock)
 {
-}
-
-int qemu_init_main_loop(void)
-{
-    init_clocks();
-    init_timer_alarm();
-    return main_loop_init();
 }
 
 void slirp_update_timeout(uint32_t *timeout)

@@ -27,7 +27,7 @@
 #include "hw.h"
 #include "mips.h"
 #include "mips_cpudevs.h"
-#include "pc.h"
+#include "serial.h"
 #include "isa.h"
 #include "net.h"
 #include "sysemu.h"
@@ -46,7 +46,7 @@ static struct _loaderparams {
 } loaderparams;
 
 typedef struct ResetData {
-    CPUMIPSState *env;
+    MIPSCPU *cpu;
     uint64_t vector;
 } ResetData;
 
@@ -105,9 +105,9 @@ static int64_t load_kernel(void)
 static void main_cpu_reset(void *opaque)
 {
     ResetData *s = (ResetData *)opaque;
-    CPUMIPSState *env = s->env;
+    CPUMIPSState *env = &s->cpu->env;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(s->cpu));
     env->active_tc.PC = s->vector & ~(target_ulong)1;
     if (s->vector & 1) {
         env->hflags |= MIPS_HFLAG_M16;
@@ -131,15 +131,18 @@ static void mipsnet_init(int base, qemu_irq irq, NICInfo *nd)
 }
 
 static void
-mips_mipssim_init (ram_addr_t ram_size,
-                   const char *boot_device,
-                   const char *kernel_filename, const char *kernel_cmdline,
-                   const char *initrd_filename, const char *cpu_model)
+mips_mipssim_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
     char *filename;
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *bios = g_new(MemoryRegion, 1);
+    MIPSCPU *cpu;
     CPUMIPSState *env;
     ResetData *reset_info;
     int bios_size;
@@ -152,13 +155,15 @@ mips_mipssim_init (ram_addr_t ram_size,
         cpu_model = "24Kf";
 #endif
     }
-    env = cpu_init(cpu_model);
-    if (!env) {
+    cpu = cpu_mips_init(cpu_model);
+    if (cpu == NULL) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
+    env = &cpu->env;
+
     reset_info = g_malloc0(sizeof(ResetData));
-    reset_info->env = env;
+    reset_info->cpu = cpu;
     reset_info->vector = env->active_tc.PC;
     qemu_register_reset(main_cpu_reset, reset_info);
 
@@ -214,7 +219,7 @@ mips_mipssim_init (ram_addr_t ram_size,
     if (serial_hds[0])
         serial_init(0x3f8, env->irq[4], 115200, serial_hds[0]);
 
-    if (nd_table[0].vlan)
+    if (nd_table[0].used)
         /* MIPSnet uses the MIPS CPU INT0, which is interrupt 2. */
         mipsnet_init(0x4200, env->irq[2], &nd_table[0]);
 }

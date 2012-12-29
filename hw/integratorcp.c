@@ -38,7 +38,7 @@ static uint8_t integrator_spd[128] = {
    0xe, 4, 0x1c, 1, 2, 0x20, 0xc0, 0, 0, 0, 0, 0x30, 0x28, 0x30, 0x28, 0x40
 };
 
-static uint64_t integratorcm_read(void *opaque, target_phys_addr_t offset,
+static uint64_t integratorcm_read(void *opaque, hwaddr offset,
                                   unsigned size)
 {
     integratorcm_state *s = (integratorcm_state *)opaque;
@@ -141,7 +141,7 @@ static void integratorcm_update(integratorcm_state *s)
         hw_error("Core module interrupt\n");
 }
 
-static void integratorcm_write(void *opaque, target_phys_addr_t offset,
+static void integratorcm_write(void *opaque, hwaddr offset,
                                uint64_t value, unsigned size)
 {
     integratorcm_state *s = (integratorcm_state *)opaque;
@@ -295,7 +295,7 @@ static void icp_pic_set_irq(void *opaque, int irq, int level)
     icp_pic_update(s);
 }
 
-static uint64_t icp_pic_read(void *opaque, target_phys_addr_t offset,
+static uint64_t icp_pic_read(void *opaque, hwaddr offset,
                              unsigned size)
 {
     icp_pic_state *s = (icp_pic_state *)opaque;
@@ -324,7 +324,7 @@ static uint64_t icp_pic_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void icp_pic_write(void *opaque, target_phys_addr_t offset,
+static void icp_pic_write(void *opaque, hwaddr offset,
                           uint64_t value, unsigned size)
 {
     icp_pic_state *s = (icp_pic_state *)opaque;
@@ -381,7 +381,7 @@ static int icp_pic_init(SysBusDevice *dev)
 
 /* CP control registers.  */
 
-static uint64_t icp_control_read(void *opaque, target_phys_addr_t offset,
+static uint64_t icp_control_read(void *opaque, hwaddr offset,
                                  unsigned size)
 {
     switch (offset >> 2) {
@@ -399,7 +399,7 @@ static uint64_t icp_control_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void icp_control_write(void *opaque, target_phys_addr_t offset,
+static void icp_control_write(void *opaque, hwaddr offset,
                           uint64_t value, unsigned size)
 {
     switch (offset >> 2) {
@@ -419,7 +419,7 @@ static const MemoryRegionOps icp_control_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void icp_control_init(target_phys_addr_t base)
+static void icp_control_init(hwaddr base)
 {
     MemoryRegion *io;
 
@@ -438,12 +438,14 @@ static struct arm_boot_info integrator_binfo = {
     .board_id = 0x113,
 };
 
-static void integratorcp_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void integratorcp_init(QEMUMachineInitArgs *args)
 {
-    CPUARMState *env;
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
+    ARMCPU *cpu;
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
     MemoryRegion *ram_alias = g_new(MemoryRegion, 1);
@@ -452,13 +454,15 @@ static void integratorcp_init(ram_addr_t ram_size,
     DeviceState *dev;
     int i;
 
-    if (!cpu_model)
+    if (!cpu_model) {
         cpu_model = "arm926";
-    env = cpu_init(cpu_model);
-    if (!env) {
+    }
+    cpu = cpu_arm_init(cpu_model);
+    if (!cpu) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
+
     memory_region_init_ram(ram, "integrator.ram", ram_size);
     vmstate_register_ram_global(ram);
     /* ??? On a real system the first 1Mb is mapped as SSRAM or boot flash.  */
@@ -474,7 +478,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     qdev_init_nofail(dev);
     sysbus_mmio_map((SysBusDevice *)dev, 0, 0x10000000);
 
-    cpu_pic = arm_pic_init_cpu(env);
+    cpu_pic = arm_pic_init_cpu(cpu);
     dev = sysbus_create_varargs("integrator_pic", 0x14000000,
                                 cpu_pic[ARM_PIC_CPU_IRQ],
                                 cpu_pic[ARM_PIC_CPU_FIQ], NULL);
@@ -491,7 +495,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     sysbus_create_simple("pl050_keyboard", 0x18000000, pic[3]);
     sysbus_create_simple("pl050_mouse", 0x19000000, pic[4]);
     sysbus_create_varargs("pl181", 0x1c000000, pic[23], pic[24], NULL);
-    if (nd_table[0].vlan)
+    if (nd_table[0].used)
         smc91c111_init(&nd_table[0], 0xc8000000, pic[27]);
 
     sysbus_create_simple("pl110", 0xc0000000, pic[22]);
@@ -500,7 +504,7 @@ static void integratorcp_init(ram_addr_t ram_size,
     integrator_binfo.kernel_filename = kernel_filename;
     integrator_binfo.kernel_cmdline = kernel_cmdline;
     integrator_binfo.initrd_filename = initrd_filename;
-    arm_load_kernel(env, &integrator_binfo);
+    arm_load_kernel(cpu, &integrator_binfo);
 }
 
 static QEMUMachine integratorcp_machine = {

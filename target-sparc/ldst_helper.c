@@ -65,6 +65,9 @@
 #define QT1 (env->qt1)
 
 #if !defined(CONFIG_USER_ONLY)
+static void QEMU_NORETURN do_unaligned_access(CPUSPARCState *env,
+                                              target_ulong addr, int is_write,
+                                              int is_user, uintptr_t retaddr);
 #include "softmmu_exec.h"
 #define MMUSUFFIX _mmu
 #define ALIGNED_ONLY
@@ -464,16 +467,18 @@ uint64_t helper_ld_asi(CPUSPARCState *env, target_ulong addr, int asi, int size,
             if (size == 8) {
                 ret = env->mxccregs[3];
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00a04: /* MXCC control register */
             if (size == 4) {
                 ret = env->mxccregs[3];
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00c00: /* Module reset register */
@@ -481,21 +486,24 @@ uint64_t helper_ld_asi(CPUSPARCState *env, target_ulong addr, int asi, int size,
                 ret = env->mxccregs[5];
                 /* should we do something here? */
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00f00: /* MBus port address register */
             if (size == 8) {
                 ret = env->mxccregs[7];
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         default:
-            DPRINTF_MXCC("%08x: unimplemented address, size: %d\n", addr,
-                         size);
+            qemu_log_mask(LOG_UNIMP,
+                          "%08x: unimplemented address, size: %d\n", addr,
+                          size);
             break;
         }
         DPRINTF_MXCC("asi = %d, size = %d, sign = %d, "
@@ -614,21 +622,21 @@ uint64_t helper_ld_asi(CPUSPARCState *env, target_ulong addr, int asi, int size,
     case 0x21 ... 0x2f: /* MMU passthrough, 0x100000000 to 0xfffffffff */
         switch (size) {
         case 1:
-            ret = ldub_phys((target_phys_addr_t)addr
-                            | ((target_phys_addr_t)(asi & 0xf) << 32));
+            ret = ldub_phys((hwaddr)addr
+                            | ((hwaddr)(asi & 0xf) << 32));
             break;
         case 2:
-            ret = lduw_phys((target_phys_addr_t)addr
-                            | ((target_phys_addr_t)(asi & 0xf) << 32));
+            ret = lduw_phys((hwaddr)addr
+                            | ((hwaddr)(asi & 0xf) << 32));
             break;
         default:
         case 4:
-            ret = ldl_phys((target_phys_addr_t)addr
-                           | ((target_phys_addr_t)(asi & 0xf) << 32));
+            ret = ldl_phys((hwaddr)addr
+                           | ((hwaddr)(asi & 0xf) << 32));
             break;
         case 8:
-            ret = ldq_phys((target_phys_addr_t)addr
-                           | ((target_phys_addr_t)(asi & 0xf) << 32));
+            ret = ldq_phys((hwaddr)addr
+                           | ((hwaddr)(asi & 0xf) << 32));
             break;
         }
         break;
@@ -719,40 +727,45 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, uint64_t val, int asi,
             if (size == 8) {
                 env->mxccdata[0] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00008: /* MXCC stream data register 1 */
             if (size == 8) {
                 env->mxccdata[1] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00010: /* MXCC stream data register 2 */
             if (size == 8) {
                 env->mxccdata[2] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00018: /* MXCC stream data register 3 */
             if (size == 8) {
                 env->mxccdata[3] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00100: /* MXCC stream source */
             if (size == 8) {
                 env->mxccregs[0] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             env->mxccdata[0] = ldq_phys((env->mxccregs[0] & 0xffffffffULL) +
                                         0);
@@ -767,8 +780,9 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, uint64_t val, int asi,
             if (size == 8) {
                 env->mxccregs[1] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             stq_phys((env->mxccregs[1] & 0xffffffffULL) +  0,
                      env->mxccdata[0]);
@@ -783,8 +797,9 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, uint64_t val, int asi,
             if (size == 8) {
                 env->mxccregs[3] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00a04: /* MXCC control register */
@@ -792,8 +807,9 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, uint64_t val, int asi,
                 env->mxccregs[3] = (env->mxccregs[3] & 0xffffffff00000000ULL)
                     | val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00e00: /* MXCC error register  */
@@ -801,21 +817,24 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, uint64_t val, int asi,
             if (size == 8) {
                 env->mxccregs[6] &= ~val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         case 0x01c00f00: /* MBus port address register */
             if (size == 8) {
                 env->mxccregs[7] = val;
             } else {
-                DPRINTF_MXCC("%08x: unimplemented access size: %d\n", addr,
-                             size);
+                qemu_log_mask(LOG_UNIMP,
+                              "%08x: unimplemented access size: %d\n", addr,
+                              size);
             }
             break;
         default:
-            DPRINTF_MXCC("%08x: unimplemented address, size: %d\n", addr,
-                         size);
+            qemu_log_mask(LOG_UNIMP,
+                          "%08x: unimplemented address, size: %d\n", addr,
+                          size);
             break;
         }
         DPRINTF_MXCC("asi = %d, size = %d, addr = %08x, val = %" PRIx64 "\n",
@@ -999,21 +1018,21 @@ void helper_st_asi(CPUSPARCState *env, target_ulong addr, uint64_t val, int asi,
         {
             switch (size) {
             case 1:
-                stb_phys((target_phys_addr_t)addr
-                         | ((target_phys_addr_t)(asi & 0xf) << 32), val);
+                stb_phys((hwaddr)addr
+                         | ((hwaddr)(asi & 0xf) << 32), val);
                 break;
             case 2:
-                stw_phys((target_phys_addr_t)addr
-                         | ((target_phys_addr_t)(asi & 0xf) << 32), val);
+                stw_phys((hwaddr)addr
+                         | ((hwaddr)(asi & 0xf) << 32), val);
                 break;
             case 4:
             default:
-                stl_phys((target_phys_addr_t)addr
-                         | ((target_phys_addr_t)(asi & 0xf) << 32), val);
+                stl_phys((hwaddr)addr
+                         | ((hwaddr)(asi & 0xf) << 32), val);
                 break;
             case 8:
-                stq_phys((target_phys_addr_t)addr
-                         | ((target_phys_addr_t)(asi & 0xf) << 32), val);
+                stq_phys((hwaddr)addr
+                         | ((hwaddr)(asi & 0xf) << 32), val);
                 break;
             }
         }
@@ -2297,7 +2316,7 @@ void helper_stqf(CPUSPARCState *env, target_ulong addr, int mem_idx)
 
 #if !defined(CONFIG_USER_ONLY)
 #ifndef TARGET_SPARC64
-void cpu_unassigned_access(CPUSPARCState *env, target_phys_addr_t addr,
+void cpu_unassigned_access(CPUSPARCState *env, hwaddr addr,
                            int is_write, int is_exec, int is_asi, int size)
 {
     int fault_type;
@@ -2357,7 +2376,7 @@ void cpu_unassigned_access(CPUSPARCState *env, target_phys_addr_t addr,
     }
 }
 #else
-void cpu_unassigned_access(CPUSPARCState *env, target_phys_addr_t addr,
+void cpu_unassigned_access(CPUSPARCState *env, hwaddr addr,
                            int is_write, int is_exec, int is_asi, int size)
 {
 #ifdef DEBUG_UNASSIGNED
@@ -2374,9 +2393,8 @@ void cpu_unassigned_access(CPUSPARCState *env, target_phys_addr_t addr,
 #endif
 #endif
 
-#if !defined(CONFIG_USER_ONLY)
 /* XXX: make it generic ? */
-static void cpu_restore_state2(CPUSPARCState *env, uintptr_t retaddr)
+void cpu_restore_state2(CPUSPARCState *env, uintptr_t retaddr)
 {
     TranslationBlock *tb;
 
@@ -2391,8 +2409,10 @@ static void cpu_restore_state2(CPUSPARCState *env, uintptr_t retaddr)
     }
 }
 
-void do_unaligned_access(CPUSPARCState *env, target_ulong addr, int is_write,
-                         int is_user, uintptr_t retaddr)
+#if !defined(CONFIG_USER_ONLY)
+static void QEMU_NORETURN do_unaligned_access(CPUSPARCState *env,
+                                              target_ulong addr, int is_write,
+                                              int is_user, uintptr_t retaddr)
 {
 #ifdef DEBUG_UNALIGNED
     printf("Unaligned access to 0x" TARGET_FMT_lx " from 0x" TARGET_FMT_lx

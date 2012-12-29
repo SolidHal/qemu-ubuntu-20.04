@@ -423,20 +423,23 @@ static int mig_save_device_dirty(QEMUFile *f, BlkMigDevState *bmds,
 
 error:
     DPRINTF("Error reading sector %" PRId64 "\n", sector);
-    qemu_file_set_error(f, ret);
     g_free(blk->buf);
     g_free(blk);
-    return 0;
+    return ret;
 }
 
+/* return value:
+ * 0: too much data for max_downtime
+ * 1: few enough data for max_downtime
+*/
 static int blk_mig_save_dirty_block(QEMUFile *f, int is_async)
 {
     BlkMigDevState *bmds;
-    int ret = 0;
+    int ret = 1;
 
     QSIMPLEQ_FOREACH(bmds, &block_mig_state.bmds_list, entry) {
-        if (mig_save_device_dirty(f, bmds, is_async) == 0) {
-            ret = 1;
+        ret = mig_save_device_dirty(f, bmds, is_async);
+        if (ret <= 0) {
             break;
         }
     }
@@ -444,9 +447,10 @@ static int blk_mig_save_dirty_block(QEMUFile *f, int is_async)
     return ret;
 }
 
-static void flush_blks(QEMUFile* f)
+static int flush_blks(QEMUFile *f)
 {
     BlkMigBlock *blk;
+    int ret = 0;
 
     DPRINTF("%s Enter submitted %d read_done %d transferred %d\n",
             __FUNCTION__, block_mig_state.submitted, block_mig_state.read_done,
@@ -457,7 +461,7 @@ static void flush_blks(QEMUFile* f)
             break;
         }
         if (blk->ret < 0) {
-            qemu_file_set_error(f, blk->ret);
+            ret = blk->ret;
             break;
         }
         blk_send(f, blk);
@@ -474,6 +478,7 @@ static void flush_blks(QEMUFile* f)
     DPRINTF("%s Exit submitted %d read_done %d transferred %d\n", __FUNCTION__,
             block_mig_state.submitted, block_mig_state.read_done,
             block_mig_state.transferred);
+    return ret;
 }
 
 static int64_t get_remaining_dirty(void)
@@ -519,6 +524,8 @@ static void blk_mig_cleanup(void)
     BlkMigDevState *bmds;
     BlkMigBlock *blk;
 
+    bdrv_drain_all();
+
     set_dirty_tracking(0);
 
     while ((bmds = QSIMPLEQ_FIRST(&block_mig_state.bmds_list)) != NULL) {
@@ -536,34 +543,24 @@ static void blk_mig_cleanup(void)
     }
 }
 
-static int block_save_live(QEMUFile *f, int stage, void *opaque)
+static void block_migration_cancel(void *opaque)
+{
+    blk_mig_cleanup();
+}
+
+static int block_save_setup(QEMUFile *f, void *opaque)
 {
     int ret;
 
-    DPRINTF("Enter save live stage %d submitted %d transferred %d\n",
-            stage, block_mig_state.submitted, block_mig_state.transferred);
+    DPRINTF("Enter save live setup submitted %d transferred %d\n",
+            block_mig_state.submitted, block_mig_state.transferred);
 
-    if (stage < 0) {
-        blk_mig_cleanup();
-        return 0;
-    }
+    init_blk_migration(f);
 
-    if (block_mig_state.blk_enable != 1) {
-        /* no need to migrate storage */
-        qemu_put_be64(f, BLK_MIG_FLAG_EOS);
-        return 1;
-    }
+    /* start track dirty blocks */
+    set_dirty_tracking(1);
 
-    if (stage == 1) {
-        init_blk_migration(f);
-
-        /* start track dirty blocks */
-        set_dirty_tracking(1);
-    }
-
-    flush_blks(f);
-
-    ret = qemu_file_get_error(f);
+    ret = flush_blks(f);
     if (ret) {
         blk_mig_cleanup();
         return ret;
@@ -571,56 +568,95 @@ static int block_save_live(QEMUFile *f, int stage, void *opaque)
 
     blk_mig_reset_dirty_cursor();
 
-    if (stage == 2) {
-        /* control the rate of transfer */
-        while ((block_mig_state.submitted +
-                block_mig_state.read_done) * BLOCK_SIZE <
-               qemu_file_get_rate_limit(f)) {
-            if (block_mig_state.bulk_completed == 0) {
-                /* first finish the bulk phase */
-                if (blk_mig_save_bulked_block(f) == 0) {
-                    /* finished saving bulk on all devices */
-                    block_mig_state.bulk_completed = 1;
-                }
-            } else {
-                if (blk_mig_save_dirty_block(f, 1) == 0) {
-                    /* no more dirty blocks */
-                    break;
-                }
-            }
-        }
+    qemu_put_be64(f, BLK_MIG_FLAG_EOS);
 
-        flush_blks(f);
+    return 0;
+}
 
-        ret = qemu_file_get_error(f);
-        if (ret) {
-            blk_mig_cleanup();
-            return ret;
-        }
+static int block_save_iterate(QEMUFile *f, void *opaque)
+{
+    int ret;
+
+    DPRINTF("Enter save live iterate submitted %d transferred %d\n",
+            block_mig_state.submitted, block_mig_state.transferred);
+
+    ret = flush_blks(f);
+    if (ret) {
+        blk_mig_cleanup();
+        return ret;
     }
 
-    if (stage == 3) {
-        /* we know for sure that save bulk is completed and
-           all async read completed */
-        assert(block_mig_state.submitted == 0);
+    blk_mig_reset_dirty_cursor();
 
-        while (blk_mig_save_dirty_block(f, 0) != 0);
-        blk_mig_cleanup();
-
-        /* report completion */
-        qemu_put_be64(f, (100 << BDRV_SECTOR_BITS) | BLK_MIG_FLAG_PROGRESS);
-
-        ret = qemu_file_get_error(f);
-        if (ret) {
-            return ret;
+    /* control the rate of transfer */
+    while ((block_mig_state.submitted +
+            block_mig_state.read_done) * BLOCK_SIZE <
+           qemu_file_get_rate_limit(f)) {
+        if (block_mig_state.bulk_completed == 0) {
+            /* first finish the bulk phase */
+            if (blk_mig_save_bulked_block(f) == 0) {
+                /* finished saving bulk on all devices */
+                block_mig_state.bulk_completed = 1;
+            }
+        } else {
+            ret = blk_mig_save_dirty_block(f, 1);
+            if (ret != 0) {
+                /* no more dirty blocks */
+                break;
+            }
         }
+    }
+    if (ret) {
+        blk_mig_cleanup();
+        return ret;
+    }
 
-        DPRINTF("Block migration completed\n");
+    ret = flush_blks(f);
+    if (ret) {
+        blk_mig_cleanup();
+        return ret;
     }
 
     qemu_put_be64(f, BLK_MIG_FLAG_EOS);
 
-    return ((stage == 2) && is_stage2_completed());
+    return is_stage2_completed();
+}
+
+static int block_save_complete(QEMUFile *f, void *opaque)
+{
+    int ret;
+
+    DPRINTF("Enter save live complete submitted %d transferred %d\n",
+            block_mig_state.submitted, block_mig_state.transferred);
+
+    ret = flush_blks(f);
+    if (ret) {
+        blk_mig_cleanup();
+        return ret;
+    }
+
+    blk_mig_reset_dirty_cursor();
+
+    /* we know for sure that save bulk is completed and
+       all async read completed */
+    assert(block_mig_state.submitted == 0);
+
+    do {
+        ret = blk_mig_save_dirty_block(f, 0);
+    } while (ret == 0);
+
+    blk_mig_cleanup();
+    if (ret) {
+        return ret;
+    }
+    /* report completion */
+    qemu_put_be64(f, (100 << BDRV_SECTOR_BITS) | BLK_MIG_FLAG_PROGRESS);
+
+    DPRINTF("Block migration completed\n");
+
+    qemu_put_be64(f, BLK_MIG_FLAG_EOS);
+
+    return 0;
 }
 
 static int block_load(QEMUFile *f, void *opaque, int version_id)
@@ -700,20 +736,35 @@ static int block_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-static void block_set_params(int blk_enable, int shared_base, void *opaque)
+static void block_set_params(const MigrationParams *params, void *opaque)
 {
-    block_mig_state.blk_enable = blk_enable;
-    block_mig_state.shared_base = shared_base;
+    block_mig_state.blk_enable = params->blk;
+    block_mig_state.shared_base = params->shared;
 
     /* shared base means that blk_enable = 1 */
-    block_mig_state.blk_enable |= shared_base;
+    block_mig_state.blk_enable |= params->shared;
 }
+
+static bool block_is_active(void *opaque)
+{
+    return block_mig_state.blk_enable == 1;
+}
+
+SaveVMHandlers savevm_block_handlers = {
+    .set_params = block_set_params,
+    .save_live_setup = block_save_setup,
+    .save_live_iterate = block_save_iterate,
+    .save_live_complete = block_save_complete,
+    .load_state = block_load,
+    .cancel = block_migration_cancel,
+    .is_active = block_is_active,
+};
 
 void blk_mig_init(void)
 {
     QSIMPLEQ_INIT(&block_mig_state.bmds_list);
     QSIMPLEQ_INIT(&block_mig_state.blk_list);
 
-    register_savevm_live(NULL, "block", 0, 1, block_set_params,
-                         block_save_live, NULL, block_load, &block_mig_state);
+    register_savevm_live(NULL, "block", 0, 1, &savevm_block_handlers,
+                         &block_mig_state);
 }

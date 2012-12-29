@@ -200,7 +200,7 @@ static void exynos4210_pwm_tick(void *opaque)
         ptimer_run(p->timer[id].ptimer, 1);
     } else {
         /* stop timer, set status to STOP, see Basic Timer Operation */
-        p->reg_tcon = ~TCON_TIMER_START(id);
+        p->reg_tcon &= ~TCON_TIMER_START(id);
         ptimer_stop(p->timer[id].ptimer);
     }
 }
@@ -208,7 +208,7 @@ static void exynos4210_pwm_tick(void *opaque)
 /*
  * PWM Read
  */
-static uint64_t exynos4210_pwm_read(void *opaque, target_phys_addr_t offset,
+static uint64_t exynos4210_pwm_read(void *opaque, hwaddr offset,
         unsigned size)
 {
     Exynos4210PWMState *s = (Exynos4210PWMState *)opaque;
@@ -259,7 +259,7 @@ static uint64_t exynos4210_pwm_read(void *opaque, target_phys_addr_t offset,
 /*
  * PWM Write
  */
-static void exynos4210_pwm_write(void *opaque, target_phys_addr_t offset,
+static void exynos4210_pwm_write(void *opaque, hwaddr offset,
         uint64_t value, unsigned size)
 {
     Exynos4210PWMState *s = (Exynos4210PWMState *)opaque;

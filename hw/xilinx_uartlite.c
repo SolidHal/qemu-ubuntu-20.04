@@ -84,7 +84,7 @@ static void uart_update_status(struct xlx_uartlite *s)
 }
 
 static uint64_t
-uart_read(void *opaque, target_phys_addr_t addr, unsigned int size)
+uart_read(void *opaque, hwaddr addr, unsigned int size)
 {
     struct xlx_uartlite *s = opaque;
     uint32_t r = 0;
@@ -109,7 +109,7 @@ uart_read(void *opaque, target_phys_addr_t addr, unsigned int size)
 }
 
 static void
-uart_write(void *opaque, target_phys_addr_t addr,
+uart_write(void *opaque, hwaddr addr,
            uint64_t val64, unsigned int size)
 {
     struct xlx_uartlite *s = opaque;
@@ -202,7 +202,8 @@ static int xilinx_uartlite_init(SysBusDevice *dev)
     sysbus_init_irq(dev, &s->irq);
 
     uart_update_status(s);
-    memory_region_init_io(&s->mmio, &uart_ops, s, "xilinx-uartlite", R_MAX * 4);
+    memory_region_init_io(&s->mmio, &uart_ops, s, "xlnx.xps-uartlite",
+                                                                R_MAX * 4);
     sysbus_init_mmio(dev, &s->mmio);
 
     s->chr = qemu_char_get_next_serial();
@@ -219,7 +220,7 @@ static void xilinx_uartlite_class_init(ObjectClass *klass, void *data)
 }
 
 static TypeInfo xilinx_uartlite_info = {
-    .name          = "xilinx,uartlite",
+    .name          = "xlnx.xps-uartlite",
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof (struct xlx_uartlite),
     .class_init    = xilinx_uartlite_class_init,

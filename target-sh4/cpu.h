@@ -191,7 +191,7 @@ typedef struct CPUSH4State {
 
 #include "cpu-qom.h"
 
-CPUSH4State *cpu_sh4_init(const char *cpu_model);
+SuperHCPU *cpu_sh4_init(const char *cpu_model);
 int cpu_sh4_exec(CPUSH4State * s);
 int cpu_sh4_signal_handler(int host_signum, void *pinfo,
                            void *puc);
@@ -204,20 +204,20 @@ void sh4_cpu_list(FILE *f, fprintf_function cpu_fprintf);
 #if !defined(CONFIG_USER_ONLY)
 void cpu_sh4_invalidate_tlb(CPUSH4State *s);
 uint32_t cpu_sh4_read_mmaped_itlb_addr(CPUSH4State *s,
-                                       target_phys_addr_t addr);
-void cpu_sh4_write_mmaped_itlb_addr(CPUSH4State *s, target_phys_addr_t addr,
+                                       hwaddr addr);
+void cpu_sh4_write_mmaped_itlb_addr(CPUSH4State *s, hwaddr addr,
                                     uint32_t mem_value);
 uint32_t cpu_sh4_read_mmaped_itlb_data(CPUSH4State *s,
-                                       target_phys_addr_t addr);
-void cpu_sh4_write_mmaped_itlb_data(CPUSH4State *s, target_phys_addr_t addr,
+                                       hwaddr addr);
+void cpu_sh4_write_mmaped_itlb_data(CPUSH4State *s, hwaddr addr,
                                     uint32_t mem_value);
 uint32_t cpu_sh4_read_mmaped_utlb_addr(CPUSH4State *s,
-                                       target_phys_addr_t addr);
-void cpu_sh4_write_mmaped_utlb_addr(CPUSH4State *s, target_phys_addr_t addr,
+                                       hwaddr addr);
+void cpu_sh4_write_mmaped_utlb_addr(CPUSH4State *s, hwaddr addr,
                                     uint32_t mem_value);
 uint32_t cpu_sh4_read_mmaped_utlb_data(CPUSH4State *s,
-                                       target_phys_addr_t addr);
-void cpu_sh4_write_mmaped_utlb_data(CPUSH4State *s, target_phys_addr_t addr,
+                                       hwaddr addr);
+void cpu_sh4_write_mmaped_utlb_data(CPUSH4State *s, hwaddr addr,
                                     uint32_t mem_value);
 #endif
 
@@ -232,7 +232,15 @@ void cpu_load_tlb(CPUSH4State * env);
 
 #include "softfloat.h"
 
-#define cpu_init cpu_sh4_init
+static inline CPUSH4State *cpu_init(const char *cpu_model)
+{
+    SuperHCPU *cpu = cpu_sh4_init(cpu_model);
+    if (cpu == NULL) {
+        return NULL;
+    }
+    return &cpu->env;
+}
+
 #define cpu_exec cpu_sh4_exec
 #define cpu_gen_code cpu_sh4_gen_code
 #define cpu_signal_handler cpu_sh4_signal_handler
@@ -363,8 +371,10 @@ static inline void cpu_get_tb_cpu_state(CPUSH4State *env, target_ulong *pc,
             | (env->movcal_backup ? TB_FLAG_PENDING_MOVCA : 0); /* Bit 4 */
 }
 
-static inline bool cpu_has_work(CPUSH4State *env)
+static inline bool cpu_has_work(CPUState *cpu)
 {
+    CPUSH4State *env = &SUPERH_CPU(cpu)->env;
+
     return env->interrupt_request & CPU_INTERRUPT_HARD;
 }
 

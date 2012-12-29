@@ -59,7 +59,7 @@
  * - 1 RTC
  */
 
-static uint64_t static_read(void *opaque, target_phys_addr_t offset,
+static uint64_t static_read(void *opaque, hwaddr offset,
                             unsigned size)
 {
     uint32_t *val = (uint32_t *) opaque;
@@ -68,7 +68,7 @@ static uint64_t static_read(void *opaque, target_phys_addr_t offset,
     return *val >> ((offset & mask) << 3);
 }
 
-static void static_write(void *opaque, target_phys_addr_t offset,
+static void static_write(void *opaque, hwaddr offset,
                          uint64_t value, unsigned size)
 {
 #ifdef SPY
@@ -97,13 +97,9 @@ static struct arm_boot_info sx1_binfo = {
     .board_id = 0x265,
 };
 
-static void sx1_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model,
-                const int version)
+static void sx1_init(QEMUMachineInitArgs *args, const int version)
 {
-    struct omap_mpu_state_s *cpu;
+    struct omap_mpu_state_s *mpu;
     MemoryRegion *address_space = get_system_memory();
     MemoryRegion *flash = g_new(MemoryRegion, 1);
     MemoryRegion *flash_1 = g_new(MemoryRegion, 1);
@@ -121,7 +117,7 @@ static void sx1_init(ram_addr_t ram_size,
         flash_size = flash2_size;
     }
 
-    cpu = omap310_mpu_init(address_space, sx1_binfo.ram_size, cpu_model);
+    mpu = omap310_mpu_init(address_space, sx1_binfo.ram_size, args->cpu_model);
 
     /* External Flash (EMIFS) */
     memory_region_init_ram(flash, "omap_sx1.flash0-0", flash_size);
@@ -192,39 +188,31 @@ static void sx1_init(ram_addr_t ram_size,
                                 OMAP_CS1_BASE, &cs[1]);
     }
 
-    if (!kernel_filename && !fl_idx) {
+    if (!args->kernel_filename && !fl_idx) {
         fprintf(stderr, "Kernel or Flash image must be specified\n");
         exit(1);
     }
 
     /* Load the kernel.  */
-    if (kernel_filename) {
-        sx1_binfo.kernel_filename = kernel_filename;
-        sx1_binfo.kernel_cmdline = kernel_cmdline;
-        sx1_binfo.initrd_filename = initrd_filename;
-        arm_load_kernel(cpu->env, &sx1_binfo);
+    if (args->kernel_filename) {
+        sx1_binfo.kernel_filename = args->kernel_filename;
+        sx1_binfo.kernel_cmdline = args->kernel_cmdline;
+        sx1_binfo.initrd_filename = args->initrd_filename;
+        arm_load_kernel(mpu->cpu, &sx1_binfo);
     }
 
     /* TODO: fix next line */
     //~ qemu_console_resize(ds, 640, 480);
 }
 
-static void sx1_init_v1(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void sx1_init_v1(QEMUMachineInitArgs *args)
 {
-    sx1_init(ram_size, boot_device, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, 1);
+    sx1_init(args, 1);
 }
 
-static void sx1_init_v2(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void sx1_init_v2(QEMUMachineInitArgs *args)
 {
-    sx1_init(ram_size, boot_device, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, 2);
+    sx1_init(args, 2);
 }
 
 static QEMUMachine sx1_machine_v2 = {

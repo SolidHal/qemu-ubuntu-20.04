@@ -10,9 +10,9 @@ STEXI
 ETEXI
 
 DEF("check", img_check,
-    "check [-f fmt] filename")
+    "check [-f fmt] [-r [leaks | all]] filename")
 STEXI
-@item check [-f @var{fmt}] @var{filename}
+@item check [-f @var{fmt}] [-r [leaks | all]] @var{filename}
 ETEXI
 
 DEF("create", img_create,
@@ -34,9 +34,9 @@ STEXI
 ETEXI
 
 DEF("info", img_info,
-    "info [-f fmt] filename")
+    "info [-f fmt] [--output=ofmt] [--backing-chain] filename")
 STEXI
-@item info [-f @var{fmt}] @var{filename}
+@item info [-f @var{fmt}] [--output=@var{ofmt}] [--backing-chain] @var{filename}
 ETEXI
 
 DEF("snapshot", img_snapshot,

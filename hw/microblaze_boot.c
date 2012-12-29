@@ -35,7 +35,7 @@
 
 static struct
 {
-    void (*machine_cpu_reset)(CPUMBState *);
+    void (*machine_cpu_reset)(MicroBlazeCPU *);
     uint32_t bootstrap_pc;
     uint32_t cmdline;
     uint32_t fdt;
@@ -43,18 +43,19 @@ static struct
 
 static void main_cpu_reset(void *opaque)
 {
-    CPUMBState *env = opaque;
+    MicroBlazeCPU *cpu = opaque;
+    CPUMBState *env = &cpu->env;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(cpu));
     env->regs[5] = boot_info.cmdline;
     env->regs[7] = boot_info.fdt;
     env->sregs[SR_PC] = boot_info.bootstrap_pc;
     if (boot_info.machine_cpu_reset) {
-        boot_info.machine_cpu_reset(env);
+        boot_info.machine_cpu_reset(cpu);
     }
 }
 
-static int microblaze_load_dtb(target_phys_addr_t addr,
+static int microblaze_load_dtb(hwaddr addr,
                                       uint32_t ramsize,
                                       const char *kernel_cmdline,
                                       const char *dtb_filename)
@@ -99,11 +100,10 @@ static uint64_t translate_kernel_address(void *opaque, uint64_t addr)
     return addr - 0x30000000LL;
 }
 
-void microblaze_load_kernel(CPUMBState *env, target_phys_addr_t ddr_base,
+void microblaze_load_kernel(MicroBlazeCPU *cpu, hwaddr ddr_base,
                             uint32_t ramsize, const char *dtb_filename,
-                                  void (*machine_cpu_reset)(CPUMBState *))
+                            void (*machine_cpu_reset)(MicroBlazeCPU *))
 {
-
     QemuOpts *machine_opts;
     const char *kernel_filename = NULL;
     const char *kernel_cmdline = NULL;
@@ -122,7 +122,7 @@ void microblaze_load_kernel(CPUMBState *env, target_phys_addr_t ddr_base,
     }
 
     boot_info.machine_cpu_reset = machine_cpu_reset;
-    qemu_register_reset(main_cpu_reset, env);
+    qemu_register_reset(main_cpu_reset, cpu);
 
     if (kernel_filename) {
         int kernel_size;
@@ -149,7 +149,7 @@ void microblaze_load_kernel(CPUMBState *env, target_phys_addr_t ddr_base,
 
         /* If it wasn't an ELF image, try an u-boot image.  */
         if (kernel_size < 0) {
-            target_phys_addr_t uentry, loadaddr;
+            hwaddr uentry, loadaddr;
 
             kernel_size = load_uimage(kernel_filename, &uentry, &loadaddr, 0);
             boot_info.bootstrap_pc = uentry;

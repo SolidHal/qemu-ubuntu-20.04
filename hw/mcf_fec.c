@@ -216,7 +216,7 @@ static void mcf_fec_reset(mcf_fec_state *s)
     s->rfsr = 0x500;
 }
 
-static uint64_t mcf_fec_read(void *opaque, target_phys_addr_t addr,
+static uint64_t mcf_fec_read(void *opaque, hwaddr addr,
                              unsigned size)
 {
     mcf_fec_state *s = (mcf_fec_state *)opaque;
@@ -254,7 +254,7 @@ static uint64_t mcf_fec_read(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static void mcf_fec_write(void *opaque, target_phys_addr_t addr,
+static void mcf_fec_write(void *opaque, hwaddr addr,
                           uint64_t value, unsigned size)
 {
     mcf_fec_state *s = (mcf_fec_state *)opaque;
@@ -351,13 +351,13 @@ static void mcf_fec_write(void *opaque, target_phys_addr_t addr,
     mcf_fec_update(s);
 }
 
-static int mcf_fec_can_receive(VLANClientState *nc)
+static int mcf_fec_can_receive(NetClientState *nc)
 {
     mcf_fec_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
     return s->rx_enabled;
 }
 
-static ssize_t mcf_fec_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
+static ssize_t mcf_fec_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
     mcf_fec_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
     mcf_fec_bd bd;
@@ -439,7 +439,7 @@ static const MemoryRegionOps mcf_fec_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void mcf_fec_cleanup(VLANClientState *nc)
+static void mcf_fec_cleanup(NetClientState *nc)
 {
     mcf_fec_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -450,7 +450,7 @@ static void mcf_fec_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_mcf_fec_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = mcf_fec_can_receive,
     .receive = mcf_fec_receive,
@@ -458,7 +458,7 @@ static NetClientInfo net_mcf_fec_info = {
 };
 
 void mcf_fec_init(MemoryRegion *sysmem, NICInfo *nd,
-                  target_phys_addr_t base, qemu_irq *irq)
+                  hwaddr base, qemu_irq *irq)
 {
     mcf_fec_state *s;
 
@@ -472,7 +472,6 @@ void mcf_fec_init(MemoryRegion *sysmem, NICInfo *nd,
     memory_region_add_subregion(sysmem, base, &s->iomem);
 
     s->conf.macaddr = nd->macaddr;
-    s->conf.vlan = nd->vlan;
     s->conf.peer = nd->netdev;
 
     s->nic = qemu_new_nic(&net_mcf_fec_info, &s->conf, nd->model, nd->name, s);

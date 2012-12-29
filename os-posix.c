@@ -148,8 +148,7 @@ void os_set_proc_name(const char *s)
     char name[16];
     if (!s)
         return;
-    name[sizeof(name) - 1] = 0;
-    strncpy(name, s, sizeof(name));
+    pstrcpy(name, sizeof(name), s);
     /* Could rewrite argv[0] too, but that's a bit more complicated.
        This simple way is enough for `top'. */
     if (prctl(PR_SET_NAME, name)) {
@@ -188,8 +187,12 @@ void os_parse_cmd_args(int index, const char *optarg)
     case QEMU_OPTION_daemonize:
         daemonize = 1;
         break;
+#if defined(CONFIG_LINUX)
+    case QEMU_OPTION_enablefips:
+        fips_set_state(true);
+        break;
+#endif
     }
-    return;
 }
 
 static void change_process_uid(void)
@@ -354,4 +357,9 @@ int qemu_create_pidfile(const char *filename)
 
     /* keep pidfile open & locked forever */
     return 0;
+}
+
+bool is_daemonized(void)
+{
+    return daemonize;
 }

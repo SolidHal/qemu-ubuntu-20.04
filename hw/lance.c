@@ -55,7 +55,7 @@ static void parent_lance_reset(void *opaque, int irq, int level)
         pcnet_h_reset(&d->state);
 }
 
-static void lance_mem_write(void *opaque, target_phys_addr_t addr,
+static void lance_mem_write(void *opaque, hwaddr addr,
                             uint64_t val, unsigned size)
 {
     SysBusPCNetState *d = opaque;
@@ -64,7 +64,7 @@ static void lance_mem_write(void *opaque, target_phys_addr_t addr,
     pcnet_ioport_writew(&d->state, addr, val & 0xffff);
 }
 
-static uint64_t lance_mem_read(void *opaque, target_phys_addr_t addr,
+static uint64_t lance_mem_read(void *opaque, hwaddr addr,
                                unsigned size)
 {
     SysBusPCNetState *d = opaque;
@@ -85,7 +85,7 @@ static const MemoryRegionOps lance_mem_ops = {
     },
 };
 
-static void lance_cleanup(VLANClientState *nc)
+static void lance_cleanup(NetClientState *nc)
 {
     PCNetState *d = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -93,7 +93,7 @@ static void lance_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_lance_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = pcnet_can_receive,
     .receive = pcnet_receive,

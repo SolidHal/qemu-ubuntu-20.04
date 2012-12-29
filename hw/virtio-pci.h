@@ -17,6 +17,7 @@
 
 #include "virtio-blk.h"
 #include "virtio-net.h"
+#include "virtio-rng.h"
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
 
@@ -26,10 +27,14 @@
 #define VIRTIO_PCI_FLAG_USE_IOEVENTFD   (1 << VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT)
 
 typedef struct {
+    int virq;
+    unsigned int users;
+} VirtIOIRQFD;
+
+typedef struct {
     PCIDevice pci_dev;
     VirtIODevice *vdev;
     MemoryRegion bar;
-    MemoryRegion msix_bar;
     uint32_t flags;
     uint32_t class_code;
     uint32_t nvectors;
@@ -42,8 +47,10 @@ typedef struct {
     virtio_serial_conf serial;
     virtio_net_conf net;
     VirtIOSCSIConf scsi;
+    VirtIORNGConf rng;
     bool ioeventfd_disabled;
     bool ioeventfd_started;
+    VirtIOIRQFD *vector_irqfd;
 } VirtIOPCIProxy;
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);

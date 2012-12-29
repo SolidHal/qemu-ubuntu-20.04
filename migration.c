@@ -43,6 +43,9 @@ enum {
 
 #define MAX_THROTTLE  (32 << 20)      /* Migration speed throttling */
 
+/* Migration XBZRLE default cache size */
+#define DEFAULT_MIGRATE_CACHE_SIZE (64 * 1024 * 1024)
+
 static NotifierList migration_state_notifiers =
     NOTIFIER_LIST_INITIALIZER(migration_state_notifiers);
 
@@ -50,41 +53,45 @@ static NotifierList migration_state_notifiers =
    migrations at once.  For now we don't need to add
    dynamic creation of migration */
 
-static MigrationState *migrate_get_current(void)
+MigrationState *migrate_get_current(void)
 {
     static MigrationState current_migration = {
         .state = MIG_STATE_SETUP,
         .bandwidth_limit = MAX_THROTTLE,
+        .xbzrle_cache_size = DEFAULT_MIGRATE_CACHE_SIZE,
     };
 
     return &current_migration;
 }
 
-int qemu_start_incoming_migration(const char *uri, Error **errp)
+void qemu_start_incoming_migration(const char *uri, Error **errp)
 {
     const char *p;
-    int ret;
 
     if (strstart(uri, "tcp:", &p))
-        ret = tcp_start_incoming_migration(p, errp);
+        tcp_start_incoming_migration(p, errp);
 #if !defined(WIN32)
     else if (strstart(uri, "exec:", &p))
-        ret =  exec_start_incoming_migration(p);
+        exec_start_incoming_migration(p, errp);
     else if (strstart(uri, "unix:", &p))
-        ret = unix_start_incoming_migration(p);
+        unix_start_incoming_migration(p, errp);
     else if (strstart(uri, "fd:", &p))
-        ret = fd_start_incoming_migration(p);
+        fd_start_incoming_migration(p, errp);
 #endif
     else {
-        fprintf(stderr, "unknown migration protocol: %s\n", uri);
-        ret = -EPROTONOSUPPORT;
+        error_setg(errp, "unknown migration protocol: %s\n", uri);
     }
-    return ret;
 }
 
-void process_incoming_migration(QEMUFile *f)
+static void process_incoming_migration_co(void *opaque)
 {
-    if (qemu_loadvm_state(f) < 0) {
+    QEMUFile *f = opaque;
+    int ret;
+
+    ret = qemu_loadvm_state(f);
+    qemu_set_fd_handler(qemu_get_fd(f), NULL, NULL, NULL);
+    qemu_fclose(f);
+    if (ret < 0) {
         fprintf(stderr, "load of migration failed\n");
         exit(0);
     }
@@ -98,8 +105,25 @@ void process_incoming_migration(QEMUFile *f)
     if (autostart) {
         vm_start();
     } else {
-        runstate_set(RUN_STATE_PRELAUNCH);
+        runstate_set(RUN_STATE_PAUSED);
     }
+}
+
+static void enter_migration_coroutine(void *opaque)
+{
+    Coroutine *co = opaque;
+    qemu_coroutine_enter(co, NULL);
+}
+
+void process_incoming_migration(QEMUFile *f)
+{
+    Coroutine *co = qemu_coroutine_create(process_incoming_migration_co);
+    int fd = qemu_get_fd(f);
+
+    assert(fd != -1);
+    socket_set_nonblock(fd);
+    qemu_set_fd_handler(fd, enter_migration_coroutine, NULL, co);
+    qemu_coroutine_enter(co, f);
 }
 
 /* amount of nanoseconds we are willing to wait for migration to be down.
@@ -111,6 +135,43 @@ static uint64_t max_downtime = 30000000;
 uint64_t migrate_max_downtime(void)
 {
     return max_downtime;
+}
+
+MigrationCapabilityStatusList *qmp_query_migrate_capabilities(Error **errp)
+{
+    MigrationCapabilityStatusList *head = NULL;
+    MigrationCapabilityStatusList *caps;
+    MigrationState *s = migrate_get_current();
+    int i;
+
+    for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+        if (head == NULL) {
+            head = g_malloc0(sizeof(*caps));
+            caps = head;
+        } else {
+            caps->next = g_malloc0(sizeof(*caps));
+            caps = caps->next;
+        }
+        caps->value =
+            g_malloc(sizeof(*caps->value));
+        caps->value->capability = i;
+        caps->value->state = s->enabled_capabilities[i];
+    }
+
+    return head;
+}
+
+static void get_xbzrle_cache_stats(MigrationInfo *info)
+{
+    if (migrate_use_xbzrle()) {
+        info->has_xbzrle_cache = true;
+        info->xbzrle_cache = g_malloc0(sizeof(*info->xbzrle_cache));
+        info->xbzrle_cache->cache_size = migrate_xbzrle_cache_size();
+        info->xbzrle_cache->bytes = xbzrle_mig_bytes_transferred();
+        info->xbzrle_cache->pages = xbzrle_mig_pages_transferred();
+        info->xbzrle_cache->cache_miss = xbzrle_mig_pages_cache_miss();
+        info->xbzrle_cache->overflow = xbzrle_mig_pages_overflow();
+    }
 }
 
 MigrationInfo *qmp_query_migrate(Error **errp)
@@ -125,12 +186,22 @@ MigrationInfo *qmp_query_migrate(Error **errp)
     case MIG_STATE_ACTIVE:
         info->has_status = true;
         info->status = g_strdup("active");
+        info->has_total_time = true;
+        info->total_time = qemu_get_clock_ms(rt_clock)
+            - s->total_time;
+        info->has_expected_downtime = true;
+        info->expected_downtime = s->expected_downtime;
 
         info->has_ram = true;
         info->ram = g_malloc0(sizeof(*info->ram));
         info->ram->transferred = ram_bytes_transferred();
         info->ram->remaining = ram_bytes_remaining();
         info->ram->total = ram_bytes_total();
+        info->ram->duplicate = dup_mig_pages_transferred();
+        info->ram->normal = norm_mig_pages_transferred();
+        info->ram->normal_bytes = norm_mig_bytes_transferred();
+        info->ram->dirty_pages_rate = s->dirty_pages_rate;
+
 
         if (blk_mig_active()) {
             info->has_disk = true;
@@ -139,10 +210,26 @@ MigrationInfo *qmp_query_migrate(Error **errp)
             info->disk->remaining = blk_mig_bytes_remaining();
             info->disk->total = blk_mig_bytes_total();
         }
+
+        get_xbzrle_cache_stats(info);
         break;
     case MIG_STATE_COMPLETED:
+        get_xbzrle_cache_stats(info);
+
         info->has_status = true;
         info->status = g_strdup("completed");
+        info->total_time = s->total_time;
+        info->has_downtime = true;
+        info->downtime = s->downtime;
+
+        info->has_ram = true;
+        info->ram = g_malloc0(sizeof(*info->ram));
+        info->ram->transferred = ram_bytes_transferred();
+        info->ram->remaining = 0;
+        info->ram->total = ram_bytes_total();
+        info->ram->duplicate = dup_mig_pages_transferred();
+        info->ram->normal = norm_mig_pages_transferred();
+        info->ram->normal_bytes = norm_mig_bytes_transferred();
         break;
     case MIG_STATE_ERROR:
         info->has_status = true;
@@ -157,13 +244,27 @@ MigrationInfo *qmp_query_migrate(Error **errp)
     return info;
 }
 
+void qmp_migrate_set_capabilities(MigrationCapabilityStatusList *params,
+                                  Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+    MigrationCapabilityStatusList *cap;
+
+    if (s->state == MIG_STATE_ACTIVE) {
+        error_set(errp, QERR_MIGRATION_ACTIVE);
+        return;
+    }
+
+    for (cap = params; cap; cap = cap->next) {
+        s->enabled_capabilities[cap->value->capability] = cap->value->state;
+    }
+}
+
 /* shared migration helpers */
 
 static int migrate_fd_cleanup(MigrationState *s)
 {
     int ret = 0;
-
-    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
 
     if (s->file) {
         DPRINTF("closing file\n");
@@ -171,11 +272,7 @@ static int migrate_fd_cleanup(MigrationState *s)
         s->file = NULL;
     }
 
-    if (s->fd != -1) {
-        close(s->fd);
-        s->fd = -1;
-    }
-
+    migrate_fd_close(s);
     return ret;
 }
 
@@ -202,18 +299,18 @@ static void migrate_fd_completed(MigrationState *s)
 static void migrate_fd_put_notify(void *opaque)
 {
     MigrationState *s = opaque;
+    int ret;
 
     qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
-    qemu_file_put_notify(s->file);
-    if (s->file && qemu_file_get_error(s->file)) {
+    ret = qemu_file_put_notify(s->file);
+    if (ret) {
         migrate_fd_error(s);
     }
 }
 
-static ssize_t migrate_fd_put_buffer(void *opaque, const void *data,
-                                     size_t size)
+ssize_t migrate_fd_put_buffer(MigrationState *s, const void *data,
+                              size_t size)
 {
-    MigrationState *s = opaque;
     ssize_t ret;
 
     if (s->state != MIG_STATE_ACTIVE) {
@@ -234,9 +331,8 @@ static ssize_t migrate_fd_put_buffer(void *opaque, const void *data,
     return ret;
 }
 
-static void migrate_fd_put_ready(void *opaque)
+void migrate_fd_put_ready(MigrationState *s)
 {
-    MigrationState *s = opaque;
     int ret;
 
     if (s->state != MIG_STATE_ACTIVE) {
@@ -250,8 +346,10 @@ static void migrate_fd_put_ready(void *opaque)
         migrate_fd_error(s);
     } else if (ret == 1) {
         int old_vm_running = runstate_is_running();
+        int64_t start_time, end_time;
 
         DPRINTF("done iterating\n");
+        start_time = qemu_get_clock_ms(rt_clock);
         qemu_system_wakeup_request(QEMU_WAKEUP_REASON_OTHER);
         vm_stop_force_state(RUN_STATE_FINISH_MIGRATE);
 
@@ -260,6 +358,9 @@ static void migrate_fd_put_ready(void *opaque)
         } else {
             migrate_fd_completed(s);
         }
+        end_time = qemu_get_clock_ms(rt_clock);
+        s->total_time = end_time - s->total_time;
+        s->downtime = end_time - start_time;
         if (s->state != MIG_STATE_COMPLETED) {
             if (old_vm_running) {
                 vm_start();
@@ -282,14 +383,13 @@ static void migrate_fd_cancel(MigrationState *s)
     migrate_fd_cleanup(s);
 }
 
-static void migrate_fd_wait_for_unfreeze(void *opaque)
+int migrate_fd_wait_for_unfreeze(MigrationState *s)
 {
-    MigrationState *s = opaque;
     int ret;
 
     DPRINTF("wait for unfreeze\n");
     if (s->state != MIG_STATE_ACTIVE)
-        return;
+        return -EINVAL;
 
     do {
         fd_set wfds;
@@ -301,16 +401,20 @@ static void migrate_fd_wait_for_unfreeze(void *opaque)
     } while (ret == -1 && (s->get_error(s)) == EINTR);
 
     if (ret == -1) {
-        qemu_file_set_error(s->file, -s->get_error(s));
+        return -s->get_error(s);
     }
+    return 0;
 }
 
-static int migrate_fd_close(void *opaque)
+int migrate_fd_close(MigrationState *s)
 {
-    MigrationState *s = opaque;
-
-    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
-    return s->close(s);
+    int rc = 0;
+    if (s->fd != -1) {
+        qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+        rc = s->close(s);
+        s->fd = -1;
+    }
+    return rc;
 }
 
 void add_migration_state_change_notifier(Notifier *notify)
@@ -344,15 +448,10 @@ void migrate_fd_connect(MigrationState *s)
     int ret;
 
     s->state = MIG_STATE_ACTIVE;
-    s->file = qemu_fopen_ops_buffered(s,
-                                      s->bandwidth_limit,
-                                      migrate_fd_put_buffer,
-                                      migrate_fd_put_ready,
-                                      migrate_fd_wait_for_unfreeze,
-                                      migrate_fd_close);
+    s->file = qemu_fopen_ops_buffered(s);
 
     DPRINTF("beginning savevm\n");
-    ret = qemu_savevm_state_begin(s->file, s->blk, s->shared);
+    ret = qemu_savevm_state_begin(s->file, &s->params);
     if (ret < 0) {
         DPRINTF("failed, %d\n", ret);
         migrate_fd_error(s);
@@ -361,18 +460,26 @@ void migrate_fd_connect(MigrationState *s)
     migrate_fd_put_ready(s);
 }
 
-static MigrationState *migrate_init(int blk, int inc)
+static MigrationState *migrate_init(const MigrationParams *params)
 {
     MigrationState *s = migrate_get_current();
     int64_t bandwidth_limit = s->bandwidth_limit;
+    bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
+    int64_t xbzrle_cache_size = s->xbzrle_cache_size;
+
+    memcpy(enabled_capabilities, s->enabled_capabilities,
+           sizeof(enabled_capabilities));
 
     memset(s, 0, sizeof(*s));
     s->bandwidth_limit = bandwidth_limit;
-    s->blk = blk;
-    s->shared = inc;
+    s->params = *params;
+    memcpy(s->enabled_capabilities, enabled_capabilities,
+           sizeof(enabled_capabilities));
+    s->xbzrle_cache_size = xbzrle_cache_size;
 
     s->bandwidth_limit = bandwidth_limit;
     s->state = MIG_STATE_SETUP;
+    s->total_time = qemu_get_clock_ms(rt_clock);
 
     return s;
 }
@@ -393,9 +500,13 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
                  bool has_inc, bool inc, bool has_detach, bool detach,
                  Error **errp)
 {
+    Error *local_err = NULL;
     MigrationState *s = migrate_get_current();
+    MigrationParams params;
     const char *p;
-    int ret;
+
+    params.blk = blk;
+    params.shared = inc;
 
     if (s->state == MIG_STATE_ACTIVE) {
         error_set(errp, QERR_MIGRATION_ACTIVE);
@@ -411,29 +522,26 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
         return;
     }
 
-    s = migrate_init(blk, inc);
+    s = migrate_init(&params);
 
     if (strstart(uri, "tcp:", &p)) {
-        ret = tcp_start_outgoing_migration(s, p, errp);
+        tcp_start_outgoing_migration(s, p, &local_err);
 #if !defined(WIN32)
     } else if (strstart(uri, "exec:", &p)) {
-        ret = exec_start_outgoing_migration(s, p);
+        exec_start_outgoing_migration(s, p, &local_err);
     } else if (strstart(uri, "unix:", &p)) {
-        ret = unix_start_outgoing_migration(s, p);
+        unix_start_outgoing_migration(s, p, &local_err);
     } else if (strstart(uri, "fd:", &p)) {
-        ret = fd_start_outgoing_migration(s, p);
+        fd_start_outgoing_migration(s, p, &local_err);
 #endif
     } else {
         error_set(errp, QERR_INVALID_PARAMETER_VALUE, "uri", "a valid migration protocol");
         return;
     }
 
-    if (ret < 0) {
-        if (!error_is_set(errp)) {
-            DPRINTF("migration failed: %s\n", strerror(-ret));
-            /* FIXME: we should return meaningful errors */
-            error_set(errp, QERR_UNDEFINED_ERROR);
-        }
+    if (local_err) {
+        migrate_fd_error(s);
+        error_propagate(errp, local_err);
         return;
     }
 
@@ -443,6 +551,25 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
 void qmp_migrate_cancel(Error **errp)
 {
     migrate_fd_cancel(migrate_get_current());
+}
+
+void qmp_migrate_set_cache_size(int64_t value, Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+
+    /* Check for truncation */
+    if (value != (size_t)value) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "cache size",
+                  "exceeding address space");
+        return;
+    }
+
+    s->xbzrle_cache_size = xbzrle_cache_resize(value);
+}
+
+int64_t qmp_query_migrate_cache_size(Error **errp)
+{
+    return migrate_xbzrle_cache_size();
 }
 
 void qmp_migrate_set_speed(int64_t value, Error **errp)
@@ -463,4 +590,22 @@ void qmp_migrate_set_downtime(double value, Error **errp)
     value *= 1e9;
     value = MAX(0, MIN(UINT64_MAX, value));
     max_downtime = (uint64_t)value;
+}
+
+int migrate_use_xbzrle(void)
+{
+    MigrationState *s;
+
+    s = migrate_get_current();
+
+    return s->enabled_capabilities[MIGRATION_CAPABILITY_XBZRLE];
+}
+
+int64_t migrate_xbzrle_cache_size(void)
+{
+    MigrationState *s;
+
+    s = migrate_get_current();
+
+    return s->xbzrle_cache_size;
 }

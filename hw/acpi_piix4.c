@@ -27,6 +27,7 @@
 #include "sysemu.h"
 #include "range.h"
 #include "ioport.h"
+#include "fw_cfg.h"
 
 //#define DEBUG
 
@@ -66,11 +67,16 @@ typedef struct PIIX4PMState {
     qemu_irq smi_irq;
     int kvm_enabled;
     Notifier machine_ready;
+    Notifier powerdown_notifier;
 
     /* for pci hotplug */
     struct pci_status pci0_status;
     uint32_t pci0_hotplug_enable;
     uint32_t pci0_slot_device_present;
+
+    uint8_t disable_s3;
+    uint8_t disable_s4;
+    uint8_t s4_val;
 } PIIX4PMState;
 
 static void piix4_acpi_system_hot_add_init(PCIBus *bus, PIIX4PMState *s);
@@ -123,7 +129,7 @@ static void pm_ioport_write(IORange *ioport, uint64_t addr, unsigned width,
         pm_update_sci(s);
         break;
     case 0x04:
-        acpi_pm1_cnt_write(&s->ar, val);
+        acpi_pm1_cnt_write(&s->ar, val, s->s4_val);
         break;
     default:
         break;
@@ -229,10 +235,9 @@ static int vmstate_acpi_post_load(void *opaque, int version_id)
  {                                                                   \
      .name       = (stringify(_field)),                              \
      .version_id = 0,                                                \
-     .num        = GPE_LEN,                                          \
      .info       = &vmstate_info_uint16,                             \
      .size       = sizeof(uint16_t),                                 \
-     .flags      = VMS_ARRAY | VMS_POINTER,                          \
+     .flags      = VMS_SINGLE | VMS_POINTER,                         \
      .offset     = vmstate_offset_pointer(_state, _field, uint8_t),  \
  }
 
@@ -261,11 +266,54 @@ static const VMStateDescription vmstate_pci_status = {
     }
 };
 
+static int acpi_load_old(QEMUFile *f, void *opaque, int version_id)
+{
+    PIIX4PMState *s = opaque;
+    int ret, i;
+    uint16_t temp;
+
+    ret = pci_device_load(&s->dev, f);
+    if (ret < 0) {
+        return ret;
+    }
+    qemu_get_be16s(f, &s->ar.pm1.evt.sts);
+    qemu_get_be16s(f, &s->ar.pm1.evt.en);
+    qemu_get_be16s(f, &s->ar.pm1.cnt.cnt);
+
+    ret = vmstate_load_state(f, &vmstate_apm, opaque, 1);
+    if (ret) {
+        return ret;
+    }
+
+    qemu_get_timer(f, s->ar.tmr.timer);
+    qemu_get_sbe64s(f, &s->ar.tmr.overflow_time);
+
+    qemu_get_be16s(f, (uint16_t *)s->ar.gpe.sts);
+    for (i = 0; i < 3; i++) {
+        qemu_get_be16s(f, &temp);
+    }
+
+    qemu_get_be16s(f, (uint16_t *)s->ar.gpe.en);
+    for (i = 0; i < 3; i++) {
+        qemu_get_be16s(f, &temp);
+    }
+
+    ret = vmstate_load_state(f, &vmstate_pci_status, opaque, 1);
+    return ret;
+}
+
+/* qemu-kvm 1.2 uses version 3 but advertised as 2
+ * To support incoming qemu-kvm 1.2 migration, change version_id
+ * and minimum_version_id to 2 below (which breaks migration from
+ * qemu 1.2).
+ *
+ */
 static const VMStateDescription vmstate_acpi = {
     .name = "piix4_pm",
-    .version_id = 2,
-    .minimum_version_id = 1,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .minimum_version_id_old = 1,
+    .load_state_old = acpi_load_old,
     .post_load = vmstate_acpi_post_load,
     .fields      = (VMStateField []) {
         VMSTATE_PCI_DEVICE(dev, PIIX4PMState),
@@ -284,7 +332,7 @@ static const VMStateDescription vmstate_acpi = {
 
 static void acpi_piix_eject_slot(PIIX4PMState *s, unsigned slots)
 {
-    DeviceState *qdev, *next;
+    BusChild *kid, *next;
     BusState *bus = qdev_get_parent_bus(&s->dev.qdev);
     int slot = ffs(slots) - 1;
     bool slot_free = true;
@@ -292,7 +340,8 @@ static void acpi_piix_eject_slot(PIIX4PMState *s, unsigned slots)
     /* Mark request as complete */
     s->pci0_status.down &= ~(1U << slot);
 
-    QTAILQ_FOREACH_SAFE(qdev, &bus->children, sibling, next) {
+    QTAILQ_FOREACH_SAFE(kid, &bus->children, sibling, next) {
+        DeviceState *qdev = kid->child;
         PCIDevice *dev = PCI_DEVICE(qdev);
         PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(dev);
         if (PCI_SLOT(dev->devfn) == slot) {
@@ -312,7 +361,7 @@ static void piix4_update_hotplug(PIIX4PMState *s)
 {
     PCIDevice *dev = &s->dev;
     BusState *bus = qdev_get_parent_bus(&dev->qdev);
-    DeviceState *qdev, *next;
+    BusChild *kid, *next;
 
     /* Execute any pending removes during reset */
     while (s->pci0_status.down) {
@@ -322,7 +371,8 @@ static void piix4_update_hotplug(PIIX4PMState *s)
     s->pci0_hotplug_enable = ~0;
     s->pci0_slot_device_present = 0;
 
-    QTAILQ_FOREACH_SAFE(qdev, &bus->children, sibling, next) {
+    QTAILQ_FOREACH_SAFE(kid, &bus->children, sibling, next) {
+        DeviceState *qdev = kid->child;
         PCIDevice *pdev = PCI_DEVICE(qdev);
         PCIDeviceClass *pc = PCI_DEVICE_GET_CLASS(pdev);
         int slot = PCI_SLOT(pdev->devfn);
@@ -355,9 +405,9 @@ static void piix4_reset(void *opaque)
     piix4_update_hotplug(s);
 }
 
-static void piix4_powerdown(void *opaque, int irq, int power_failing)
+static void piix4_pm_powerdown_req(Notifier *n, void *opaque)
 {
-    PIIX4PMState *s = opaque;
+    PIIX4PMState *s = container_of(n, PIIX4PMState, powerdown_notifier);
 
     assert(s != NULL);
     acpi_pm1_evt_power_down(&s->ar);
@@ -409,7 +459,8 @@ static int piix4_pm_initfn(PCIDevice *dev)
     acpi_pm_tmr_init(&s->ar, pm_tmr_timer);
     acpi_gpe_init(&s->ar, GPE_LEN);
 
-    qemu_system_powerdown = *qemu_allocate_irqs(piix4_powerdown, s, 1);
+    s->powerdown_notifier.notify = piix4_pm_powerdown_req;
+    qemu_register_powerdown_notifier(&s->powerdown_notifier);
 
     pm_smbus_init(&s->dev.qdev, &s->smb);
     s->machine_ready.notify = piix4_pm_machine_ready;
@@ -422,7 +473,7 @@ static int piix4_pm_initfn(PCIDevice *dev)
 
 i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
                        qemu_irq sci_irq, qemu_irq smi_irq,
-                       int kvm_enabled)
+                       int kvm_enabled, void *fw_cfg)
 {
     PCIDevice *dev;
     PIIX4PMState *s;
@@ -438,11 +489,22 @@ i2c_bus *piix4_pm_init(PCIBus *bus, int devfn, uint32_t smb_io_base,
 
     qdev_init_nofail(&dev->qdev);
 
+    if (fw_cfg) {
+        uint8_t suspend[6] = {128, 0, 0, 129, 128, 128};
+        suspend[3] = 1 | ((!s->disable_s3) << 7);
+        suspend[4] = s->s4_val | ((!s->disable_s4) << 7);
+
+        fw_cfg_add_file(fw_cfg, "etc/system-states", g_memdup(suspend, 6), 6);
+    }
+
     return s->smb.smbus;
 }
 
 static Property piix4_pm_properties[] = {
     DEFINE_PROP_UINT32("smb_io_base", PIIX4PMState, smb_io_base, 0),
+    DEFINE_PROP_UINT8("disable_s3", PIIX4PMState, disable_s3, 0),
+    DEFINE_PROP_UINT8("disable_s4", PIIX4PMState, disable_s4, 0),
+    DEFINE_PROP_UINT8("s4_val", PIIX4PMState, s4_val, 2),
     DEFINE_PROP_END_OF_LIST(),
 };
 

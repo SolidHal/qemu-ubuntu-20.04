@@ -95,25 +95,24 @@ static struct arm_boot_info mainstone_binfo = {
 };
 
 static void mainstone_common_init(MemoryRegion *address_space_mem,
-                ram_addr_t ram_size,
-                const char *kernel_filename,
-                const char *kernel_cmdline, const char *initrd_filename,
-                const char *cpu_model, enum mainstone_model_e model, int arm_id)
+                                  QEMUMachineInitArgs *args,
+                                  enum mainstone_model_e model, int arm_id)
 {
     uint32_t sector_len = 256 * 1024;
-    target_phys_addr_t mainstone_flash_base[] = { MST_FLASH_0, MST_FLASH_1 };
-    PXA2xxState *cpu;
+    hwaddr mainstone_flash_base[] = { MST_FLASH_0, MST_FLASH_1 };
+    PXA2xxState *mpu;
     DeviceState *mst_irq;
     DriveInfo *dinfo;
     int i;
     int be;
     MemoryRegion *rom = g_new(MemoryRegion, 1);
+    const char *cpu_model = args->cpu_model;
 
     if (!cpu_model)
         cpu_model = "pxa270-c5";
 
     /* Setup CPU & memory */
-    cpu = pxa270_init(address_space_mem, mainstone_binfo.ram_size, cpu_model);
+    mpu = pxa270_init(address_space_mem, mainstone_binfo.ram_size, cpu_model);
     memory_region_init_ram(rom, "mainstone.rom", MAINSTONE_ROM);
     vmstate_register_ram_global(rom);
     memory_region_set_readonly(rom, true);
@@ -145,39 +144,35 @@ static void mainstone_common_init(MemoryRegion *address_space_mem,
     }
 
     mst_irq = sysbus_create_simple("mainstone-fpga", MST_FPGA_PHYS,
-                    qdev_get_gpio_in(cpu->gpio, 0));
+                    qdev_get_gpio_in(mpu->gpio, 0));
 
     /* setup keypad */
     printf("map addr %p\n", &map);
-    pxa27x_register_keypad(cpu->kp, map, 0xe0);
+    pxa27x_register_keypad(mpu->kp, map, 0xe0);
 
     /* MMC/SD host */
-    pxa2xx_mmci_handlers(cpu->mmc, NULL, qdev_get_gpio_in(mst_irq, MMC_IRQ));
+    pxa2xx_mmci_handlers(mpu->mmc, NULL, qdev_get_gpio_in(mst_irq, MMC_IRQ));
 
-    pxa2xx_pcmcia_set_irq_cb(cpu->pcmcia[0],
+    pxa2xx_pcmcia_set_irq_cb(mpu->pcmcia[0],
             qdev_get_gpio_in(mst_irq, S0_IRQ),
             qdev_get_gpio_in(mst_irq, S0_CD_IRQ));
-    pxa2xx_pcmcia_set_irq_cb(cpu->pcmcia[1],
+    pxa2xx_pcmcia_set_irq_cb(mpu->pcmcia[1],
             qdev_get_gpio_in(mst_irq, S1_IRQ),
             qdev_get_gpio_in(mst_irq, S1_CD_IRQ));
 
     smc91c111_init(&nd_table[0], MST_ETH_PHYS,
                     qdev_get_gpio_in(mst_irq, ETHERNET_IRQ));
 
-    mainstone_binfo.kernel_filename = kernel_filename;
-    mainstone_binfo.kernel_cmdline = kernel_cmdline;
-    mainstone_binfo.initrd_filename = initrd_filename;
+    mainstone_binfo.kernel_filename = args->kernel_filename;
+    mainstone_binfo.kernel_cmdline = args->kernel_cmdline;
+    mainstone_binfo.initrd_filename = args->initrd_filename;
     mainstone_binfo.board_id = arm_id;
-    arm_load_kernel(cpu->env, &mainstone_binfo);
+    arm_load_kernel(mpu->cpu, &mainstone_binfo);
 }
 
-static void mainstone_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void mainstone_init(QEMUMachineInitArgs *args)
 {
-    mainstone_common_init(get_system_memory(), ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, mainstone, 0x196);
+    mainstone_common_init(get_system_memory(), args, mainstone, 0x196);
 }
 
 static QEMUMachine mainstone2_machine = {

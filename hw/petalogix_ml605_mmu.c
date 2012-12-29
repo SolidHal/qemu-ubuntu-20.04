@@ -34,17 +34,21 @@
 #include "boards.h"
 #include "xilinx.h"
 #include "blockdev.h"
-#include "pc.h"
+#include "serial.h"
 #include "exec-memory.h"
+#include "ssi.h"
 
 #include "microblaze_boot.h"
 #include "microblaze_pic_cpu.h"
-#include "xilinx_axidma.h"
+
+#include "stream.h"
 
 #define LMB_BRAM_SIZE  (128 * 1024)
 #define FLASH_SIZE     (32 * 1024 * 1024)
 
 #define BINARY_DEVICE_TREE_FILE "petalogix-ml605.dtb"
+
+#define NUM_SPI_FLASHES 4
 
 #define MEMORY_BASEADDR 0x50000000
 #define FLASH_BASEADDR 0x86000000
@@ -54,8 +58,10 @@
 #define AXIENET_BASEADDR 0x82780000
 #define AXIDMA_BASEADDR 0x84600000
 
-static void machine_cpu_reset(CPUMBState *env)
+static void machine_cpu_reset(MicroBlazeCPU *cpu)
 {
+    CPUMBState *env = &cpu->env;
+
     env->pvr.regs[10] = 0x0e000000; /* virtex 6 */
     /* setup pvr to match kernel setting */
     env->pvr.regs[5] |= PVR5_DCACHE_WRITEBACK_MASK;
@@ -67,18 +73,18 @@ static void machine_cpu_reset(CPUMBState *env)
 }
 
 static void
-petalogix_ml605_init(ram_addr_t ram_size,
-                          const char *boot_device,
-                          const char *kernel_filename,
-                          const char *kernel_cmdline,
-                          const char *initrd_filename, const char *cpu_model)
+petalogix_ml605_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
     MemoryRegion *address_space_mem = get_system_memory();
-    DeviceState *dev;
+    DeviceState *dev, *dma, *eth0;
+    MicroBlazeCPU *cpu;
+    SysBusDevice *busdev;
     CPUMBState *env;
     DriveInfo *dinfo;
     int i;
-    target_phys_addr_t ddr_base = MEMORY_BASEADDR;
+    hwaddr ddr_base = MEMORY_BASEADDR;
     MemoryRegion *phys_lmb_bram = g_new(MemoryRegion, 1);
     MemoryRegion *phys_ram = g_new(MemoryRegion, 1);
     qemu_irq irq[32], *cpu_irq;
@@ -87,7 +93,8 @@ petalogix_ml605_init(ram_addr_t ram_size,
     if (cpu_model == NULL) {
         cpu_model = "microblaze";
     }
-    env = cpu_init(cpu_model);
+    cpu = cpu_mb_init(cpu_model);
+    env = &cpu->env;
 
     /* Attach emulated BRAM through the LMB.  */
     memory_region_init_ram(phys_lmb_bram, "petalogix_ml605.lmb_bram",
@@ -119,19 +126,45 @@ petalogix_ml605_init(ram_addr_t ram_size,
                    irq[5], 115200, serial_hds[0], DEVICE_LITTLE_ENDIAN);
 
     /* 2 timers at irq 2 @ 100 Mhz.  */
-    xilinx_timer_create(TIMER_BASEADDR, irq[2], 2, 100 * 1000000);
+    xilinx_timer_create(TIMER_BASEADDR, irq[2], 0, 100 * 1000000);
 
-    /* axi ethernet and dma initialization. TODO: Dynamically connect them.  */
+    /* axi ethernet and dma initialization. */
+    dma = qdev_create(NULL, "xlnx.axi-dma");
+
+    /* FIXME: attach to the sysbus instead */
+    object_property_add_child(container_get(qdev_get_machine(), "/unattached"),
+                                  "xilinx-dma", OBJECT(dma), NULL);
+
+    eth0 = xilinx_axiethernet_create(&nd_table[0], STREAM_SLAVE(dma),
+                                     0x82780000, irq[3], 0x1000, 0x1000);
+
+    xilinx_axiethernetdma_init(dma, STREAM_SLAVE(eth0),
+                               0x84600000, irq[1], irq[0], 100 * 1000000);
+
     {
-        static struct XilinxDMAConnection dmach;
+        SSIBus *spi;
 
-        xilinx_axiethernet_create(&dmach, &nd_table[0], 0x82780000,
-                                  irq[3], 0x1000, 0x1000);
-        xilinx_axiethernetdma_create(&dmach, 0x84600000,
-                                     irq[1], irq[0], 100 * 1000000);
+        dev = qdev_create(NULL, "xlnx.xps-spi");
+        qdev_prop_set_uint8(dev, "num-ss-bits", NUM_SPI_FLASHES);
+        qdev_init_nofail(dev);
+        busdev = sysbus_from_qdev(dev);
+        sysbus_mmio_map(busdev, 0, 0x40a00000);
+        sysbus_connect_irq(busdev, 0, irq[4]);
+
+        spi = (SSIBus *)qdev_get_child_bus(dev, "spi");
+
+        for (i = 0; i < NUM_SPI_FLASHES; i++) {
+            qemu_irq cs_line;
+
+            dev = ssi_create_slave_no_init(spi, "m25p80");
+            qdev_prop_set_string(dev, "partname", "n25q128");
+            qdev_init_nofail(dev);
+            cs_line = qdev_get_gpio_in(dev, 0);
+            sysbus_connect_irq(busdev, i+1, cs_line);
+        }
     }
 
-    microblaze_load_kernel(env, ddr_base, ram_size, BINARY_DEVICE_TREE_FILE,
+    microblaze_load_kernel(cpu, ddr_base, ram_size, BINARY_DEVICE_TREE_FILE,
                                                             machine_cpu_reset);
 
 }

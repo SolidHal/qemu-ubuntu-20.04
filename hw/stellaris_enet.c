@@ -78,7 +78,7 @@ static void stellaris_enet_update(stellaris_enet_state *s)
 }
 
 /* TODO: Implement MAC address filtering.  */
-static ssize_t stellaris_enet_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
+static ssize_t stellaris_enet_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
     stellaris_enet_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
     int n;
@@ -120,7 +120,7 @@ static ssize_t stellaris_enet_receive(VLANClientState *nc, const uint8_t *buf, s
     return size;
 }
 
-static int stellaris_enet_can_receive(VLANClientState *nc)
+static int stellaris_enet_can_receive(NetClientState *nc)
 {
     stellaris_enet_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -130,7 +130,7 @@ static int stellaris_enet_can_receive(VLANClientState *nc)
     return (s->np < 31);
 }
 
-static uint64_t stellaris_enet_read(void *opaque, target_phys_addr_t offset,
+static uint64_t stellaris_enet_read(void *opaque, hwaddr offset,
                                     unsigned size)
 {
     stellaris_enet_state *s = (stellaris_enet_state *)opaque;
@@ -198,7 +198,7 @@ static uint64_t stellaris_enet_read(void *opaque, target_phys_addr_t offset,
     }
 }
 
-static void stellaris_enet_write(void *opaque, target_phys_addr_t offset,
+static void stellaris_enet_write(void *opaque, hwaddr offset,
                                  uint64_t value, unsigned size)
 {
     stellaris_enet_state *s = (stellaris_enet_state *)opaque;
@@ -381,7 +381,7 @@ static int stellaris_enet_load(QEMUFile *f, void *opaque, int version_id)
     return 0;
 }
 
-static void stellaris_enet_cleanup(VLANClientState *nc)
+static void stellaris_enet_cleanup(NetClientState *nc)
 {
     stellaris_enet_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -393,7 +393,7 @@ static void stellaris_enet_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_stellaris_enet_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = stellaris_enet_can_receive,
     .receive = stellaris_enet_receive,

@@ -25,6 +25,7 @@
 #include "pci.h"
 #include "apb_pci.h"
 #include "pc.h"
+#include "serial.h"
 #include "nvram.h"
 #include "fdc.h"
 #include "net.h"
@@ -310,16 +311,19 @@ void cpu_check_irqs(CPUSPARCState *env)
     }
 }
 
-static void cpu_kick_irq(CPUSPARCState *env)
+static void cpu_kick_irq(SPARCCPU *cpu)
 {
+    CPUSPARCState *env = &cpu->env;
+
     env->halted = 0;
     cpu_check_irqs(env);
-    qemu_cpu_kick(env);
+    qemu_cpu_kick(CPU(cpu));
 }
 
 static void cpu_set_ivec_irq(void *opaque, int irq, int level)
 {
-    CPUSPARCState *env = opaque;
+    SPARCCPU *cpu = opaque;
+    CPUSPARCState *env = &cpu->env;
 
     if (level) {
         if (!(env->ivec_status & 0x20)) {
@@ -342,7 +346,7 @@ static void cpu_set_ivec_irq(void *opaque, int irq, int level)
 }
 
 typedef struct ResetData {
-    CPUSPARCState *env;
+    SPARCCPU *cpu;
     uint64_t prom_addr;
 } ResetData;
 
@@ -366,7 +370,7 @@ void cpu_get_timer(QEMUFile *f, CPUTimer *s)
     qemu_get_timer(f, s->qtimer);
 }
 
-static CPUTimer* cpu_timer_create(const char* name, CPUSPARCState *env,
+static CPUTimer *cpu_timer_create(const char *name, SPARCCPU *cpu,
                                   QEMUBHFunc *cb, uint32_t frequency,
                                   uint64_t disabled_mask)
 {
@@ -379,7 +383,7 @@ static CPUTimer* cpu_timer_create(const char* name, CPUSPARCState *env,
     timer->disabled = 1;
     timer->clock_offset = qemu_get_clock_ns(vm_clock);
 
-    timer->qtimer = qemu_new_timer_ns(vm_clock, cb, env);
+    timer->qtimer = qemu_new_timer_ns(vm_clock, cb, cpu);
 
     return timer;
 }
@@ -395,10 +399,10 @@ static void cpu_timer_reset(CPUTimer *timer)
 static void main_cpu_reset(void *opaque)
 {
     ResetData *s = (ResetData *)opaque;
-    CPUSPARCState *env = s->env;
+    CPUSPARCState *env = &s->cpu->env;
     static unsigned int nr_resets;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(s->cpu));
 
     cpu_timer_reset(env->tick);
     cpu_timer_reset(env->stick);
@@ -418,7 +422,8 @@ static void main_cpu_reset(void *opaque)
 
 static void tick_irq(void *opaque)
 {
-    CPUSPARCState *env = opaque;
+    SPARCCPU *cpu = opaque;
+    CPUSPARCState *env = &cpu->env;
 
     CPUTimer* timer = env->tick;
 
@@ -430,12 +435,13 @@ static void tick_irq(void *opaque)
     }
 
     env->softint |= SOFTINT_TIMER;
-    cpu_kick_irq(env);
+    cpu_kick_irq(cpu);
 }
 
 static void stick_irq(void *opaque)
 {
-    CPUSPARCState *env = opaque;
+    SPARCCPU *cpu = opaque;
+    CPUSPARCState *env = &cpu->env;
 
     CPUTimer* timer = env->stick;
 
@@ -447,12 +453,13 @@ static void stick_irq(void *opaque)
     }
 
     env->softint |= SOFTINT_STIMER;
-    cpu_kick_irq(env);
+    cpu_kick_irq(cpu);
 }
 
 static void hstick_irq(void *opaque)
 {
-    CPUSPARCState *env = opaque;
+    SPARCCPU *cpu = opaque;
+    CPUSPARCState *env = &cpu->env;
 
     CPUTimer* timer = env->hstick;
 
@@ -464,7 +471,7 @@ static void hstick_irq(void *opaque)
     }
 
     env->softint |= SOFTINT_STIMER;
-    cpu_kick_irq(env);
+    cpu_kick_irq(cpu);
 }
 
 static int64_t cpu_to_timer_ticks(int64_t cpu_ticks, uint32_t frequency)
@@ -625,12 +632,12 @@ typedef struct PROMState {
 
 static uint64_t translate_prom_address(void *opaque, uint64_t addr)
 {
-    target_phys_addr_t *base_addr = (target_phys_addr_t *)opaque;
+    hwaddr *base_addr = (hwaddr *)opaque;
     return addr + *base_addr - PROM_VADDR;
 }
 
 /* Boot PROM (OpenBIOS) */
-static void prom_init(target_phys_addr_t addr, const char *bios_name)
+static void prom_init(hwaddr addr, const char *bios_name)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -714,7 +721,7 @@ static int ram_init1(SysBusDevice *dev)
     return 0;
 }
 
-static void ram_init(target_phys_addr_t addr, ram_addr_t RAM_size)
+static void ram_init(hwaddr addr, ram_addr_t RAM_size)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -752,8 +759,9 @@ static TypeInfo ram_info = {
     .class_init    = ram_class_init,
 };
 
-static CPUSPARCState *cpu_devinit(const char *cpu_model, const struct hwdef *hwdef)
+static SPARCCPU *cpu_devinit(const char *cpu_model, const struct hwdef *hwdef)
 {
+    SPARCCPU *cpu;
     CPUSPARCState *env;
     ResetData *reset_info;
 
@@ -761,29 +769,31 @@ static CPUSPARCState *cpu_devinit(const char *cpu_model, const struct hwdef *hwd
     uint32_t  stick_frequency = 100*1000000;
     uint32_t hstick_frequency = 100*1000000;
 
-    if (!cpu_model)
+    if (cpu_model == NULL) {
         cpu_model = hwdef->default_cpu_model;
-    env = cpu_init(cpu_model);
-    if (!env) {
+    }
+    cpu = cpu_sparc_init(cpu_model);
+    if (cpu == NULL) {
         fprintf(stderr, "Unable to find Sparc CPU definition\n");
         exit(1);
     }
+    env = &cpu->env;
 
-    env->tick = cpu_timer_create("tick", env, tick_irq,
+    env->tick = cpu_timer_create("tick", cpu, tick_irq,
                                   tick_frequency, TICK_NPT_MASK);
 
-    env->stick = cpu_timer_create("stick", env, stick_irq,
+    env->stick = cpu_timer_create("stick", cpu, stick_irq,
                                    stick_frequency, TICK_INT_DIS);
 
-    env->hstick = cpu_timer_create("hstick", env, hstick_irq,
+    env->hstick = cpu_timer_create("hstick", cpu, hstick_irq,
                                     hstick_frequency, TICK_INT_DIS);
 
     reset_info = g_malloc0(sizeof(ResetData));
-    reset_info->env = env;
+    reset_info->cpu = cpu;
     reset_info->prom_addr = hwdef->prom_addr;
     qemu_register_reset(main_cpu_reset, reset_info);
 
-    return env;
+    return cpu;
 }
 
 static void sun4uv_init(MemoryRegion *address_space_mem,
@@ -793,7 +803,7 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
                         const char *initrd_filename, const char *cpu_model,
                         const struct hwdef *hwdef)
 {
-    CPUSPARCState *env;
+    SPARCCPU *cpu;
     M48t59State *nvram;
     unsigned int i;
     uint64_t initrd_addr, initrd_size, kernel_addr, kernel_size, kernel_entry;
@@ -805,14 +815,14 @@ static void sun4uv_init(MemoryRegion *address_space_mem,
     void *fw_cfg;
 
     /* init CPUs */
-    env = cpu_devinit(cpu_model, hwdef);
+    cpu = cpu_devinit(cpu_model, hwdef);
 
     /* set up devices */
     ram_init(0, RAM_size);
 
     prom_init(hwdef->prom_addr, bios_name);
 
-    ivec_irqs = qemu_allocate_irqs(cpu_set_ivec_irq, env, IVEC_MAX);
+    ivec_irqs = qemu_allocate_irqs(cpu_set_ivec_irq, cpu, IVEC_MAX);
     pci_bus = pci_apb_init(APB_SPECIAL_BASE, APB_MEM_BASE, ivec_irqs, &pci_bus2,
                            &pci_bus3, &pbm_irqs);
     pci_vga_init(pci_bus);
@@ -924,31 +934,40 @@ static const struct hwdef hwdefs[] = {
 };
 
 /* Sun4u hardware initialisation */
-static void sun4u_init(ram_addr_t RAM_size,
-                       const char *boot_devices,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void sun4u_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t RAM_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
+    const char *boot_devices = args->boot_device;
     sun4uv_init(get_system_memory(), RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[0]);
 }
 
 /* Sun4v hardware initialisation */
-static void sun4v_init(ram_addr_t RAM_size,
-                       const char *boot_devices,
-                       const char *kernel_filename, const char *kernel_cmdline,
-                       const char *initrd_filename, const char *cpu_model)
+static void sun4v_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t RAM_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
+    const char *boot_devices = args->boot_device;
     sun4uv_init(get_system_memory(), RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[1]);
 }
 
 /* Niagara hardware initialisation */
-static void niagara_init(ram_addr_t RAM_size,
-                         const char *boot_devices,
-                         const char *kernel_filename, const char *kernel_cmdline,
-                         const char *initrd_filename, const char *cpu_model)
+static void niagara_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t RAM_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
+    const char *boot_devices = args->boot_device;
     sun4uv_init(get_system_memory(), RAM_size, boot_devices, kernel_filename,
                 kernel_cmdline, initrd_filename, cpu_model, &hwdefs[2]);
 }

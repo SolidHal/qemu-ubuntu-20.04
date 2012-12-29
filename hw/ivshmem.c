@@ -23,6 +23,7 @@
 #include "kvm.h"
 #include "migration.h"
 #include "qerror.h"
+#include "event_notifier.h"
 
 #include <sys/mman.h>
 #include <sys/types.h>
@@ -45,7 +46,7 @@
 
 typedef struct Peer {
     int nb_eventfds;
-    int *eventfds;
+    EventNotifier *eventfds;
 } Peer;
 
 typedef struct EventfdEntry {
@@ -63,15 +64,15 @@ typedef struct IVShmemState {
     CharDriverState *server_chr;
     MemoryRegion ivshmem_mmio;
 
-    pcibus_t mmio_addr;
     /* We might need to register the BAR before we actually have the memory.
      * So prepare a container MemoryRegion for the BAR immediately and
      * add a subregion when we have the memory.
      */
     MemoryRegion bar;
     MemoryRegion ivshmem;
-    MemoryRegion msix_bar;
     uint64_t ivshmem_size; /* size of shared memory region */
+    uint32_t ivshmem_attr;
+    uint32_t ivshmem_64bit;
     int shm_fd; /* shared memory file descriptor */
 
     Peer *peers;
@@ -148,7 +149,6 @@ static void ivshmem_IntrStatus_write(IVShmemState *s, uint32_t val)
     s->intrstatus = val;
 
     ivshmem_update_irq(s, val);
-    return;
 }
 
 static uint32_t ivshmem_IntrStatus_read(IVShmemState *s)
@@ -163,12 +163,11 @@ static uint32_t ivshmem_IntrStatus_read(IVShmemState *s)
     return ret;
 }
 
-static void ivshmem_io_write(void *opaque, target_phys_addr_t addr,
+static void ivshmem_io_write(void *opaque, hwaddr addr,
                              uint64_t val, unsigned size)
 {
     IVShmemState *s = opaque;
 
-    uint64_t write_one = 1;
     uint16_t dest = val >> 16;
     uint16_t vector = val & 0xff;
 
@@ -194,12 +193,8 @@ static void ivshmem_io_write(void *opaque, target_phys_addr_t addr,
 
             /* check doorbell range */
             if (vector < s->peers[dest].nb_eventfds) {
-                IVSHMEM_DPRINTF("Writing %" PRId64 " to VM %d on vector %d\n",
-                                                    write_one, dest, vector);
-                if (write(s->peers[dest].eventfds[vector],
-                                                    &(write_one), 8) != 8) {
-                    IVSHMEM_DPRINTF("error writing to eventfd\n");
-                }
+                IVSHMEM_DPRINTF("Notifying VM %d on vector %d\n", dest, vector);
+                event_notifier_set(&s->peers[dest].eventfds[vector]);
             }
             break;
         default:
@@ -207,7 +202,7 @@ static void ivshmem_io_write(void *opaque, target_phys_addr_t addr,
     }
 }
 
-static uint64_t ivshmem_io_read(void *opaque, target_phys_addr_t addr,
+static uint64_t ivshmem_io_read(void *opaque, hwaddr addr,
                                 unsigned size)
 {
 
@@ -279,12 +274,13 @@ static void fake_irqfd(void *opaque, const uint8_t *buf, int size) {
     msix_notify(pdev, entry->vector);
 }
 
-static CharDriverState* create_eventfd_chr_device(void * opaque, int eventfd,
-                                                                    int vector)
+static CharDriverState* create_eventfd_chr_device(void * opaque, EventNotifier *n,
+                                                  int vector)
 {
     /* create a event character device based on the passed eventfd */
     IVShmemState *s = opaque;
     CharDriverState * chr;
+    int eventfd = event_notifier_get_fd(n);
 
     chr = qemu_chr_open_eventfd(eventfd);
 
@@ -344,7 +340,27 @@ static void create_shared_memory_BAR(IVShmemState *s, int fd) {
     memory_region_add_subregion(&s->bar, 0, &s->ivshmem);
 
     /* region for shared memory */
-    pci_register_bar(&s->dev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->bar);
+    pci_register_bar(&s->dev, 2, s->ivshmem_attr, &s->bar);
+}
+
+static void ivshmem_add_eventfd(IVShmemState *s, int posn, int i)
+{
+    memory_region_add_eventfd(&s->ivshmem_mmio,
+                              DOORBELL,
+                              4,
+                              true,
+                              (posn << 16) | i,
+                              &s->peers[posn].eventfds[i]);
+}
+
+static void ivshmem_del_eventfd(IVShmemState *s, int posn, int i)
+{
+    memory_region_del_eventfd(&s->ivshmem_mmio,
+                              DOORBELL,
+                              4,
+                              true,
+                              (posn << 16) | i,
+                              &s->peers[posn].eventfds[i]);
 }
 
 static void close_guest_eventfds(IVShmemState *s, int posn)
@@ -357,10 +373,13 @@ static void close_guest_eventfds(IVShmemState *s, int posn)
 
     guest_curr_max = s->peers[posn].nb_eventfds;
 
+    memory_region_transaction_begin();
     for (i = 0; i < guest_curr_max; i++) {
-        kvm_set_ioeventfd_mmio(s->peers[posn].eventfds[i],
-                    s->mmio_addr + DOORBELL, (posn << 16) | i, 0, 4);
-        close(s->peers[posn].eventfds[i]);
+        ivshmem_del_eventfd(s, posn, i);
+    }
+    memory_region_transaction_commit();
+    for (i = 0; i < guest_curr_max; i++) {
+        event_notifier_cleanup(&s->peers[posn].eventfds[i]);
     }
 
     g_free(s->peers[posn].eventfds);
@@ -464,14 +483,14 @@ static void ivshmem_read(void *opaque, const uint8_t * buf, int flags)
 
     if (guest_max_eventfd == 0) {
         /* one eventfd per MSI vector */
-        s->peers[incoming_posn].eventfds = (int *) g_malloc(s->vectors *
-                                                                sizeof(int));
+        s->peers[incoming_posn].eventfds = g_new(EventNotifier, s->vectors);
     }
 
     /* this is an eventfd for a particular guest VM */
     IVSHMEM_DPRINTF("eventfds[%ld][%d] = %d\n", incoming_posn,
                                             guest_max_eventfd, incoming_fd);
-    s->peers[incoming_posn].eventfds[guest_max_eventfd] = incoming_fd;
+    event_notifier_init_fd(&s->peers[incoming_posn].eventfds[guest_max_eventfd],
+                           incoming_fd);
 
     /* increment count for particular guest */
     s->peers[incoming_posn].nb_eventfds++;
@@ -483,18 +502,13 @@ static void ivshmem_read(void *opaque, const uint8_t * buf, int flags)
 
     if (incoming_posn == s->vm_id) {
         s->eventfd_chr[guest_max_eventfd] = create_eventfd_chr_device(s,
-                   s->peers[s->vm_id].eventfds[guest_max_eventfd],
+                   &s->peers[s->vm_id].eventfds[guest_max_eventfd],
                    guest_max_eventfd);
     }
 
     if (ivshmem_has_feature(s, IVSHMEM_IOEVENTFD)) {
-        if (kvm_set_ioeventfd_mmio(incoming_fd, s->mmio_addr + DOORBELL,
-                        (incoming_posn << 16) | guest_max_eventfd, 1, 4) < 0) {
-            fprintf(stderr, "ivshmem: ioeventfd not available\n");
-        }
+        ivshmem_add_eventfd(s, incoming_posn, guest_max_eventfd);
     }
-
-    return;
 }
 
 /* Select the MSI-X vectors used by device.
@@ -518,9 +532,7 @@ static void ivshmem_reset(DeviceState *d)
     IVShmemState *s = DO_UPCAST(IVShmemState, dev.qdev, d);
 
     s->intrstatus = 0;
-    msix_reset(&s->dev);
     ivshmem_use_msix(s);
-    return;
 }
 
 static uint64_t ivshmem_get_size(IVShmemState * s) {
@@ -552,15 +564,12 @@ static uint64_t ivshmem_get_size(IVShmemState * s) {
 
 static void ivshmem_setup_msi(IVShmemState * s)
 {
-    memory_region_init(&s->msix_bar, "ivshmem-msix", 4096);
-    if (!msix_init(&s->dev, s->vectors, &s->msix_bar, 1, 0)) {
-        pci_register_bar(&s->dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY,
-                         &s->msix_bar);
-        IVSHMEM_DPRINTF("msix initialized (%d vectors)\n", s->vectors);
-    } else {
+    if (msix_init_exclusive_bar(&s->dev, s->vectors, 1)) {
         IVSHMEM_DPRINTF("msix initialization failed\n");
         exit(1);
     }
+
+    IVSHMEM_DPRINTF("msix initialized (%d vectors)\n", s->vectors);
 
     /* allocate QEMU char devices for receiving interrupts */
     s->eventfd_table = g_malloc0(s->vectors * sizeof(EventfdEntry));
@@ -659,7 +668,8 @@ static int pci_ivshmem_init(PCIDevice *dev)
     }
 
     if (s->role_val == IVSHMEM_PEER) {
-        error_set(&s->migration_blocker, QERR_DEVICE_FEATURE_BLOCKS_MIGRATION, "ivshmem", "peer mode");
+        error_set(&s->migration_blocker, QERR_DEVICE_FEATURE_BLOCKS_MIGRATION,
+                  "peer mode", "ivshmem");
         migrate_add_blocker(s->migration_blocker);
     }
 
@@ -678,6 +688,11 @@ static int pci_ivshmem_init(PCIDevice *dev)
                      &s->ivshmem_mmio);
 
     memory_region_init(&s->bar, "ivshmem-bar2-container", s->ivshmem_size);
+    s->ivshmem_attr = PCI_BASE_ADDRESS_SPACE_MEMORY |
+        PCI_BASE_ADDRESS_MEM_PREFETCH;
+    if (s->ivshmem_64bit) {
+        s->ivshmem_attr |= PCI_BASE_ADDRESS_MEM_TYPE_64;
+    }
 
     if ((s->server_chr != NULL) &&
                         (strncmp(s->server_chr->filename, "unix:", 5) == 0)) {
@@ -703,8 +718,7 @@ static int pci_ivshmem_init(PCIDevice *dev)
         /* allocate/initialize space for interrupt handling */
         s->peers = g_malloc0(s->nb_peers * sizeof(Peer));
 
-        pci_register_bar(&s->dev, 2,
-                         PCI_BASE_ADDRESS_SPACE_MEMORY, &s->bar);
+        pci_register_bar(&s->dev, 2, s->ivshmem_attr, &s->bar);
 
         s->eventfd_chr = g_malloc0(s->vectors * sizeof(CharDriverState *));
 
@@ -749,7 +763,7 @@ static int pci_ivshmem_init(PCIDevice *dev)
     return 0;
 }
 
-static int pci_ivshmem_uninit(PCIDevice *dev)
+static void pci_ivshmem_uninit(PCIDevice *dev)
 {
     IVShmemState *s = DO_UPCAST(IVShmemState, dev, dev);
 
@@ -764,8 +778,6 @@ static int pci_ivshmem_uninit(PCIDevice *dev)
     memory_region_destroy(&s->ivshmem);
     memory_region_destroy(&s->bar);
     unregister_savevm(&dev->qdev, "ivshmem", s);
-
-    return 0;
 }
 
 static Property ivshmem_properties[] = {
@@ -776,6 +788,7 @@ static Property ivshmem_properties[] = {
     DEFINE_PROP_BIT("msi", IVShmemState, features, IVSHMEM_MSI, true),
     DEFINE_PROP_STRING("shm", IVShmemState, shmobj),
     DEFINE_PROP_STRING("role", IVShmemState, role),
+    DEFINE_PROP_UINT32("use64", IVShmemState, ivshmem_64bit, 1),
     DEFINE_PROP_END_OF_LIST(),
 };
 

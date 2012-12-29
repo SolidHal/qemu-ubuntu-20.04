@@ -29,32 +29,16 @@
 #include "qdev.h"
 #include "sysemu.h"
 #include "error.h"
+#include "qapi/qapi-visit-core.h"
 
 int qdev_hotplug = 0;
 static bool qdev_hot_added = false;
 static bool qdev_hot_removed = false;
 
-/* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
-static BusState *main_system_bus;
-static void main_system_bus_create(void);
-
-/* Register a new device type.  */
 const VMStateDescription *qdev_get_vmsd(DeviceState *dev)
 {
     DeviceClass *dc = DEVICE_GET_CLASS(dev);
     return dc->vmsd;
-}
-
-BusInfo *qdev_get_bus_info(DeviceState *dev)
-{
-    DeviceClass *dc = DEVICE_GET_CLASS(dev);
-    return dc->bus_info;
-}
-
-Property *qdev_get_props(DeviceState *dev)
-{
-    DeviceClass *dc = DEVICE_GET_CLASS(dev);
-    return dc->props;
 }
 
 const char *qdev_fw_name(DeviceState *dev)
@@ -68,30 +52,51 @@ const char *qdev_fw_name(DeviceState *dev)
     return object_get_typename(OBJECT(dev));
 }
 
-bool qdev_exists(const char *name)
-{
-    return !!object_class_by_name(name);
-}
-
 static void qdev_property_add_legacy(DeviceState *dev, Property *prop,
                                      Error **errp);
 
-void qdev_set_parent_bus(DeviceState *dev, BusState *bus)
+static void bus_remove_child(BusState *bus, DeviceState *child)
 {
-    Property *prop;
+    BusChild *kid;
+
+    QTAILQ_FOREACH(kid, &bus->children, sibling) {
+        if (kid->child == child) {
+            char name[32];
+
+            snprintf(name, sizeof(name), "child[%d]", kid->index);
+            QTAILQ_REMOVE(&bus->children, kid, sibling);
+            object_property_del(OBJECT(bus), name, NULL);
+            g_free(kid);
+            return;
+        }
+    }
+}
+
+static void bus_add_child(BusState *bus, DeviceState *child)
+{
+    char name[32];
+    BusChild *kid = g_malloc0(sizeof(*kid));
 
     if (qdev_hotplug) {
         assert(bus->allow_hotplug);
     }
 
-    dev->parent_bus = bus;
-    QTAILQ_INSERT_HEAD(&bus->children, dev, sibling);
+    kid->index = bus->max_index++;
+    kid->child = child;
 
-    for (prop = qdev_get_bus_info(dev)->props; prop && prop->name; prop++) {
-        qdev_property_add_legacy(dev, prop, NULL);
-        qdev_property_add_static(dev, prop, NULL);
-    }
-    qdev_prop_set_defaults(dev, dev->parent_bus->info->props);
+    QTAILQ_INSERT_HEAD(&bus->children, kid, sibling);
+
+    snprintf(name, sizeof(name), "child[%d]", kid->index);
+    object_property_add_link(OBJECT(bus), name,
+                             object_get_typename(OBJECT(child)),
+                             (Object **)&kid->child,
+                             NULL);
+}
+
+void qdev_set_parent_bus(DeviceState *dev, BusState *bus)
+{
+    dev->parent_bus = bus;
+    bus_add_child(bus, dev);
 }
 
 /* Create a new device.  This only initializes the device state structure
@@ -105,7 +110,7 @@ DeviceState *qdev_create(BusState *bus, const char *name)
     if (!dev) {
         if (bus) {
             hw_error("Unknown device '%s' for bus '%s'\n", name,
-                     bus->info->name);
+                     object_get_typename(OBJECT(bus)));
         } else {
             hw_error("Unknown device '%s' for default sysbus\n", name);
         }
@@ -131,7 +136,6 @@ DeviceState *qdev_try_create(BusState *bus, const char *type)
     }
 
     qdev_set_parent_bus(dev, bus);
-    qdev_prop_set_globals(dev);
 
     return dev;
 }
@@ -209,18 +213,11 @@ static int qdev_reset_one(DeviceState *dev, void *opaque)
     return 0;
 }
 
-BusState *sysbus_get_default(void)
-{
-    if (!main_system_bus) {
-        main_system_bus_create();
-    }
-    return main_system_bus;
-}
-
 static int qbus_reset_one(BusState *bus, void *opaque)
 {
-    if (bus->info->reset) {
-        return bus->info->reset(bus);
+    BusClass *bc = BUS_GET_CLASS(bus);
+    if (bc->reset) {
+        return bc->reset(bus);
     }
     return 0;
 }
@@ -289,9 +286,9 @@ BusState *qdev_get_parent_bus(DeviceState *dev)
 
 void qdev_init_gpio_in(DeviceState *dev, qemu_irq_handler handler, int n)
 {
-    assert(dev->num_gpio_in == 0);
-    dev->num_gpio_in = n;
-    dev->gpio_in = qemu_allocate_irqs(handler, dev, n);
+    dev->gpio_in = qemu_extend_irqs(dev->gpio_in, dev->num_gpio_in, handler,
+                                        dev, n);
+    dev->num_gpio_in += n;
 }
 
 void qdev_init_gpio_out(DeviceState *dev, qemu_irq *pins, int n)
@@ -316,12 +313,10 @@ void qdev_connect_gpio_out(DeviceState * dev, int n, qemu_irq pin)
 void qdev_set_nic_properties(DeviceState *dev, NICInfo *nd)
 {
     qdev_prop_set_macaddr(dev, "mac", nd->macaddr.a);
-    if (nd->vlan)
-        qdev_prop_set_vlan(dev, "vlan", nd->vlan);
     if (nd->netdev)
         qdev_prop_set_netdev(dev, "netdev", nd->netdev);
     if (nd->nvectors != DEV_NVECTORS_UNSPECIFIED &&
-        qdev_prop_exists(dev, "vectors")) {
+        object_property_find(OBJECT(dev), "vectors", NULL)) {
         qdev_prop_set_uint32(dev, "vectors", nd->nvectors);
     }
     nd->instantiated = 1;
@@ -342,7 +337,7 @@ BusState *qdev_get_child_bus(DeviceState *dev, const char *name)
 int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn,
                        qbus_walkerfn *busfn, void *opaque)
 {
-    DeviceState *dev;
+    BusChild *kid;
     int err;
 
     if (busfn) {
@@ -352,8 +347,8 @@ int qbus_walk_children(BusState *bus, qdev_walkerfn *devfn,
         }
     }
 
-    QTAILQ_FOREACH(dev, &bus->children, sibling) {
-        err = qdev_walk_children(dev, devfn, busfn, opaque);
+    QTAILQ_FOREACH(kid, &bus->children, sibling) {
+        err = qdev_walk_children(kid->child, devfn, busfn, opaque);
         if (err < 0) {
             return err;
         }
@@ -387,12 +382,17 @@ int qdev_walk_children(DeviceState *dev, qdev_walkerfn *devfn,
 
 DeviceState *qdev_find_recursive(BusState *bus, const char *id)
 {
-    DeviceState *dev, *ret;
+    BusChild *kid;
+    DeviceState *ret;
     BusState *child;
 
-    QTAILQ_FOREACH(dev, &bus->children, sibling) {
-        if (dev->id && strcmp(dev->id, id) == 0)
+    QTAILQ_FOREACH(kid, &bus->children, sibling) {
+        DeviceState *dev = kid->child;
+
+        if (dev->id && strcmp(dev->id, id) == 0) {
             return dev;
+        }
+
         QLIST_FOREACH(child, &dev->child_bus, sibling) {
             ret = qdev_find_recursive(child, id);
             if (ret) {
@@ -403,84 +403,79 @@ DeviceState *qdev_find_recursive(BusState *bus, const char *id)
     return NULL;
 }
 
-void qbus_create_inplace(BusState *bus, BusInfo *info,
-                         DeviceState *parent, const char *name)
+static void qbus_realize(BusState *bus)
 {
+    const char *typename = object_get_typename(OBJECT(bus));
     char *buf;
     int i,len;
 
-    bus->info = info;
-    bus->parent = parent;
-
-    if (name) {
+    if (bus->name) {
         /* use supplied name */
-        bus->name = g_strdup(name);
-    } else if (parent && parent->id) {
+    } else if (bus->parent && bus->parent->id) {
         /* parent device has id -> use it for bus name */
-        len = strlen(parent->id) + 16;
+        len = strlen(bus->parent->id) + 16;
         buf = g_malloc(len);
-        snprintf(buf, len, "%s.%d", parent->id, parent->num_child_bus);
+        snprintf(buf, len, "%s.%d", bus->parent->id, bus->parent->num_child_bus);
         bus->name = buf;
     } else {
         /* no id -> use lowercase bus type for bus name */
-        len = strlen(info->name) + 16;
+        len = strlen(typename) + 16;
         buf = g_malloc(len);
-        len = snprintf(buf, len, "%s.%d", info->name,
-                       parent ? parent->num_child_bus : 0);
+        len = snprintf(buf, len, "%s.%d", typename,
+                       bus->parent ? bus->parent->num_child_bus : 0);
         for (i = 0; i < len; i++)
             buf[i] = qemu_tolower(buf[i]);
         bus->name = buf;
     }
 
-    QTAILQ_INIT(&bus->children);
-    if (parent) {
-        QLIST_INSERT_HEAD(&parent->child_bus, bus, sibling);
-        parent->num_child_bus++;
-    } else if (bus != main_system_bus) {
+    if (bus->parent) {
+        QLIST_INSERT_HEAD(&bus->parent->child_bus, bus, sibling);
+        bus->parent->num_child_bus++;
+        object_property_add_child(OBJECT(bus->parent), bus->name, OBJECT(bus), NULL);
+    } else if (bus != sysbus_get_default()) {
         /* TODO: once all bus devices are qdevified,
            only reset handler for main_system_bus should be registered here. */
         qemu_register_reset(qbus_reset_all_fn, bus);
     }
 }
 
-BusState *qbus_create(BusInfo *info, DeviceState *parent, const char *name)
+void qbus_create_inplace(BusState *bus, const char *typename,
+                         DeviceState *parent, const char *name)
+{
+    object_initialize(bus, typename);
+
+    bus->parent = parent;
+    bus->name = name ? g_strdup(name) : NULL;
+    qbus_realize(bus);
+}
+
+BusState *qbus_create(const char *typename, DeviceState *parent, const char *name)
 {
     BusState *bus;
 
-    bus = g_malloc0(info->size);
-    bus->qdev_allocated = 1;
-    qbus_create_inplace(bus, info, parent, name);
-    return bus;
-}
+    bus = BUS(object_new(typename));
 
-static void main_system_bus_create(void)
-{
-    /* assign main_system_bus before qbus_create_inplace()
-     * in order to make "if (bus != main_system_bus)" work */
-    main_system_bus = g_malloc0(system_bus_info.size);
-    main_system_bus->qdev_allocated = 1;
-    qbus_create_inplace(main_system_bus, &system_bus_info, NULL,
-                        "main-system-bus");
+    bus->parent = parent;
+    bus->name = name ? g_strdup(name) : NULL;
+    qbus_realize(bus);
+
+    return bus;
 }
 
 void qbus_free(BusState *bus)
 {
-    DeviceState *dev;
+    object_delete(OBJECT(bus));
+}
 
-    while ((dev = QTAILQ_FIRST(&bus->children)) != NULL) {
-        qdev_free(dev);
+static char *bus_get_fw_dev_path(BusState *bus, DeviceState *dev)
+{
+    BusClass *bc = BUS_GET_CLASS(bus);
+
+    if (bc->get_fw_dev_path) {
+        return bc->get_fw_dev_path(dev);
     }
-    if (bus->parent) {
-        QLIST_REMOVE(bus, sibling);
-        bus->parent->num_child_bus--;
-    } else {
-        assert(bus != main_system_bus); /* main_system_bus is never freed */
-        qemu_unregister_reset(qbus_reset_all_fn, bus);
-    }
-    g_free((void*)bus->name);
-    if (bus->qdev_allocated) {
-        g_free(bus);
-    }
+
+    return NULL;
 }
 
 static int qdev_get_fw_dev_path_helper(DeviceState *dev, char *p, int size)
@@ -490,8 +485,8 @@ static int qdev_get_fw_dev_path_helper(DeviceState *dev, char *p, int size)
     if (dev && dev->parent_bus) {
         char *d;
         l = qdev_get_fw_dev_path_helper(dev->parent_bus->parent, p, size);
-        if (dev->parent_bus->info->get_fw_dev_path) {
-            d = dev->parent_bus->info->get_fw_dev_path(dev);
+        d = bus_get_fw_dev_path(dev->parent_bus, dev);
+        if (d) {
             l += snprintf(p + l, size - l, "%s", d);
             g_free(d);
         } else {
@@ -512,12 +507,23 @@ char* qdev_get_fw_dev_path(DeviceState *dev)
 
     path[l-1] = '\0';
 
-    return strdup(path);
+    return g_strdup(path);
 }
 
-static char *qdev_get_type(Object *obj, Error **errp)
+char *qdev_get_dev_path(DeviceState *dev)
 {
-    return g_strdup(object_get_typename(obj));
+    BusClass *bc;
+
+    if (!dev || !dev->parent_bus) {
+        return NULL;
+    }
+
+    bc = BUS_GET_CLASS(dev->parent_bus);
+    if (bc->get_dev_path) {
+        return bc->get_dev_path(dev);
+    }
+
+    return NULL;
 }
 
 /**
@@ -605,6 +611,9 @@ void qdev_property_add_legacy(DeviceState *dev, Property *prop,
 void qdev_property_add_static(DeviceState *dev, Property *prop,
                               Error **errp)
 {
+    Error *local_err = NULL;
+    Object *obj = OBJECT(dev);
+
     /*
      * TODO qdev_prop_ptr does not have getters or setters.  It must
      * go now that it can be replaced with links.  The test should be
@@ -614,15 +623,34 @@ void qdev_property_add_static(DeviceState *dev, Property *prop,
         return;
     }
 
-    object_property_add(OBJECT(dev), prop->name, prop->info->name,
+    object_property_add(obj, prop->name, prop->info->name,
                         prop->info->get, prop->info->set,
                         prop->info->release,
-                        prop, errp);
+                        prop, &local_err);
+
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+    if (prop->qtype == QTYPE_NONE) {
+        return;
+    }
+
+    if (prop->qtype == QTYPE_QBOOL) {
+        object_property_set_bool(obj, prop->defval, prop->name, &local_err);
+    } else if (prop->info->enum_table) {
+        object_property_set_str(obj, prop->info->enum_table[prop->defval],
+                                prop->name, &local_err);
+    } else if (prop->qtype == QTYPE_QINT) {
+        object_property_set_int(obj, prop->defval, prop->name, &local_err);
+    }
+    assert_no_error(local_err);
 }
 
 static void device_initfn(Object *obj)
 {
     DeviceState *dev = DEVICE(obj);
+    ObjectClass *class;
     Property *prop;
 
     if (qdev_hotplug) {
@@ -633,13 +661,18 @@ static void device_initfn(Object *obj)
     dev->instance_id_alias = -1;
     dev->state = DEV_STATE_CREATED;
 
-    for (prop = qdev_get_props(dev); prop && prop->name; prop++) {
-        qdev_property_add_legacy(dev, prop, NULL);
-        qdev_property_add_static(dev, prop, NULL);
-    }
+    class = object_get_class(OBJECT(dev));
+    do {
+        for (prop = DEVICE_CLASS(class)->props; prop && prop->name; prop++) {
+            qdev_property_add_legacy(dev, prop, NULL);
+            qdev_property_add_static(dev, prop, NULL);
+        }
+        class = object_class_get_parent(class);
+    } while (class != object_class_by_name(TYPE_DEVICE));
+    qdev_prop_set_globals(dev);
 
-    object_property_add_str(OBJECT(dev), "type", qdev_get_type, NULL, NULL);
-    qdev_prop_set_defaults(dev, qdev_get_props(dev));
+    object_property_add_link(OBJECT(dev), "parent_bus", TYPE_BUS,
+                             (Object **)&dev->parent_bus, NULL);
 }
 
 /* Unlink device from bus and free the structure.  */
@@ -664,7 +697,28 @@ static void device_finalize(Object *obj)
             qemu_opts_del(dev->opts);
         }
     }
-    QTAILQ_REMOVE(&dev->parent_bus->children, dev, sibling);
+}
+
+static void device_class_base_init(ObjectClass *class, void *data)
+{
+    DeviceClass *klass = DEVICE_CLASS(class);
+
+    /* We explicitly look up properties in the superclasses,
+     * so do not propagate them to the subclasses.
+     */
+    klass->props = NULL;
+}
+
+static void qdev_remove_from_bus(Object *obj)
+{
+    DeviceState *dev = DEVICE(obj);
+
+    bus_remove_child(dev->parent_bus, dev);
+}
+
+static void device_class_init(ObjectClass *class, void *data)
+{
+    class->unparent = qdev_remove_from_bus;
 }
 
 void device_reset(DeviceState *dev)
@@ -693,12 +747,51 @@ static TypeInfo device_type_info = {
     .instance_size = sizeof(DeviceState),
     .instance_init = device_initfn,
     .instance_finalize = device_finalize,
+    .class_base_init = device_class_base_init,
+    .class_init = device_class_init,
     .abstract = true,
     .class_size = sizeof(DeviceClass),
 };
 
+static void qbus_initfn(Object *obj)
+{
+    BusState *bus = BUS(obj);
+
+    QTAILQ_INIT(&bus->children);
+}
+
+static void qbus_finalize(Object *obj)
+{
+    BusState *bus = BUS(obj);
+    BusChild *kid;
+
+    while ((kid = QTAILQ_FIRST(&bus->children)) != NULL) {
+        DeviceState *dev = kid->child;
+        qdev_free(dev);
+    }
+    if (bus->parent) {
+        QLIST_REMOVE(bus, sibling);
+        bus->parent->num_child_bus--;
+    } else {
+        assert(bus != sysbus_get_default()); /* main_system_bus is never freed */
+        qemu_unregister_reset(qbus_reset_all_fn, bus);
+    }
+    g_free((char *)bus->name);
+}
+
+static const TypeInfo bus_info = {
+    .name = TYPE_BUS,
+    .parent = TYPE_OBJECT,
+    .instance_size = sizeof(BusState),
+    .abstract = true,
+    .class_size = sizeof(BusClass),
+    .instance_init = qbus_initfn,
+    .instance_finalize = qbus_finalize,
+};
+
 static void qdev_register_types(void)
 {
+    type_register_static(&bus_info);
     type_register_static(&device_type_info);
 }
 

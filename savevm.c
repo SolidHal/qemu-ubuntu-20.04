@@ -85,6 +85,8 @@
 #include "cpus.h"
 #include "memory.h"
 #include "qmp-commands.h"
+#include "trace.h"
+#include "bitops.h"
 
 #define SELF_ANNOUNCE_ROUNDS 5
 
@@ -161,12 +163,7 @@ void qemu_announce_self(void)
 #define IO_BUF_SIZE 32768
 
 struct QEMUFile {
-    QEMUFilePutBufferFunc *put_buffer;
-    QEMUFileGetBufferFunc *get_buffer;
-    QEMUFileCloseFunc *close;
-    QEMUFileRateLimit *rate_limit;
-    QEMUFileSetRateLimit *set_rate_limit;
-    QEMUFileGetRateLimit *get_rate_limit;
+    const QEMUFileOps *ops;
     void *opaque;
     int is_write;
 
@@ -191,26 +188,50 @@ typedef struct QEMUFileSocket
     QEMUFile *file;
 } QEMUFileSocket;
 
+static int socket_get_fd(void *opaque)
+{
+    QEMUFileSocket *s = opaque;
+
+    return s->fd;
+}
+
 static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 {
     QEMUFileSocket *s = opaque;
     ssize_t len;
 
-    do {
+    for (;;) {
         len = qemu_recv(s->fd, buf, size, 0);
-    } while (len == -1 && socket_error() == EINTR);
+        if (len != -1) {
+            break;
+        }
+        if (socket_error() == EAGAIN) {
+            assert(qemu_in_coroutine());
+            qemu_coroutine_yield();
+        } else if (socket_error() != EINTR) {
+            break;
+        }
+    }
 
-    if (len == -1)
+    if (len == -1) {
         len = -socket_error();
-
+    }
     return len;
 }
 
 static int socket_close(void *opaque)
 {
     QEMUFileSocket *s = opaque;
+    closesocket(s->fd);
     g_free(s);
     return 0;
+}
+
+static int stdio_get_fd(void *opaque)
+{
+    QEMUFileStdio *s = opaque;
+
+    return fileno(s->stdio_file);
 }
 
 static int stdio_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, int size)
@@ -225,10 +246,19 @@ static int stdio_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     FILE *fp = s->stdio_file;
     int bytes;
 
-    do {
+    for (;;) {
         clearerr(fp);
         bytes = fread(buf, 1, size, fp);
-    } while ((bytes == 0) && ferror(fp) && (errno == EINTR));
+        if (bytes != 0 || !ferror(fp)) {
+            break;
+        }
+        if (errno == EAGAIN) {
+            assert(qemu_in_coroutine());
+            qemu_coroutine_yield();
+        } else if (errno != EINTR) {
+            break;
+        }
+    }
     return bytes;
 }
 
@@ -255,6 +285,18 @@ static int stdio_fclose(void *opaque)
     return ret;
 }
 
+static const QEMUFileOps stdio_pipe_read_ops = {
+    .get_fd =     stdio_get_fd,
+    .get_buffer = stdio_get_buffer,
+    .close =      stdio_pclose
+};
+
+static const QEMUFileOps stdio_pipe_write_ops = {
+    .get_fd =     stdio_get_fd,
+    .put_buffer = stdio_put_buffer,
+    .close =      stdio_pclose
+};
+
 QEMUFile *qemu_popen(FILE *stdio_file, const char *mode)
 {
     QEMUFileStdio *s;
@@ -269,11 +311,9 @@ QEMUFile *qemu_popen(FILE *stdio_file, const char *mode)
     s->stdio_file = stdio_file;
 
     if(mode[0] == 'r') {
-        s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_pclose, 
-				 NULL, NULL, NULL);
+        s->file = qemu_fopen_ops(s, &stdio_pipe_read_ops);
     } else {
-        s->file = qemu_fopen_ops(s, stdio_put_buffer, NULL, stdio_pclose, 
-				 NULL, NULL, NULL);
+        s->file = qemu_fopen_ops(s, &stdio_pipe_write_ops);
     }
     return s->file;
 }
@@ -290,16 +330,17 @@ QEMUFile *qemu_popen_cmd(const char *command, const char *mode)
     return qemu_popen(popen_file, mode);
 }
 
-int qemu_stdio_fd(QEMUFile *f)
-{
-    QEMUFileStdio *p;
-    int fd;
+static const QEMUFileOps stdio_file_read_ops = {
+    .get_fd =     stdio_get_fd,
+    .get_buffer = stdio_get_buffer,
+    .close =      stdio_fclose
+};
 
-    p = (QEMUFileStdio *)f->opaque;
-    fd = fileno(p->stdio_file);
-
-    return fd;
-}
+static const QEMUFileOps stdio_file_write_ops = {
+    .get_fd =     stdio_get_fd,
+    .put_buffer = stdio_put_buffer,
+    .close =      stdio_fclose
+};
 
 QEMUFile *qemu_fdopen(int fd, const char *mode)
 {
@@ -318,11 +359,9 @@ QEMUFile *qemu_fdopen(int fd, const char *mode)
         goto fail;
 
     if(mode[0] == 'r') {
-        s->file = qemu_fopen_ops(s, NULL, stdio_get_buffer, stdio_fclose, 
-				 NULL, NULL, NULL);
+        s->file = qemu_fopen_ops(s, &stdio_file_read_ops);
     } else {
-        s->file = qemu_fopen_ops(s, stdio_put_buffer, NULL, stdio_fclose, 
-				 NULL, NULL, NULL);
+        s->file = qemu_fopen_ops(s, &stdio_file_write_ops);
     }
     return s->file;
 
@@ -331,29 +370,19 @@ fail:
     return NULL;
 }
 
+static const QEMUFileOps socket_read_ops = {
+    .get_fd =     socket_get_fd,
+    .get_buffer = socket_get_buffer,
+    .close =      socket_close
+};
+
 QEMUFile *qemu_fopen_socket(int fd)
 {
     QEMUFileSocket *s = g_malloc0(sizeof(QEMUFileSocket));
 
     s->fd = fd;
-    s->file = qemu_fopen_ops(s, NULL, socket_get_buffer, socket_close, 
-			     NULL, NULL, NULL);
+    s->file = qemu_fopen_ops(s, &socket_read_ops);
     return s->file;
-}
-
-static int file_put_buffer(void *opaque, const uint8_t *buf,
-                            int64_t pos, int size)
-{
-    QEMUFileStdio *s = opaque;
-    fseek(s->stdio_file, pos, SEEK_SET);
-    return fwrite(buf, 1, size, s->stdio_file);
-}
-
-static int file_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
-{
-    QEMUFileStdio *s = opaque;
-    fseek(s->stdio_file, pos, SEEK_SET);
-    return fread(buf, 1, size, s->stdio_file);
 }
 
 QEMUFile *qemu_fopen(const char *filename, const char *mode)
@@ -374,11 +403,9 @@ QEMUFile *qemu_fopen(const char *filename, const char *mode)
         goto fail;
     
     if(mode[0] == 'w') {
-        s->file = qemu_fopen_ops(s, file_put_buffer, NULL, stdio_fclose, 
-				 NULL, NULL, NULL);
+        s->file = qemu_fopen_ops(s, &stdio_file_write_ops);
     } else {
-        s->file = qemu_fopen_ops(s, NULL, file_get_buffer, stdio_fclose, 
-			       NULL, NULL, NULL);
+        s->file = qemu_fopen_ops(s, &stdio_file_read_ops);
     }
     return s->file;
 fail:
@@ -400,35 +427,34 @@ static int block_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 
 static int bdrv_fclose(void *opaque)
 {
-    return 0;
+    return bdrv_flush(opaque);
 }
+
+static const QEMUFileOps bdrv_read_ops = {
+    .get_buffer = block_get_buffer,
+    .close =      bdrv_fclose
+};
+
+static const QEMUFileOps bdrv_write_ops = {
+    .put_buffer = block_put_buffer,
+    .close =      bdrv_fclose
+};
 
 static QEMUFile *qemu_fopen_bdrv(BlockDriverState *bs, int is_writable)
 {
     if (is_writable)
-        return qemu_fopen_ops(bs, block_put_buffer, NULL, bdrv_fclose, 
-			      NULL, NULL, NULL);
-    return qemu_fopen_ops(bs, NULL, block_get_buffer, bdrv_fclose, NULL, NULL, NULL);
+        return qemu_fopen_ops(bs, &bdrv_write_ops);
+    return qemu_fopen_ops(bs, &bdrv_read_ops);
 }
 
-QEMUFile *qemu_fopen_ops(void *opaque, QEMUFilePutBufferFunc *put_buffer,
-                         QEMUFileGetBufferFunc *get_buffer,
-                         QEMUFileCloseFunc *close,
-                         QEMUFileRateLimit *rate_limit,
-                         QEMUFileSetRateLimit *set_rate_limit,
-                         QEMUFileGetRateLimit *get_rate_limit)
+QEMUFile *qemu_fopen_ops(void *opaque, const QEMUFileOps *ops)
 {
     QEMUFile *f;
 
     f = g_malloc0(sizeof(QEMUFile));
 
     f->opaque = opaque;
-    f->put_buffer = put_buffer;
-    f->get_buffer = get_buffer;
-    f->close = close;
-    f->rate_limit = rate_limit;
-    f->set_rate_limit = set_rate_limit;
-    f->get_rate_limit = get_rate_limit;
+    f->ops = ops;
     f->is_write = 0;
 
     return f;
@@ -439,42 +465,29 @@ int qemu_file_get_error(QEMUFile *f)
     return f->last_error;
 }
 
-void qemu_file_set_error(QEMUFile *f, int ret)
+static void qemu_file_set_error(QEMUFile *f, int ret)
 {
     f->last_error = ret;
 }
 
-/** Sets last_error conditionally
- *
- * Sets last_error only if ret is negative _and_ no error
- * was set before.
- */
-static void qemu_file_set_if_error(QEMUFile *f, int ret)
-{
-    if (ret < 0 && !f->last_error) {
-        qemu_file_set_error(f, ret);
-    }
-}
-
 /** Flushes QEMUFile buffer
  *
- * In case of error, last_error is set.
  */
-void qemu_fflush(QEMUFile *f)
+static int qemu_fflush(QEMUFile *f)
 {
-    if (!f->put_buffer)
-        return;
+    int ret = 0;
+
+    if (!f->ops->put_buffer)
+        return 0;
 
     if (f->is_write && f->buf_index > 0) {
-        int len;
-
-        len = f->put_buffer(f->opaque, f->buf, f->buf_offset, f->buf_index);
-        if (len > 0)
+        ret = f->ops->put_buffer(f->opaque, f->buf, f->buf_offset, f->buf_index);
+        if (ret >= 0) {
             f->buf_offset += f->buf_index;
-        else
-            qemu_file_set_error(f, -EINVAL);
+        }
         f->buf_index = 0;
     }
+    return ret;
 }
 
 static void qemu_fill_buffer(QEMUFile *f)
@@ -482,7 +495,7 @@ static void qemu_fill_buffer(QEMUFile *f)
     int len;
     int pending;
 
-    if (!f->get_buffer)
+    if (!f->ops->get_buffer)
         return;
 
     if (f->is_write)
@@ -495,31 +508,23 @@ static void qemu_fill_buffer(QEMUFile *f)
     f->buf_index = 0;
     f->buf_size = pending;
 
-    len = f->get_buffer(f->opaque, f->buf + pending, f->buf_offset,
+    len = f->ops->get_buffer(f->opaque, f->buf + pending, f->buf_offset,
                         IO_BUF_SIZE - pending);
     if (len > 0) {
         f->buf_size += len;
         f->buf_offset += len;
     } else if (len == 0) {
-        f->last_error = -EIO;
+        qemu_file_set_error(f, -EIO);
     } else if (len != -EAGAIN)
         qemu_file_set_error(f, len);
 }
 
-/** Calls close function and set last_error if needed
- *
- * Internal function. qemu_fflush() must be called before this.
- *
- * Returns f->close() return value, or 0 if close function is not set.
- */
-static int qemu_close(QEMUFile *f)
+int qemu_get_fd(QEMUFile *f)
 {
-    int ret = 0;
-    if (f->close) {
-        ret = f->close(f->opaque);
-        qemu_file_set_if_error(f, ret);
+    if (f->ops->get_fd) {
+        return f->ops->get_fd(f->opaque);
     }
-    return ret;
+    return -1;
 }
 
 /** Closes the file
@@ -533,8 +538,14 @@ static int qemu_close(QEMUFile *f)
 int qemu_fclose(QEMUFile *f)
 {
     int ret;
-    qemu_fflush(f);
-    ret = qemu_close(f);
+    ret = qemu_fflush(f);
+
+    if (f->ops->close) {
+        int ret2 = f->ops->close(f->opaque);
+        if (ret >= 0) {
+            ret = ret2;
+        }
+    }
     /* If any error was spotted before closing, we should report it
      * instead of the close() return value.
      */
@@ -545,22 +556,26 @@ int qemu_fclose(QEMUFile *f)
     return ret;
 }
 
-void qemu_file_put_notify(QEMUFile *f)
+int qemu_file_put_notify(QEMUFile *f)
 {
-    f->put_buffer(f->opaque, NULL, 0, 0);
+    return f->ops->put_buffer(f->opaque, NULL, 0, 0);
 }
 
 void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
 {
     int l;
 
-    if (!f->last_error && f->is_write == 0 && f->buf_index > 0) {
+    if (f->last_error) {
+        return;
+    }
+
+    if (f->is_write == 0 && f->buf_index > 0) {
         fprintf(stderr,
                 "Attempted to write to buffer while read buffer is not empty\n");
         abort();
     }
 
-    while (!f->last_error && size > 0) {
+    while (size > 0) {
         l = IO_BUF_SIZE - f->buf_index;
         if (l > size)
             l = size;
@@ -569,14 +584,23 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
         f->buf_index += l;
         buf += l;
         size -= l;
-        if (f->buf_index >= IO_BUF_SIZE)
-            qemu_fflush(f);
+        if (f->buf_index >= IO_BUF_SIZE) {
+            int ret = qemu_fflush(f);
+            if (ret < 0) {
+                qemu_file_set_error(f, ret);
+                break;
+            }
+        }
     }
 }
 
 void qemu_put_byte(QEMUFile *f, int v)
 {
-    if (!f->last_error && f->is_write == 0 && f->buf_index > 0) {
+    if (f->last_error) {
+        return;
+    }
+
+    if (f->is_write == 0 && f->buf_index > 0) {
         fprintf(stderr,
                 "Attempted to write to buffer while read buffer is not empty\n");
         abort();
@@ -584,8 +608,12 @@ void qemu_put_byte(QEMUFile *f, int v)
 
     f->buf[f->buf_index++] = v;
     f->is_write = 1;
-    if (f->buf_index >= IO_BUF_SIZE)
-        qemu_fflush(f);
+    if (f->buf_index >= IO_BUF_SIZE) {
+        int ret = qemu_fflush(f);
+        if (ret < 0) {
+            qemu_file_set_error(f, ret);
+        }
+    }
 }
 
 static void qemu_file_skip(QEMUFile *f, int size)
@@ -670,44 +698,23 @@ int qemu_get_byte(QEMUFile *f)
     return result;
 }
 
-int64_t qemu_ftell(QEMUFile *f)
+static int64_t qemu_ftell(QEMUFile *f)
 {
     return f->buf_offset - f->buf_size + f->buf_index;
 }
 
-int64_t qemu_fseek(QEMUFile *f, int64_t pos, int whence)
-{
-    if (whence == SEEK_SET) {
-        /* nothing to do */
-    } else if (whence == SEEK_CUR) {
-        pos += qemu_ftell(f);
-    } else {
-        /* SEEK_END not supported */
-        return -1;
-    }
-    if (f->put_buffer) {
-        qemu_fflush(f);
-        f->buf_offset = pos;
-    } else {
-        f->buf_offset = pos;
-        f->buf_index = 0;
-        f->buf_size = 0;
-    }
-    return pos;
-}
-
 int qemu_file_rate_limit(QEMUFile *f)
 {
-    if (f->rate_limit)
-        return f->rate_limit(f->opaque);
+    if (f->ops->rate_limit)
+        return f->ops->rate_limit(f->opaque);
 
     return 0;
 }
 
 int64_t qemu_file_get_rate_limit(QEMUFile *f)
 {
-    if (f->get_rate_limit)
-        return f->get_rate_limit(f->opaque);
+    if (f->ops->get_rate_limit)
+        return f->ops->get_rate_limit(f->opaque);
 
     return 0;
 }
@@ -716,8 +723,8 @@ int64_t qemu_file_set_rate_limit(QEMUFile *f, int64_t new_rate)
 {
     /* any failed or completed migration keeps its state to allow probing of
      * migration data, but has no associated file anymore */
-    if (f && f->set_rate_limit)
-        return f->set_rate_limit(f->opaque, new_rate);
+    if (f && f->ops->set_rate_limit)
+        return f->ops->set_rate_limit(f->opaque, new_rate);
 
     return 0;
 }
@@ -1158,6 +1165,46 @@ const VMStateInfo vmstate_info_unused_buffer = {
     .put  = put_unused_buffer,
 };
 
+/* bitmaps (as defined by bitmap.h). Note that size here is the size
+ * of the bitmap in bits. The on-the-wire format of a bitmap is 64
+ * bit words with the bits in big endian order. The in-memory format
+ * is an array of 'unsigned long', which may be either 32 or 64 bits.
+ */
+/* This is the number of 64 bit words sent over the wire */
+#define BITS_TO_U64S(nr) DIV_ROUND_UP(nr, 64)
+static int get_bitmap(QEMUFile *f, void *pv, size_t size)
+{
+    unsigned long *bmp = pv;
+    int i, idx = 0;
+    for (i = 0; i < BITS_TO_U64S(size); i++) {
+        uint64_t w = qemu_get_be64(f);
+        bmp[idx++] = w;
+        if (sizeof(unsigned long) == 4 && idx < BITS_TO_LONGS(size)) {
+            bmp[idx++] = w >> 32;
+        }
+    }
+    return 0;
+}
+
+static void put_bitmap(QEMUFile *f, void *pv, size_t size)
+{
+    unsigned long *bmp = pv;
+    int i, idx = 0;
+    for (i = 0; i < BITS_TO_U64S(size); i++) {
+        uint64_t w = bmp[idx++];
+        if (sizeof(unsigned long) == 4 && idx < BITS_TO_LONGS(size)) {
+            w |= ((uint64_t)bmp[idx++]) << 32;
+        }
+        qemu_put_be64(f, w);
+    }
+}
+
+const VMStateInfo vmstate_info_bitmap = {
+    .name = "bitmap",
+    .get = get_bitmap,
+    .put = put_bitmap,
+};
+
 typedef struct CompatEntry {
     char idstr[256];
     int instance_id;
@@ -1170,10 +1217,7 @@ typedef struct SaveStateEntry {
     int alias_id;
     int version_id;
     int section_id;
-    SaveSetParamsHandler *set_params;
-    SaveLiveStateHandler *save_live_state;
-    SaveStateHandler *save_state;
-    LoadStateHandler *load_state;
+    SaveVMHandlers *ops;
     const VMStateDescription *vmsd;
     void *opaque;
     CompatEntry *compat;
@@ -1225,10 +1269,7 @@ int register_savevm_live(DeviceState *dev,
                          const char *idstr,
                          int instance_id,
                          int version_id,
-                         SaveSetParamsHandler *set_params,
-                         SaveLiveStateHandler *save_live_state,
-                         SaveStateHandler *save_state,
-                         LoadStateHandler *load_state,
+                         SaveVMHandlers *ops,
                          void *opaque)
 {
     SaveStateEntry *se;
@@ -1236,20 +1277,17 @@ int register_savevm_live(DeviceState *dev,
     se = g_malloc0(sizeof(SaveStateEntry));
     se->version_id = version_id;
     se->section_id = global_section_id++;
-    se->set_params = set_params;
-    se->save_live_state = save_live_state;
-    se->save_state = save_state;
-    se->load_state = load_state;
+    se->ops = ops;
     se->opaque = opaque;
     se->vmsd = NULL;
     se->no_migrate = 0;
     /* if this is a live_savem then set is_ram */
-    if (save_live_state != NULL) {
+    if (ops->save_live_setup != NULL) {
         se->is_ram = 1;
     }
 
-    if (dev && dev->parent_bus && dev->parent_bus->info->get_dev_path) {
-        char *id = dev->parent_bus->info->get_dev_path(dev);
+    if (dev) {
+        char *id = qdev_get_dev_path(dev);
         if (id) {
             pstrcpy(se->idstr, sizeof(se->idstr), id);
             pstrcat(se->idstr, sizeof(se->idstr), "/");
@@ -1283,8 +1321,11 @@ int register_savevm(DeviceState *dev,
                     LoadStateHandler *load_state,
                     void *opaque)
 {
+    SaveVMHandlers *ops = g_malloc0(sizeof(SaveVMHandlers));
+    ops->save_state = save_state;
+    ops->load_state = load_state;
     return register_savevm_live(dev, idstr, instance_id, version_id,
-                                NULL, NULL, save_state, load_state, opaque);
+                                ops, opaque);
 }
 
 void unregister_savevm(DeviceState *dev, const char *idstr, void *opaque)
@@ -1292,8 +1333,8 @@ void unregister_savevm(DeviceState *dev, const char *idstr, void *opaque)
     SaveStateEntry *se, *new_se;
     char id[256] = "";
 
-    if (dev && dev->parent_bus && dev->parent_bus->info->get_dev_path) {
-        char *path = dev->parent_bus->info->get_dev_path(dev);
+    if (dev) {
+        char *path = qdev_get_dev_path(dev);
         if (path) {
             pstrcpy(id, sizeof(id), path);
             pstrcat(id, sizeof(id), "/");
@@ -1308,6 +1349,7 @@ void unregister_savevm(DeviceState *dev, const char *idstr, void *opaque)
             if (se->compat) {
                 g_free(se->compat);
             }
+            g_free(se->ops);
             g_free(se);
         }
     }
@@ -1326,16 +1368,13 @@ int vmstate_register_with_alias_id(DeviceState *dev, int instance_id,
     se = g_malloc0(sizeof(SaveStateEntry));
     se->version_id = vmsd->version_id;
     se->section_id = global_section_id++;
-    se->save_live_state = NULL;
-    se->save_state = NULL;
-    se->load_state = NULL;
     se->opaque = opaque;
     se->vmsd = vmsd;
     se->alias_id = alias_id;
     se->no_migrate = vmsd->unmigratable;
 
-    if (dev && dev->parent_bus && dev->parent_bus->info->get_dev_path) {
-        char *id = dev->parent_bus->info->get_dev_path(dev);
+    if (dev) {
+        char *id = qdev_get_dev_path(dev);
         if (id) {
             pstrcpy(se->idstr, sizeof(se->idstr), id);
             pstrcat(se->idstr, sizeof(se->idstr), "/");
@@ -1523,7 +1562,7 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
 static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
 {
     if (!se->vmsd) {         /* Old style */
-        return se->load_state(f, se->opaque, version_id);
+        return se->ops->load_state(f, se->opaque, version_id);
     }
     return vmstate_load_state(f, se->vmsd, se->opaque, version_id);
 }
@@ -1531,7 +1570,7 @@ static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
 static void vmstate_save(QEMUFile *f, SaveStateEntry *se)
 {
     if (!se->vmsd) {         /* Old style */
-        se->save_state(f, se->opaque);
+        se->ops->save_state(f, se->opaque);
         return;
     }
     vmstate_save_state(f,se->vmsd, se->opaque);
@@ -1561,16 +1600,17 @@ bool qemu_savevm_state_blocked(Error **errp)
     return false;
 }
 
-int qemu_savevm_state_begin(QEMUFile *f, int blk_enable, int shared)
+int qemu_savevm_state_begin(QEMUFile *f,
+                            const MigrationParams *params)
 {
     SaveStateEntry *se;
     int ret;
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
-        if(se->set_params == NULL) {
+        if (!se->ops || !se->ops->set_params) {
             continue;
-	}
-	se->set_params(blk_enable, shared, se->opaque);
+        }
+        se->ops->set_params(params, se->opaque);
     }
     
     qemu_put_be32(f, QEMU_VM_FILE_MAGIC);
@@ -1579,9 +1619,14 @@ int qemu_savevm_state_begin(QEMUFile *f, int blk_enable, int shared)
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
         int len;
 
-        if (se->save_live_state == NULL)
+        if (!se->ops || !se->ops->save_live_setup) {
             continue;
-
+        }
+        if (se->ops && se->ops->is_active) {
+            if (!se->ops->is_active(se->opaque)) {
+                continue;
+            }
+        }
         /* Section type */
         qemu_put_byte(f, QEMU_VM_SECTION_START);
         qemu_put_be32(f, se->section_id);
@@ -1594,7 +1639,7 @@ int qemu_savevm_state_begin(QEMUFile *f, int blk_enable, int shared)
         qemu_put_be32(f, se->instance_id);
         qemu_put_be32(f, se->version_id);
 
-        ret = se->save_live_state(f, QEMU_VM_SECTION_START, se->opaque);
+        ret = se->ops->save_live_setup(f, se->opaque);
         if (ret < 0) {
             qemu_savevm_state_cancel(f);
             return ret;
@@ -1621,14 +1666,25 @@ int qemu_savevm_state_iterate(QEMUFile *f)
     int ret = 1;
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
-        if (se->save_live_state == NULL)
+        if (!se->ops || !se->ops->save_live_iterate) {
             continue;
-
+        }
+        if (se->ops && se->ops->is_active) {
+            if (!se->ops->is_active(se->opaque)) {
+                continue;
+            }
+        }
+        if (qemu_file_rate_limit(f)) {
+            return 0;
+        }
+        trace_savevm_section_start();
         /* Section type */
         qemu_put_byte(f, QEMU_VM_SECTION_PART);
         qemu_put_be32(f, se->section_id);
 
-        ret = se->save_live_state(f, QEMU_VM_SECTION_PART, se->opaque);
+        ret = se->ops->save_live_iterate(f, se->opaque);
+        trace_savevm_section_end(se->section_id);
+
         if (ret <= 0) {
             /* Do not proceed to the next vmstate before this one reported
                completion of the current stage. This serializes the migration
@@ -1655,14 +1711,21 @@ int qemu_savevm_state_complete(QEMUFile *f)
     cpu_synchronize_all_states();
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
-        if (se->save_live_state == NULL)
+        if (!se->ops || !se->ops->save_live_complete) {
             continue;
-
+        }
+        if (se->ops && se->ops->is_active) {
+            if (!se->ops->is_active(se->opaque)) {
+                continue;
+            }
+        }
+        trace_savevm_section_start();
         /* Section type */
         qemu_put_byte(f, QEMU_VM_SECTION_END);
         qemu_put_be32(f, se->section_id);
 
-        ret = se->save_live_state(f, QEMU_VM_SECTION_END, se->opaque);
+        ret = se->ops->save_live_complete(f, se->opaque);
+        trace_savevm_section_end(se->section_id);
         if (ret < 0) {
             return ret;
         }
@@ -1671,9 +1734,10 @@ int qemu_savevm_state_complete(QEMUFile *f)
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
         int len;
 
-	if (se->save_state == NULL && se->vmsd == NULL)
+        if ((!se->ops || !se->ops->save_state) && !se->vmsd) {
 	    continue;
-
+        }
+        trace_savevm_section_start();
         /* Section type */
         qemu_put_byte(f, QEMU_VM_SECTION_FULL);
         qemu_put_be32(f, se->section_id);
@@ -1687,6 +1751,7 @@ int qemu_savevm_state_complete(QEMUFile *f)
         qemu_put_be32(f, se->version_id);
 
         vmstate_save(f, se);
+        trace_savevm_section_end(se->section_id);
     }
 
     qemu_put_byte(f, QEMU_VM_EOF);
@@ -1699,8 +1764,8 @@ void qemu_savevm_state_cancel(QEMUFile *f)
     SaveStateEntry *se;
 
     QTAILQ_FOREACH(se, &savevm_handlers, entry) {
-        if (se->save_live_state) {
-            se->save_live_state(f, -1, se->opaque);
+        if (se->ops && se->ops->cancel) {
+            se->ops->cancel(se->opaque);
         }
     }
 }
@@ -1708,13 +1773,17 @@ void qemu_savevm_state_cancel(QEMUFile *f)
 static int qemu_savevm_state(QEMUFile *f)
 {
     int ret;
+    MigrationParams params = {
+        .blk = 0,
+        .shared = 0
+    };
 
     if (qemu_savevm_state_blocked(NULL)) {
         ret = -EINVAL;
         goto out;
     }
 
-    ret = qemu_savevm_state_begin(f, 0, 0);
+    ret = qemu_savevm_state_begin(f, &params);
     if (ret < 0)
         goto out;
 
@@ -1749,7 +1818,7 @@ static int qemu_save_device_state(QEMUFile *f)
         if (se->is_ram) {
             continue;
         }
-        if (se->save_state == NULL && se->vmsd == NULL) {
+        if ((!se->ops || !se->ops->save_state) && !se->vmsd) {
             continue;
         }
 
@@ -2178,7 +2247,6 @@ void qmp_xen_save_devices_state(const char *filename, Error **errp)
  the_end:
     if (saved_vm_running)
         vm_start();
-    return;
 }
 
 int load_vmstate(const char *name)
@@ -2368,4 +2436,163 @@ void vmstate_unregister_ram(MemoryRegion *mr, DeviceState *dev)
 void vmstate_register_ram_global(MemoryRegion *mr)
 {
     vmstate_register_ram(mr, NULL);
+}
+
+/*
+  page = zrun nzrun
+       | zrun nzrun page
+
+  zrun = length
+
+  nzrun = length byte...
+
+  length = uleb128 encoded integer
+ */
+int xbzrle_encode_buffer(uint8_t *old_buf, uint8_t *new_buf, int slen,
+                         uint8_t *dst, int dlen)
+{
+    uint32_t zrun_len = 0, nzrun_len = 0;
+    int d = 0, i = 0;
+    long res, xor;
+    uint8_t *nzrun_start = NULL;
+
+    g_assert(!(((uintptr_t)old_buf | (uintptr_t)new_buf | slen) %
+               sizeof(long)));
+
+    while (i < slen) {
+        /* overflow */
+        if (d + 2 > dlen) {
+            return -1;
+        }
+
+        /* not aligned to sizeof(long) */
+        res = (slen - i) % sizeof(long);
+        while (res && old_buf[i] == new_buf[i]) {
+            zrun_len++;
+            i++;
+            res--;
+        }
+
+        /* word at a time for speed */
+        if (!res) {
+            while (i < slen &&
+                   (*(long *)(old_buf + i)) == (*(long *)(new_buf + i))) {
+                i += sizeof(long);
+                zrun_len += sizeof(long);
+            }
+
+            /* go over the rest */
+            while (i < slen && old_buf[i] == new_buf[i]) {
+                zrun_len++;
+                i++;
+            }
+        }
+
+        /* buffer unchanged */
+        if (zrun_len == slen) {
+            return 0;
+        }
+
+        /* skip last zero run */
+        if (i == slen) {
+            return d;
+        }
+
+        d += uleb128_encode_small(dst + d, zrun_len);
+
+        zrun_len = 0;
+        nzrun_start = new_buf + i;
+
+        /* overflow */
+        if (d + 2 > dlen) {
+            return -1;
+        }
+        /* not aligned to sizeof(long) */
+        res = (slen - i) % sizeof(long);
+        while (res && old_buf[i] != new_buf[i]) {
+            i++;
+            nzrun_len++;
+            res--;
+        }
+
+        /* word at a time for speed, use of 32-bit long okay */
+        if (!res) {
+            /* truncation to 32-bit long okay */
+            long mask = (long)0x0101010101010101ULL;
+            while (i < slen) {
+                xor = *(long *)(old_buf + i) ^ *(long *)(new_buf + i);
+                if ((xor - mask) & ~xor & (mask << 7)) {
+                    /* found the end of an nzrun within the current long */
+                    while (old_buf[i] != new_buf[i]) {
+                        nzrun_len++;
+                        i++;
+                    }
+                    break;
+                } else {
+                    i += sizeof(long);
+                    nzrun_len += sizeof(long);
+                }
+            }
+        }
+
+        d += uleb128_encode_small(dst + d, nzrun_len);
+        /* overflow */
+        if (d + nzrun_len > dlen) {
+            return -1;
+        }
+        memcpy(dst + d, nzrun_start, nzrun_len);
+        d += nzrun_len;
+        nzrun_len = 0;
+    }
+
+    return d;
+}
+
+int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen)
+{
+    int i = 0, d = 0;
+    int ret;
+    uint32_t count = 0;
+
+    while (i < slen) {
+
+        /* zrun */
+        if ((slen - i) < 2) {
+            return -1;
+        }
+
+        ret = uleb128_decode_small(src + i, &count);
+        if (ret < 0 || (i && !count)) {
+            return -1;
+        }
+        i += ret;
+        d += count;
+
+        /* overflow */
+        if (d > dlen) {
+            return -1;
+        }
+
+        /* nzrun */
+        if ((slen - i) < 2) {
+            return -1;
+        }
+
+        ret = uleb128_decode_small(src + i, &count);
+        if (ret < 0 || !count) {
+            return -1;
+        }
+        i += ret;
+
+        /* overflow */
+        if (d + count > dlen || i + count > slen) {
+            return -1;
+        }
+
+        memcpy(dst + d, src + i, count);
+        d += count;
+        i += count;
+    }
+
+    return d;
 }

@@ -339,8 +339,8 @@ typedef struct {
     uint8_t phy_loop; /* Are we in phy loopback? */
 
     /* The current DMA descriptor pointers */
-    target_phys_addr_t rx_desc_addr;
-    target_phys_addr_t tx_desc_addr;
+    uint32_t rx_desc_addr;
+    uint32_t tx_desc_addr;
 
 } GemState;
 
@@ -405,7 +405,7 @@ static void phy_update_link(GemState *s)
     }
 }
 
-static int gem_can_receive(VLANClientState *nc)
+static int gem_can_receive(NetClientState *nc)
 {
     GemState *s;
 
@@ -602,10 +602,10 @@ static int gem_mac_address_filter(GemState *s, const uint8_t *packet)
  * gem_receive:
  * Fit a packet handed to us by QEMU into the receive descriptor ring.
  */
-static ssize_t gem_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
+static ssize_t gem_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
     unsigned    desc[2];
-    target_phys_addr_t packet_desc_addr, last_desc_addr;
+    hwaddr packet_desc_addr, last_desc_addr;
     GemState *s;
     unsigned   rxbufsize, bytes_to_copy;
     unsigned   rxbuf_offset;
@@ -664,7 +664,7 @@ static ssize_t gem_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
          */
 
         memcpy(rxbuf, buf, size);
-        memset(rxbuf + size, 0, sizeof(rxbuf - size));
+        memset(rxbuf + size, 0, sizeof(rxbuf) - size);
         rxbuf_ptr = rxbuf;
         crc_val = cpu_to_le32(crc32(0, rxbuf, MAX(size, 60)));
         if (size < 60) {
@@ -824,7 +824,7 @@ static void gem_transmit_updatestats(GemState *s, const uint8_t *packet,
 static void gem_transmit(GemState *s)
 {
     unsigned    desc[2];
-    target_phys_addr_t packet_desc_addr;
+    hwaddr packet_desc_addr;
     uint8_t     tx_packet[2048];
     uint8_t     *p;
     unsigned    total_bytes;
@@ -1021,7 +1021,7 @@ static void gem_phy_write(GemState *s, unsigned reg_num, uint16_t val)
  * gem_read32:
  * Read a GEM register.
  */
-static uint64_t gem_read(void *opaque, target_phys_addr_t offset, unsigned size)
+static uint64_t gem_read(void *opaque, hwaddr offset, unsigned size)
 {
     GemState *s;
     uint32_t retval;
@@ -1067,7 +1067,7 @@ static uint64_t gem_read(void *opaque, target_phys_addr_t offset, unsigned size)
  * gem_write32:
  * Write a GEM register.
  */
-static void gem_write(void *opaque, target_phys_addr_t offset, uint64_t val,
+static void gem_write(void *opaque, hwaddr offset, uint64_t val,
         unsigned size)
 {
     GemState *s = (GemState *)opaque;
@@ -1146,7 +1146,7 @@ static const MemoryRegionOps gem_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
-static void gem_cleanup(VLANClientState *nc)
+static void gem_cleanup(NetClientState *nc)
 {
     GemState *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -1154,14 +1154,14 @@ static void gem_cleanup(VLANClientState *nc)
     s->nic = NULL;
 }
 
-static void gem_set_link(VLANClientState *nc)
+static void gem_set_link(NetClientState *nc)
 {
     DB_PRINT("\n");
     phy_update_link(DO_UPCAST(NICState, nc, nc)->opaque);
 }
 
 static NetClientInfo net_gem_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = gem_can_receive,
     .receive = gem_receive,

@@ -181,10 +181,33 @@ def cmd_del_header_ext(fd, magic):
 
     h.update(fd)
 
+def cmd_set_feature_bit(fd, group, bit):
+    try:
+        bit = int(bit, 0)
+        if bit < 0 or bit >= 64:
+            raise ValueError
+    except:
+        print "'%s' is not a valid bit number in range [0, 64)" % bit
+        sys.exit(1)
+
+    h = QcowHeader(fd)
+    if group == 'incompatible':
+        h.incompatible_features |= 1 << bit
+    elif group == 'compatible':
+        h.compatible_features |= 1 << bit
+    elif group == 'autoclear':
+        h.autoclear_features |= 1 << bit
+    else:
+        print "'%s' is not a valid group, try 'incompatible', 'compatible', or 'autoclear'" % group
+        sys.exit(1)
+
+    h.update(fd)
+
 cmds = [
     [ 'dump-header',    cmd_dump_header,    0, 'Dump image header and header extensions' ],
     [ 'add-header-ext', cmd_add_header_ext, 2, 'Add a header extension' ],
     [ 'del-header-ext', cmd_del_header_ext, 1, 'Delete a header extension' ],
+    [ 'set-feature-bit', cmd_set_feature_bit, 2, 'Set a feature bit'],
 ]
 
 def main(filename, cmd, args):
@@ -210,8 +233,9 @@ def usage():
     for name, handler, num_args, desc in cmds:
         print "    %-20s - %s" % (name, desc)
 
-if len(sys.argv) < 3:
-    usage()
-    sys.exit(1)
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        usage()
+        sys.exit(1)
 
-main(sys.argv[1], sys.argv[2], sys.argv[3:])
+    main(sys.argv[1], sys.argv[2], sys.argv[3:])

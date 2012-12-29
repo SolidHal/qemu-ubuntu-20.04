@@ -22,6 +22,7 @@
 #include "hw.h"
 #include "pc.h"
 #include "acpi.h"
+#include "monitor.h"
 
 struct acpi_table_header {
     uint16_t _length;         /* our length, not actual part of the hdr */
@@ -58,18 +59,6 @@ static int acpi_checksum(const uint8_t *data, int len)
         sum += data[i];
     }
     return (-sum) & 0xff;
-}
-
-/* like strncpy() but zero-fills the tail of destination */
-static void strzcpy(char *dst, const char *src, size_t size)
-{
-    size_t len = strlen(src);
-    if (len >= size) {
-        len = size;
-    } else {
-      memset(dst + len, 0, size - len);
-    }
-    memcpy(dst, src, len);
 }
 
 /* XXX fixme: this function uses obsolete argument parsing interface */
@@ -156,7 +145,8 @@ int acpi_table_add(const char *t)
     hdr._length = cpu_to_le16(len);
 
     if (get_param_value(buf, sizeof(buf), "sig", t)) {
-        strzcpy(hdr.sig, buf, sizeof(hdr.sig));
+        /* strncpy is justified: the field need not be NUL-terminated. */
+        strncpy(hdr.sig, buf, sizeof(hdr.sig));
         ++changed;
     }
 
@@ -186,12 +176,14 @@ int acpi_table_add(const char *t)
     }
 
     if (get_param_value(buf, sizeof(buf), "oem_id", t)) {
-        strzcpy(hdr.oem_id, buf, sizeof(hdr.oem_id));
+        /* strncpy is justified: the field need not be NUL-terminated. */
+        strncpy(hdr.oem_id, buf, sizeof(hdr.oem_id));
         ++changed;
     }
 
     if (get_param_value(buf, sizeof(buf), "oem_table_id", t)) {
-        strzcpy(hdr.oem_table_id, buf, sizeof(hdr.oem_table_id));
+        /* strncpy is justified: the field need not be NUL-terminated. */
+        strncpy(hdr.oem_table_id, buf, sizeof(hdr.oem_table_id));
         ++changed;
     }
 
@@ -206,7 +198,8 @@ int acpi_table_add(const char *t)
     }
 
     if (get_param_value(buf, sizeof(buf), "asl_compiler_id", t)) {
-        strzcpy(hdr.asl_compiler_id, buf, sizeof(hdr.asl_compiler_id));
+        /* strncpy is justified: the field need not be NUL-terminated. */
+        strncpy(hdr.asl_compiler_id, buf, sizeof(hdr.asl_compiler_id));
         ++changed;
     }
 
@@ -370,7 +363,7 @@ void acpi_pm1_cnt_init(ACPIREGS *ar)
     qemu_register_wakeup_notifier(&ar->wakeup);
 }
 
-void acpi_pm1_cnt_write(ACPIREGS *ar, uint16_t val)
+void acpi_pm1_cnt_write(ACPIREGS *ar, uint16_t val, char s4)
 {
     ar->pm1.cnt.cnt = val & ~(ACPI_BITMASK_SLEEP_ENABLE);
 
@@ -385,6 +378,10 @@ void acpi_pm1_cnt_write(ACPIREGS *ar, uint16_t val)
             qemu_system_suspend_request();
             break;
         default:
+            if (sus_typ == s4) { /* S4 request */
+                monitor_protocol_event(QEVENT_SUSPEND_DISK, NULL);
+                qemu_system_shutdown_request();
+            }
             break;
         }
     }

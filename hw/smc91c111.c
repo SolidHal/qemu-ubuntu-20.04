@@ -276,7 +276,7 @@ static void smc91c111_reset(DeviceState *dev)
 #define SET_LOW(name, val) s->name = (s->name & 0xff00) | val
 #define SET_HIGH(name, val) s->name = (s->name & 0xff) | (val << 8)
 
-static void smc91c111_writeb(void *opaque, target_phys_addr_t offset,
+static void smc91c111_writeb(void *opaque, hwaddr offset,
                              uint32_t value)
 {
     smc91c111_state *s = (smc91c111_state *)opaque;
@@ -451,7 +451,7 @@ static void smc91c111_writeb(void *opaque, target_phys_addr_t offset,
     hw_error("smc91c111_write: Bad reg %d:%x\n", s->bank, (int)offset);
 }
 
-static uint32_t smc91c111_readb(void *opaque, target_phys_addr_t offset)
+static uint32_t smc91c111_readb(void *opaque, hwaddr offset)
 {
     smc91c111_state *s = (smc91c111_state *)opaque;
 
@@ -595,14 +595,14 @@ static uint32_t smc91c111_readb(void *opaque, target_phys_addr_t offset)
     return 0;
 }
 
-static void smc91c111_writew(void *opaque, target_phys_addr_t offset,
+static void smc91c111_writew(void *opaque, hwaddr offset,
                              uint32_t value)
 {
     smc91c111_writeb(opaque, offset, value & 0xff);
     smc91c111_writeb(opaque, offset + 1, value >> 8);
 }
 
-static void smc91c111_writel(void *opaque, target_phys_addr_t offset,
+static void smc91c111_writel(void *opaque, hwaddr offset,
                              uint32_t value)
 {
     /* 32-bit writes to offset 0xc only actually write to the bank select
@@ -612,7 +612,7 @@ static void smc91c111_writel(void *opaque, target_phys_addr_t offset,
     smc91c111_writew(opaque, offset + 2, value >> 16);
 }
 
-static uint32_t smc91c111_readw(void *opaque, target_phys_addr_t offset)
+static uint32_t smc91c111_readw(void *opaque, hwaddr offset)
 {
     uint32_t val;
     val = smc91c111_readb(opaque, offset);
@@ -620,7 +620,7 @@ static uint32_t smc91c111_readw(void *opaque, target_phys_addr_t offset)
     return val;
 }
 
-static uint32_t smc91c111_readl(void *opaque, target_phys_addr_t offset)
+static uint32_t smc91c111_readl(void *opaque, hwaddr offset)
 {
     uint32_t val;
     val = smc91c111_readw(opaque, offset);
@@ -628,7 +628,7 @@ static uint32_t smc91c111_readl(void *opaque, target_phys_addr_t offset)
     return val;
 }
 
-static int smc91c111_can_receive(VLANClientState *nc)
+static int smc91c111_can_receive(NetClientState *nc)
 {
     smc91c111_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -639,7 +639,7 @@ static int smc91c111_can_receive(VLANClientState *nc)
     return 1;
 }
 
-static ssize_t smc91c111_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
+static ssize_t smc91c111_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
     smc91c111_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
     int status;
@@ -728,7 +728,7 @@ static const MemoryRegionOps smc91c111_mem_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void smc91c111_cleanup(VLANClientState *nc)
+static void smc91c111_cleanup(NetClientState *nc)
 {
     smc91c111_state *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -736,7 +736,7 @@ static void smc91c111_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_smc91c111_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = smc91c111_can_receive,
     .receive = smc91c111_receive,

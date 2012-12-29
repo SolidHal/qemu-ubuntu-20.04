@@ -20,6 +20,7 @@
 
 #include "hw.h"
 #include "pc.h"
+#include "serial.h"
 #include "fdc.h"
 #include "net.h"
 #include "boards.h"
@@ -198,9 +199,10 @@ static void write_bootloader (CPUMIPSState *env, uint8_t *base, int64_t kernel_a
 
 static void main_cpu_reset(void *opaque)
 {
-    CPUMIPSState *env = opaque;
+    MIPSCPU *cpu = opaque;
+    CPUMIPSState *env = &cpu->env;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(cpu));
     /* TODO: 2E reset stuff */
     if (loaderparams.kernel_filename) {
         env->CP0_Status &= ~((1 << CP0St_BEV) | (1 << CP0St_ERL));
@@ -255,10 +257,13 @@ static void cpu_request_exit(void *opaque, int irq, int level)
     }
 }
 
-static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
-                        const char *kernel_filename, const char *kernel_cmdline,
-                        const char *initrd_filename, const char *cpu_model)
+static void mips_fulong2e_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
     char *filename;
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *ram = g_new(MemoryRegion, 1);
@@ -272,19 +277,21 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     i2c_bus *smbus;
     int i;
     DriveInfo *hd[MAX_IDE_BUS * MAX_IDE_DEVS];
+    MIPSCPU *cpu;
     CPUMIPSState *env;
 
     /* init CPUs */
     if (cpu_model == NULL) {
         cpu_model = "Loongson-2E";
     }
-    env = cpu_init(cpu_model);
-    if (!env) {
+    cpu = cpu_mips_init(cpu_model);
+    if (cpu == NULL) {
         fprintf(stderr, "Unable to find CPU definition\n");
         exit(1);
     }
+    env = &cpu->env;
 
-    qemu_register_reset(main_cpu_reset, env);
+    qemu_register_reset(main_cpu_reset, cpu);
 
     /* fulong 2e has 256M ram. */
     ram_size = 256 * 1024 * 1024;
@@ -389,7 +396,7 @@ static void mips_fulong2e_init(ram_addr_t ram_size, const char *boot_device,
     network_init();
 }
 
-QEMUMachine mips_fulong2e_machine = {
+static QEMUMachine mips_fulong2e_machine = {
     .name = "fulong2e",
     .desc = "Fulong 2e mini pc",
     .init = mips_fulong2e_init,

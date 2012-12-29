@@ -197,6 +197,15 @@ static int qcow_open(BlockDriverState *bs, int flags)
     return ret;
 }
 
+
+/* We have nothing to do for QCOW reopen, stubs just return
+ * success */
+static int qcow_reopen_prepare(BDRVReopenState *state,
+                               BlockReopenQueue *queue, Error **errp)
+{
+    return 0;
+}
+
 static int qcow_set_key(BlockDriverState *bs, const char *key)
 {
     BDRVQcowState *s = bs->opaque;
@@ -540,7 +549,7 @@ done:
     qemu_co_mutex_unlock(&s->lock);
 
     if (qiov->niov > 1) {
-        qemu_iovec_from_buffer(qiov, orig_buf, qiov->size);
+        qemu_iovec_from_buf(qiov, 0, orig_buf, qiov->size);
         qemu_vfree(orig_buf);
     }
 
@@ -569,7 +578,7 @@ static coroutine_fn int qcow_co_writev(BlockDriverState *bs, int64_t sector_num,
 
     if (qiov->niov > 1) {
         buf = orig_buf = qemu_blockalign(bs, qiov->size);
-        qemu_iovec_to_buffer(qiov, buf);
+        qemu_iovec_to_buf(qiov, 0, buf, qiov->size);
     } else {
         orig_buf = NULL;
         buf = (uint8_t *)qiov->iov->iov_base;
@@ -868,6 +877,7 @@ static BlockDriver bdrv_qcow = {
     .bdrv_probe		= qcow_probe,
     .bdrv_open		= qcow_open,
     .bdrv_close		= qcow_close,
+    .bdrv_reopen_prepare = qcow_reopen_prepare,
     .bdrv_create	= qcow_create,
 
     .bdrv_co_readv          = qcow_co_readv,

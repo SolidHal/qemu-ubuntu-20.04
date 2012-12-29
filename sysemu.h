@@ -19,7 +19,6 @@ extern uint8_t qemu_uuid[];
 int qemu_uuid_parse(const char *str, uint8_t *uuid);
 #define UUID_FMT "%02hhx%02hhx%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx-%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx"
 
-void runstate_init(void);
 bool runstate_check(RunState state);
 void runstate_set(RunState new_state);
 int runstate_is_running(void);
@@ -52,16 +51,13 @@ void qemu_system_wakeup_enable(WakeupReason reason, bool enabled);
 void qemu_register_wakeup_notifier(Notifier *notifier);
 void qemu_system_shutdown_request(void);
 void qemu_system_powerdown_request(void);
+void qemu_register_powerdown_notifier(Notifier *notifier);
 void qemu_system_debug_request(void);
 void qemu_system_vmstop_request(RunState reason);
 int qemu_shutdown_requested_get(void);
 int qemu_reset_requested_get(void);
-int qemu_shutdown_requested(void);
-int qemu_reset_requested(void);
-int qemu_powerdown_requested(void);
 void qemu_system_killed(int signal, pid_t pid);
-void qemu_kill_report(void);
-extern qemu_irq qemu_system_powerdown;
+void qemu_devices_reset(void);
 void qemu_system_reset(bool report);
 
 void qemu_add_exit_notifier(Notifier *notify);
@@ -77,7 +73,8 @@ void do_info_snapshots(Monitor *mon);
 void qemu_announce_self(void);
 
 bool qemu_savevm_state_blocked(Error **errp);
-int qemu_savevm_state_begin(QEMUFile *f, int blk_enable, int shared);
+int qemu_savevm_state_begin(QEMUFile *f,
+                            const MigrationParams *params);
 int qemu_savevm_state_iterate(QEMUFile *f);
 int qemu_savevm_state_complete(QEMUFile *f);
 void qemu_savevm_state_cancel(QEMUFile *f);
@@ -103,10 +100,7 @@ typedef enum {
 } VGAInterfaceType;
 
 extern int vga_interface_type;
-#define cirrus_vga_enabled (vga_interface_type == VGA_CIRRUS)
-#define std_vga_enabled (vga_interface_type == VGA_STD)
 #define xenfb_enabled (vga_interface_type == VGA_XENFB)
-#define vmsvga_enabled (vga_interface_type == VGA_VMWARE)
 #define qxl_enabled (vga_interface_type == VGA_QXL)
 
 extern int graphic_width;
@@ -117,7 +111,6 @@ extern const char *keyboard_layout;
 extern int win2k_install_hack;
 extern int alt_grab;
 extern int ctrl_grab;
-extern int usb_enabled;
 extern int smp_cpus;
 extern int max_cpus;
 extern int cursor_hide;
@@ -133,9 +126,10 @@ extern uint8_t qemu_extra_params_fw[2];
 extern QEMUClock *rtc_clock;
 
 #define MAX_NODES 64
+#define MAX_CPUMASK_BITS 255
 extern int nb_numa_nodes;
 extern uint64_t node_mem[MAX_NODES];
-extern uint64_t node_cpumask[MAX_NODES];
+extern unsigned long *node_cpumask[MAX_NODES];
 
 #define MAX_OPTION_ROMS 16
 typedef struct QEMUOptionRom {
@@ -186,4 +180,7 @@ void register_devices(void);
 void add_boot_device_path(int32_t bootindex, DeviceState *dev,
                           const char *suffix);
 char *get_boot_devices_list(uint32_t *size);
+
+bool usb_enabled(bool default_usb);
+
 #endif

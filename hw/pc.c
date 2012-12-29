@@ -23,11 +23,11 @@
  */
 #include "hw.h"
 #include "pc.h"
+#include "serial.h"
 #include "apic.h"
 #include "fdc.h"
 #include "ide.h"
 #include "pci.h"
-#include "vmware_vga.h"
 #include "monitor.h"
 #include "fw_cfg.h"
 #include "hpet_emul.h"
@@ -42,15 +42,15 @@
 #include "sysbus.h"
 #include "sysemu.h"
 #include "kvm.h"
+#include "kvm_i386.h"
 #include "xen.h"
 #include "blockdev.h"
+#include "hw/block-common.h"
 #include "ui/qemu-spice.h"
 #include "memory.h"
 #include "exec-memory.h"
 #include "arch_init.h"
-
-/* output Bochs bios info messages */
-//#define DEBUG_BIOS
+#include "bitmap.h"
 
 /* debug PC/ISA interrupts */
 //#define DEBUG_IRQ
@@ -70,8 +70,6 @@
 #define FW_CFG_IRQ0_OVERRIDE (FW_CFG_ARCH_LOCAL + 2)
 #define FW_CFG_E820_TABLE (FW_CFG_ARCH_LOCAL + 3)
 #define FW_CFG_HPET (FW_CFG_ARCH_LOCAL + 4)
-
-#define MSI_ADDR_BASE 0xfee00000
 
 #define E820_NR_ENTRIES		16
 
@@ -216,11 +214,9 @@ static int cmos_get_fd_drive_type(FDriveType fd0)
     return val;
 }
 
-static void cmos_init_hd(int type_ofs, int info_ofs, BlockDriverState *hd,
-                         ISADevice *s)
+static void cmos_init_hd(ISADevice *s, int type_ofs, int info_ofs,
+                         int16_t cylinders, int8_t heads, int8_t sectors)
 {
-    int cylinders, heads, sectors;
-    bdrv_get_geometry_hint(hd, &cylinders, &heads, &sectors);
     rtc_set_memory(s, type_ofs, 47);
     rtc_set_memory(s, info_ofs, cylinders);
     rtc_set_memory(s, info_ofs + 1, cylinders >> 8);
@@ -281,48 +277,42 @@ static int pc_boot_set(void *opaque, const char *boot_device)
 
 typedef struct pc_cmos_init_late_arg {
     ISADevice *rtc_state;
-    BusState *idebus0, *idebus1;
+    BusState *idebus[2];
 } pc_cmos_init_late_arg;
 
 static void pc_cmos_init_late(void *opaque)
 {
     pc_cmos_init_late_arg *arg = opaque;
     ISADevice *s = arg->rtc_state;
+    int16_t cylinders;
+    int8_t heads, sectors;
     int val;
-    BlockDriverState *hd_table[4];
-    int i;
+    int i, trans;
 
-    ide_get_bs(hd_table, arg->idebus0);
-    ide_get_bs(hd_table + 2, arg->idebus1);
-
-    rtc_set_memory(s, 0x12, (hd_table[0] ? 0xf0 : 0) | (hd_table[1] ? 0x0f : 0));
-    if (hd_table[0])
-        cmos_init_hd(0x19, 0x1b, hd_table[0], s);
-    if (hd_table[1])
-        cmos_init_hd(0x1a, 0x24, hd_table[1], s);
+    val = 0;
+    if (ide_get_geometry(arg->idebus[0], 0,
+                         &cylinders, &heads, &sectors) >= 0) {
+        cmos_init_hd(s, 0x19, 0x1b, cylinders, heads, sectors);
+        val |= 0xf0;
+    }
+    if (ide_get_geometry(arg->idebus[0], 1,
+                         &cylinders, &heads, &sectors) >= 0) {
+        cmos_init_hd(s, 0x1a, 0x24, cylinders, heads, sectors);
+        val |= 0x0f;
+    }
+    rtc_set_memory(s, 0x12, val);
 
     val = 0;
     for (i = 0; i < 4; i++) {
-        if (hd_table[i]) {
-            int cylinders, heads, sectors, translation;
-            /* NOTE: bdrv_get_geometry_hint() returns the physical
-                geometry.  It is always such that: 1 <= sects <= 63, 1
-                <= heads <= 16, 1 <= cylinders <= 16383. The BIOS
-                geometry can be different if a translation is done. */
-            translation = bdrv_get_translation_hint(hd_table[i]);
-            if (translation == BIOS_ATA_TRANSLATION_AUTO) {
-                bdrv_get_geometry_hint(hd_table[i], &cylinders, &heads, &sectors);
-                if (cylinders <= 1024 && heads <= 16 && sectors <= 63) {
-                    /* No translation. */
-                    translation = 0;
-                } else {
-                    /* LBA translation. */
-                    translation = 1;
-                }
-            } else {
-                translation--;
-            }
-            val |= translation << (i * 2);
+        /* NOTE: ide_get_geometry() returns the physical
+           geometry.  It is always such that: 1 <= sects <= 63, 1
+           <= heads <= 16, 1 <= cylinders <= 16383. The BIOS
+           geometry can be different if a translation is done. */
+        if (ide_get_geometry(arg->idebus[i / 2], i % 2,
+                             &cylinders, &heads, &sectors) >= 0) {
+            trans = ide_get_bios_chs_trans(arg->idebus[i / 2], i % 2) - 1;
+            assert((trans & ~3) == 0);
+            val |= trans << (i * 2);
         }
     }
     rtc_set_memory(s, 0x39, val);
@@ -335,10 +325,8 @@ void pc_cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
                   ISADevice *floppy, BusState *idebus0, BusState *idebus1,
                   ISADevice *s)
 {
-    int val, nb, nb_heads, max_track, last_sect, i;
+    int val, nb, i;
     FDriveType fd_type[2] = { FDRIVE_DRV_NONE, FDRIVE_DRV_NONE };
-    FDriveRate rate;
-    BlockDriverState *fd[MAX_FD];
     static pc_cmos_init_late_arg arg;
 
     /* various important CMOS locations needed by PC/Bochs bios */
@@ -386,13 +374,8 @@ void pc_cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
 
     /* floppy type */
     if (floppy) {
-        fdc_get_bs(fd, floppy);
         for (i = 0; i < 2; i++) {
-            if (fd[i]) {
-                bdrv_get_floppy_geometry_hint(fd[i], &nb_heads, &max_track,
-                                              &last_sect, FDRIVE_DRV_NONE,
-                                              &fd_type[i], &rate);
-            }
+            fd_type[i] = isa_fdc_get_drive_type(floppy, i);
         }
     }
     val = (cmos_get_fd_drive_type(fd_type[0]) << 4) |
@@ -423,8 +406,8 @@ void pc_cmos_init(ram_addr_t ram_size, ram_addr_t above_4g_mem_size,
 
     /* hard drives */
     arg.rtc_state = s;
-    arg.idebus0 = idebus0;
-    arg.idebus1 = idebus1;
+    arg.idebus[0] = idebus0;
+    arg.idebus[1] = idebus1;
     qemu_register_reset(pc_cmos_init_late, &arg);
 }
 
@@ -436,7 +419,8 @@ typedef struct Port92State {
     qemu_irq *a20_out;
 } Port92State;
 
-static void port92_write(void *opaque, uint32_t addr, uint32_t val)
+static void port92_write(void *opaque, hwaddr addr, uint64_t val,
+                         unsigned size)
 {
     Port92State *s = opaque;
 
@@ -448,7 +432,8 @@ static void port92_write(void *opaque, uint32_t addr, uint32_t val)
     }
 }
 
-static uint32_t port92_read(void *opaque, uint32_t addr)
+static uint64_t port92_read(void *opaque, hwaddr addr,
+                            unsigned size)
 {
     Port92State *s = opaque;
     uint32_t ret;
@@ -483,13 +468,14 @@ static void port92_reset(DeviceState *d)
     s->outport &= ~1;
 }
 
-static const MemoryRegionPortio port92_portio[] = {
-    { 0, 1, 1, .read = port92_read, .write = port92_write },
-    PORTIO_END_OF_LIST(),
-};
-
 static const MemoryRegionOps port92_ops = {
-    .old_portio = port92_portio
+    .read = port92_read,
+    .write = port92_write,
+    .impl = {
+        .min_access_size = 1,
+        .max_access_size = 1,
+    },
+    .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
 static int port92_initfn(ISADevice *dev)
@@ -545,17 +531,6 @@ static void bochs_bios_write(void *opaque, uint32_t addr, uint32_t val)
     static int shutdown_index = 0;
 
     switch(addr) {
-        /* Bochs BIOS messages */
-    case 0x400:
-    case 0x401:
-        /* used to be panic, now unused */
-        break;
-    case 0x402:
-    case 0x403:
-#ifdef DEBUG_BIOS
-        fprintf(stderr, "%c", val);
-#endif
-        break;
     case 0x8900:
         /* same as Bochs power off */
         if (val == shutdown_str[shutdown_index]) {
@@ -569,16 +544,9 @@ static void bochs_bios_write(void *opaque, uint32_t addr, uint32_t val)
         }
         break;
 
-        /* LGPL'ed VGA BIOS messages */
     case 0x501:
     case 0x502:
         exit((val << 1) | 1);
-    case 0x500:
-    case 0x503:
-#ifdef DEBUG_BIOS
-        fprintf(stderr, "%c", val);
-#endif
-        break;
     }
 }
 
@@ -607,17 +575,11 @@ static void *bochs_bios_init(void)
     uint64_t *numa_fw_cfg;
     int i, j;
 
-    register_ioport_write(0x400, 1, 2, bochs_bios_write, NULL);
-    register_ioport_write(0x401, 1, 2, bochs_bios_write, NULL);
-    register_ioport_write(0x402, 1, 1, bochs_bios_write, NULL);
-    register_ioport_write(0x403, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x8900, 1, 1, bochs_bios_write, NULL);
 
     register_ioport_write(0x501, 1, 1, bochs_bios_write, NULL);
     register_ioport_write(0x501, 1, 2, bochs_bios_write, NULL);
     register_ioport_write(0x502, 1, 2, bochs_bios_write, NULL);
-    register_ioport_write(0x500, 1, 1, bochs_bios_write, NULL);
-    register_ioport_write(0x503, 1, 1, bochs_bios_write, NULL);
 
     fw_cfg = fw_cfg_init(BIOS_CFG_IOPORT, BIOS_CFG_IOPORT + 1, 0, 0);
 
@@ -644,7 +606,7 @@ static void *bochs_bios_init(void)
     numa_fw_cfg[0] = cpu_to_le64(nb_numa_nodes);
     for (i = 0; i < max_cpus; i++) {
         for (j = 0; j < nb_numa_nodes; j++) {
-            if (node_cpumask[j] & (1 << i)) {
+            if (test_bit(i, node_cpumask[j])) {
                 numa_fw_cfg[i + 1] = cpu_to_le64(j);
                 break;
             }
@@ -677,13 +639,13 @@ static void load_linux(void *fw_cfg,
                        const char *kernel_filename,
 		       const char *initrd_filename,
 		       const char *kernel_cmdline,
-                       target_phys_addr_t max_ram_size)
+                       hwaddr max_ram_size)
 {
     uint16_t protocol;
     int setup_size, kernel_size, initrd_size = 0, cmdline_size;
     uint32_t initrd_max;
     uint8_t header[8192], *setup, *kernel, *initrd_data;
-    target_phys_addr_t real_addr, prot_addr, cmdline_addr, initrd_addr = 0;
+    hwaddr real_addr, prot_addr, cmdline_addr, initrd_addr = 0;
     FILE *f;
     char *vmode;
 
@@ -876,12 +838,6 @@ void pc_init_ne2k_isa(ISABus *bus, NICInfo *nd)
     nb_ne2k++;
 }
 
-int cpu_is_bsp(CPUX86State *env)
-{
-    /* We hard-wire the BSP to the first CPU. */
-    return env->cpu_index == 0;
-}
-
 DeviceState *cpu_get_current_apic(void)
 {
     if (cpu_single_env) {
@@ -891,44 +847,6 @@ DeviceState *cpu_get_current_apic(void)
     }
 }
 
-static DeviceState *apic_init(void *env, uint8_t apic_id)
-{
-    DeviceState *dev;
-    static int apic_mapped;
-
-    if (kvm_irqchip_in_kernel()) {
-        dev = qdev_create(NULL, "kvm-apic");
-    } else if (xen_enabled()) {
-        dev = qdev_create(NULL, "xen-apic");
-    } else {
-        dev = qdev_create(NULL, "apic");
-    }
-
-    qdev_prop_set_uint8(dev, "id", apic_id);
-    qdev_prop_set_ptr(dev, "cpu_env", env);
-    qdev_init_nofail(dev);
-
-    /* XXX: mapping more APICs at the same memory location */
-    if (apic_mapped == 0) {
-        /* NOTE: the APIC is directly connected to the CPU - it is not
-           on the global memory bus. */
-        /* XXX: what if the base changes? */
-        sysbus_mmio_map(sysbus_from_qdev(dev), 0, MSI_ADDR_BASE);
-        apic_mapped = 1;
-    }
-
-    /* KVM does not support MSI yet. */
-    if (!kvm_irqchip_in_kernel()) {
-        msi_supported = true;
-    }
-
-    if (xen_msi_support()) {
-        msi_supported = true;
-    }
-
-    return dev;
-}
-
 void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
 {
     CPUX86State *s = opaque;
@@ -936,31 +854,6 @@ void pc_acpi_smi_interrupt(void *opaque, int irq, int level)
     if (level) {
         cpu_interrupt(s, CPU_INTERRUPT_SMI);
     }
-}
-
-static void pc_cpu_reset(void *opaque)
-{
-    CPUX86State *env = opaque;
-
-    cpu_state_reset(env);
-    env->halted = !cpu_is_bsp(env);
-}
-
-static CPUX86State *pc_new_cpu(const char *cpu_model)
-{
-    CPUX86State *env;
-
-    env = cpu_init(cpu_model);
-    if (!env) {
-        fprintf(stderr, "Unable to find x86 CPU definition\n");
-        exit(1);
-    }
-    if ((env->cpuid_features & CPUID_APIC) || smp_cpus > 1) {
-        env->apic_state = apic_init(env, env->cpuid_apic_id);
-    }
-    qemu_register_reset(pc_cpu_reset, env);
-    pc_cpu_reset(env);
-    return env;
 }
 
 void pc_cpus_init(const char *cpu_model)
@@ -976,12 +869,15 @@ void pc_cpus_init(const char *cpu_model)
 #endif
     }
 
-    for(i = 0; i < smp_cpus; i++) {
-        pc_new_cpu(cpu_model);
+    for (i = 0; i < smp_cpus; i++) {
+        if (!cpu_x86_init(cpu_model)) {
+            fprintf(stderr, "Unable to find x86 CPU definition\n");
+            exit(1);
+        }
     }
 }
 
-void pc_memory_init(MemoryRegion *system_memory,
+void *pc_memory_init(MemoryRegion *system_memory,
                     const char *kernel_filename,
                     const char *kernel_cmdline,
                     const char *initrd_filename,
@@ -1040,6 +936,7 @@ void pc_memory_init(MemoryRegion *system_memory,
     for (i = 0; i < nb_option_roms; i++) {
         rom_add_option(option_rom[i].name, option_rom[i].bootindex);
     }
+    return fw_cfg;
 }
 
 qemu_irq *pc_allocate_cpu_irq(void)
@@ -1051,34 +948,13 @@ DeviceState *pc_vga_init(ISABus *isa_bus, PCIBus *pci_bus)
 {
     DeviceState *dev = NULL;
 
-    if (cirrus_vga_enabled) {
-        if (pci_bus) {
-            dev = pci_cirrus_vga_init(pci_bus);
-        } else {
-            dev = &isa_create_simple(isa_bus, "isa-cirrus-vga")->qdev;
-        }
-    } else if (vmsvga_enabled) {
-        if (pci_bus) {
-            dev = pci_vmsvga_init(pci_bus);
-        } else {
-            fprintf(stderr, "%s: vmware_vga: no PCI bus\n", __FUNCTION__);
-        }
-#ifdef CONFIG_SPICE
-    } else if (qxl_enabled) {
-        if (pci_bus) {
-            dev = &pci_create_simple(pci_bus, -1, "qxl-vga")->qdev;
-        } else {
-            fprintf(stderr, "%s: qxl: no PCI bus\n", __FUNCTION__);
-        }
-#endif
-    } else if (std_vga_enabled) {
-        if (pci_bus) {
-            dev = pci_vga_init(pci_bus);
-        } else {
-            dev = isa_vga_init(isa_bus);
-        }
+    if (pci_bus) {
+        PCIDevice *pcidev = pci_vga_init(pci_bus);
+        dev = pcidev ? &pcidev->qdev : NULL;
+    } else if (isa_bus) {
+        ISADevice *isadev = isa_vga_init(isa_bus);
+        dev = isadev ? &isadev->qdev : NULL;
     }
-
     return dev;
 }
 
@@ -1182,6 +1058,21 @@ void pc_basic_device_init(ISABus *isa_bus, qemu_irq *gsi,
     *floppy = fdctrl_init_isa(isa_bus, fd);
 }
 
+void pc_nic_init(ISABus *isa_bus, PCIBus *pci_bus)
+{
+    int i;
+
+    for (i = 0; i < nb_nics; i++) {
+        NICInfo *nd = &nd_table[i];
+
+        if (!pci_bus || (nd->model && strcmp(nd->model, "ne2k_isa") == 0)) {
+            pc_init_ne2k_isa(isa_bus, nd);
+        } else {
+            pci_nic_init_nofail(nd, "e1000", NULL);
+        }
+    }
+}
+
 void pc_pci_device_init(PCIBus *pci_bus)
 {
     int max_bus;
@@ -1190,5 +1081,29 @@ void pc_pci_device_init(PCIBus *pci_bus)
     max_bus = drive_get_max_bus(IF_SCSI);
     for (bus = 0; bus <= max_bus; bus++) {
         pci_create_simple(pci_bus, -1, "lsi53c895a");
+    }
+}
+
+void ioapic_init_gsi(GSIState *gsi_state, const char *parent_name)
+{
+    DeviceState *dev;
+    SysBusDevice *d;
+    unsigned int i;
+
+    if (kvm_irqchip_in_kernel()) {
+        dev = qdev_create(NULL, "kvm-ioapic");
+    } else {
+        dev = qdev_create(NULL, "ioapic");
+    }
+    if (parent_name) {
+        object_property_add_child(object_resolve_path(parent_name, NULL),
+                                  "ioapic", OBJECT(dev), NULL);
+    }
+    qdev_init_nofail(dev);
+    d = sysbus_from_qdev(dev);
+    sysbus_mmio_map(d, 0, 0xfec00000);
+
+    for (i = 0; i < IOAPIC_NUM_PINS; i++) {
+        gsi_state->ioapic_irq[i] = qdev_get_gpio_in(dev, i);
     }
 }

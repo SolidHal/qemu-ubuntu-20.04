@@ -24,11 +24,19 @@
 static void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent);
 static char *sysbus_get_fw_dev_path(DeviceState *dev);
 
-struct BusInfo system_bus_info = {
-    .name       = "System",
-    .size       = sizeof(BusState),
-    .print_dev  = sysbus_dev_print,
-    .get_fw_dev_path = sysbus_get_fw_dev_path,
+static void system_bus_class_init(ObjectClass *klass, void *data)
+{
+    BusClass *k = BUS_CLASS(klass);
+
+    k->print_dev = sysbus_dev_print;
+    k->get_fw_dev_path = sysbus_get_fw_dev_path;
+}
+
+static const TypeInfo system_bus_info = {
+    .name = TYPE_SYSTEM_BUS,
+    .parent = TYPE_BUS,
+    .instance_size = sizeof(BusState),
+    .class_init = system_bus_class_init,
 };
 
 void sysbus_connect_irq(SysBusDevice *dev, int n, qemu_irq irq)
@@ -40,7 +48,7 @@ void sysbus_connect_irq(SysBusDevice *dev, int n, qemu_irq irq)
     }
 }
 
-void sysbus_mmio_map(SysBusDevice *dev, int n, target_phys_addr_t addr)
+void sysbus_mmio_map(SysBusDevice *dev, int n, hwaddr addr)
 {
     assert(n >= 0 && n < dev->num_mmio);
 
@@ -48,7 +56,7 @@ void sysbus_mmio_map(SysBusDevice *dev, int n, target_phys_addr_t addr)
         /* ??? region already mapped here.  */
         return;
     }
-    if (dev->mmio[n].addr != (target_phys_addr_t)-1) {
+    if (dev->mmio[n].addr != (hwaddr)-1) {
         /* Unregister previous mapping.  */
         memory_region_del_subregion(get_system_memory(), dev->mmio[n].memory);
     }
@@ -114,7 +122,7 @@ static int sysbus_device_init(DeviceState *dev)
 }
 
 DeviceState *sysbus_create_varargs(const char *name,
-                                   target_phys_addr_t addr, ...)
+                                   hwaddr addr, ...)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -125,7 +133,7 @@ DeviceState *sysbus_create_varargs(const char *name,
     dev = qdev_create(NULL, name);
     s = sysbus_from_qdev(dev);
     qdev_init_nofail(dev);
-    if (addr != (target_phys_addr_t)-1) {
+    if (addr != (hwaddr)-1) {
         sysbus_mmio_map(s, 0, addr);
     }
     va_start(va, addr);
@@ -143,7 +151,7 @@ DeviceState *sysbus_create_varargs(const char *name,
 }
 
 DeviceState *sysbus_try_create_varargs(const char *name,
-                                       target_phys_addr_t addr, ...)
+                                       hwaddr addr, ...)
 {
     DeviceState *dev;
     SysBusDevice *s;
@@ -157,7 +165,7 @@ DeviceState *sysbus_try_create_varargs(const char *name,
     }
     s = sysbus_from_qdev(dev);
     qdev_init_nofail(dev);
-    if (addr != (target_phys_addr_t)-1) {
+    if (addr != (hwaddr)-1) {
         sysbus_mmio_map(s, 0, addr);
     }
     va_start(va, addr);
@@ -177,7 +185,7 @@ DeviceState *sysbus_try_create_varargs(const char *name,
 static void sysbus_dev_print(Monitor *mon, DeviceState *dev, int indent)
 {
     SysBusDevice *s = sysbus_from_qdev(dev);
-    target_phys_addr_t size;
+    hwaddr size;
     int i;
 
     monitor_printf(mon, "%*sirq %d\n", indent, "", s->num_irq);
@@ -203,16 +211,16 @@ static char *sysbus_get_fw_dev_path(DeviceState *dev)
         snprintf(path + off, sizeof(path) - off, "@i%04x", s->pio[0]);
     }
 
-    return strdup(path);
+    return g_strdup(path);
 }
 
-void sysbus_add_memory(SysBusDevice *dev, target_phys_addr_t addr,
+void sysbus_add_memory(SysBusDevice *dev, hwaddr addr,
                        MemoryRegion *mem)
 {
     memory_region_add_subregion(get_system_memory(), addr, mem);
 }
 
-void sysbus_add_memory_overlap(SysBusDevice *dev, target_phys_addr_t addr,
+void sysbus_add_memory_overlap(SysBusDevice *dev, hwaddr addr,
                                MemoryRegion *mem, unsigned priority)
 {
     memory_region_add_subregion_overlap(get_system_memory(), addr, mem,
@@ -224,7 +232,7 @@ void sysbus_del_memory(SysBusDevice *dev, MemoryRegion *mem)
     memory_region_del_subregion(get_system_memory(), mem);
 }
 
-void sysbus_add_io(SysBusDevice *dev, target_phys_addr_t addr,
+void sysbus_add_io(SysBusDevice *dev, hwaddr addr,
                        MemoryRegion *mem)
 {
     memory_region_add_subregion(get_system_io(), addr, mem);
@@ -244,7 +252,7 @@ static void sysbus_device_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *k = DEVICE_CLASS(klass);
     k->init = sysbus_device_init;
-    k->bus_info = &system_bus_info;
+    k->bus_type = TYPE_SYSTEM_BUS;
 }
 
 static TypeInfo sysbus_device_type_info = {
@@ -256,8 +264,33 @@ static TypeInfo sysbus_device_type_info = {
     .class_init = sysbus_device_class_init,
 };
 
+/* This is a nasty hack to allow passing a NULL bus to qdev_create.  */
+static BusState *main_system_bus;
+
+static void main_system_bus_create(void)
+{
+    /* assign main_system_bus before qbus_create_inplace()
+     * in order to make "if (bus != sysbus_get_default())" work */
+    main_system_bus = g_malloc0(system_bus_info.instance_size);
+    qbus_create_inplace(main_system_bus, TYPE_SYSTEM_BUS, NULL,
+                        "main-system-bus");
+    OBJECT(main_system_bus)->free = g_free;
+    object_property_add_child(container_get(qdev_get_machine(),
+                                            "/unattached"),
+                              "sysbus", OBJECT(main_system_bus), NULL);
+}
+
+BusState *sysbus_get_default(void)
+{
+    if (!main_system_bus) {
+        main_system_bus_create();
+    }
+    return main_system_bus;
+}
+
 static void sysbus_register_types(void)
 {
+    type_register_static(&system_bus_info);
     type_register_static(&sysbus_device_type_info);
 }
 

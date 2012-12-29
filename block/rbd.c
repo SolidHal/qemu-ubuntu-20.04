@@ -69,7 +69,7 @@ typedef enum {
 typedef struct RBDAIOCB {
     BlockDriverAIOCB common;
     QEMUBH *bh;
-    int ret;
+    int64_t ret;
     QEMUIOVector *qiov;
     char *bounce;
     RBDAIOCmd cmd;
@@ -86,7 +86,7 @@ typedef struct RADOSCB {
     int done;
     int64_t size;
     char *buf;
-    int ret;
+    int64_t ret;
 } RADOSCB;
 
 #define RBD_FD_READ 0
@@ -476,6 +476,19 @@ static int qemu_rbd_open(BlockDriverState *bs, const char *filename, int flags)
         s->snap = g_strdup(snap_buf);
     }
 
+    /*
+     * Fallback to more conservative semantics if setting cache
+     * options fails. Ignore errors from setting rbd_cache because the
+     * only possible error is that the option does not exist, and
+     * librbd defaults to no caching. If write through caching cannot
+     * be set up, fall back to no caching.
+     */
+    if (flags & BDRV_O_NOCACHE) {
+        rados_conf_set(s->cluster, "rbd_cache", "false");
+    } else {
+        rados_conf_set(s->cluster, "rbd_cache", "true");
+    }
+
     if (strstr(conf, "conf=") == NULL) {
         /* try default location, but ignore failure */
         rados_conf_read_file(s->cluster, NULL);
@@ -557,7 +570,7 @@ static void qemu_rbd_aio_cancel(BlockDriverAIOCB *blockacb)
     acb->cancelled = 1;
 }
 
-static AIOPool rbd_aio_pool = {
+static const AIOCBInfo rbd_aiocb_info = {
     .aiocb_size = sizeof(RBDAIOCB),
     .cancel = qemu_rbd_aio_cancel,
 };
@@ -620,7 +633,7 @@ static void rbd_aio_bh_cb(void *opaque)
     RBDAIOCB *acb = opaque;
 
     if (acb->cmd == RBD_AIO_READ) {
-        qemu_iovec_from_buffer(acb->qiov, acb->bounce, acb->qiov->size);
+        qemu_iovec_from_buf(acb->qiov, 0, acb->bounce, acb->qiov->size);
     }
     qemu_vfree(acb->bounce);
     acb->common.cb(acb->common.opaque, (acb->ret > 0 ? 0 : acb->ret));
@@ -659,7 +672,7 @@ static BlockDriverAIOCB *rbd_start_aio(BlockDriverState *bs,
 
     BDRVRBDState *s = bs->opaque;
 
-    acb = qemu_aio_get(&rbd_aio_pool, bs, cb, opaque);
+    acb = qemu_aio_get(&rbd_aiocb_info, bs, cb, opaque);
     acb->cmd = cmd;
     acb->qiov = qiov;
     if (cmd == RBD_AIO_DISCARD) {
@@ -674,7 +687,7 @@ static BlockDriverAIOCB *rbd_start_aio(BlockDriverState *bs,
     acb->bh = NULL;
 
     if (cmd == RBD_AIO_WRITE) {
-        qemu_iovec_to_buffer(acb->qiov, acb->bounce);
+        qemu_iovec_to_buf(acb->qiov, 0, acb->bounce, qiov->size);
     }
 
     buf = acb->bounce;

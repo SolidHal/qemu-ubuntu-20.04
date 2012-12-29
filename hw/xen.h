@@ -8,6 +8,7 @@
  */
 #include <inttypes.h>
 
+#include "hw/irq.h"
 #include "qemu-common.h"
 
 /* xen-machine.c */
@@ -48,6 +49,7 @@ void xenstore_store_pv_console_info(int i, struct CharDriverState *chr);
 struct MemoryRegion;
 void xen_ram_alloc(ram_addr_t ram_addr, ram_addr_t size,
                    struct MemoryRegion *mr);
+void xen_modified_memory(ram_addr_t start, ram_addr_t length);
 #endif
 
 struct MemoryRegion;
@@ -56,15 +58,5 @@ void xen_register_framebuffer(struct MemoryRegion *mr);
 #if defined(CONFIG_XEN) && CONFIG_XEN_CTRL_INTERFACE_VERSION < 400
 #  define HVM_MAX_VCPUS 32
 #endif
-
-static inline int xen_msi_support(void)
-{
-#if defined(CONFIG_XEN_CTRL_INTERFACE_VERSION) \
-    && CONFIG_XEN_CTRL_INTERFACE_VERSION >= 420
-    return xen_enabled();
-#else
-    return 0;
-#endif
-}
 
 #endif /* QEMU_HW_XEN_H */

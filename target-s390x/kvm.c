@@ -60,15 +60,15 @@
 #define SIGP_STORE_STATUS_ADDR          0x0e
 #define SIGP_SET_ARCH                   0x12
 
-#define SCLP_CMDW_READ_SCP_INFO         0x00020001
-#define SCLP_CMDW_READ_SCP_INFO_FORCED  0x00120001
-
 const KVMCapabilityInfo kvm_arch_required_capabilities[] = {
     KVM_CAP_LAST_INFO
 };
 
+static int cap_sync_regs;
+
 int kvm_arch_init(KVMState *s)
 {
+    cap_sync_regs = kvm_check_extension(s, KVM_CAP_SYNC_REGS);
     return 0;
 }
 
@@ -90,49 +90,153 @@ void kvm_arch_reset_vcpu(CPUS390XState *env)
 
 int kvm_arch_put_registers(CPUS390XState *env, int level)
 {
+    struct kvm_sregs sregs;
     struct kvm_regs regs;
     int ret;
     int i;
 
-    ret = kvm_vcpu_ioctl(env, KVM_GET_REGS, &regs);
-    if (ret < 0) {
-        return ret;
-    }
-
-    for (i = 0; i < 16; i++) {
-        regs.gprs[i] = env->regs[i];
-    }
-
-    ret = kvm_vcpu_ioctl(env, KVM_SET_REGS, &regs);
-    if (ret < 0) {
-        return ret;
-    }
-
+    /* always save the PSW  and the GPRS*/
     env->kvm_run->psw_addr = env->psw.addr;
     env->kvm_run->psw_mask = env->psw.mask;
 
-    return ret;
+    if (cap_sync_regs && env->kvm_run->kvm_valid_regs & KVM_SYNC_GPRS) {
+        for (i = 0; i < 16; i++) {
+            env->kvm_run->s.regs.gprs[i] = env->regs[i];
+            env->kvm_run->kvm_dirty_regs |= KVM_SYNC_GPRS;
+        }
+    } else {
+        for (i = 0; i < 16; i++) {
+            regs.gprs[i] = env->regs[i];
+        }
+        ret = kvm_vcpu_ioctl(env, KVM_SET_REGS, &regs);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    /* Do we need to save more than that? */
+    if (level == KVM_PUT_RUNTIME_STATE) {
+        return 0;
+    }
+
+    if (cap_sync_regs &&
+        env->kvm_run->kvm_valid_regs & KVM_SYNC_ACRS &&
+        env->kvm_run->kvm_valid_regs & KVM_SYNC_CRS) {
+        for (i = 0; i < 16; i++) {
+            env->kvm_run->s.regs.acrs[i] = env->aregs[i];
+            env->kvm_run->s.regs.crs[i] = env->cregs[i];
+        }
+        env->kvm_run->kvm_dirty_regs |= KVM_SYNC_ACRS;
+        env->kvm_run->kvm_dirty_regs |= KVM_SYNC_CRS;
+    } else {
+        for (i = 0; i < 16; i++) {
+            sregs.acrs[i] = env->aregs[i];
+            sregs.crs[i] = env->cregs[i];
+        }
+        ret = kvm_vcpu_ioctl(env, KVM_SET_SREGS, &sregs);
+        if (ret < 0) {
+            return ret;
+        }
+    }
+
+    /* Finally the prefix */
+    if (cap_sync_regs && env->kvm_run->kvm_valid_regs & KVM_SYNC_PREFIX) {
+        env->kvm_run->s.regs.prefix = env->psa;
+        env->kvm_run->kvm_dirty_regs |= KVM_SYNC_PREFIX;
+    } else {
+        /* prefix is only supported via sync regs */
+    }
+    return 0;
 }
 
 int kvm_arch_get_registers(CPUS390XState *env)
 {
-    int ret;
+    struct kvm_sregs sregs;
     struct kvm_regs regs;
+    int ret;
     int i;
 
-    ret = kvm_vcpu_ioctl(env, KVM_GET_REGS, &regs);
-    if (ret < 0) {
-        return ret;
-    }
-
-    for (i = 0; i < 16; i++) {
-        env->regs[i] = regs.gprs[i];
-    }
-
+    /* get the PSW */
     env->psw.addr = env->kvm_run->psw_addr;
     env->psw.mask = env->kvm_run->psw_mask;
 
+    /* the GPRS */
+    if (cap_sync_regs && env->kvm_run->kvm_valid_regs & KVM_SYNC_GPRS) {
+        for (i = 0; i < 16; i++) {
+            env->regs[i] = env->kvm_run->s.regs.gprs[i];
+        }
+    } else {
+        ret = kvm_vcpu_ioctl(env, KVM_GET_REGS, &regs);
+        if (ret < 0) {
+            return ret;
+        }
+         for (i = 0; i < 16; i++) {
+            env->regs[i] = regs.gprs[i];
+        }
+    }
+
+    /* The ACRS and CRS */
+    if (cap_sync_regs &&
+        env->kvm_run->kvm_valid_regs & KVM_SYNC_ACRS &&
+        env->kvm_run->kvm_valid_regs & KVM_SYNC_CRS) {
+        for (i = 0; i < 16; i++) {
+            env->aregs[i] = env->kvm_run->s.regs.acrs[i];
+            env->cregs[i] = env->kvm_run->s.regs.crs[i];
+        }
+    } else {
+        ret = kvm_vcpu_ioctl(env, KVM_GET_SREGS, &sregs);
+        if (ret < 0) {
+            return ret;
+        }
+         for (i = 0; i < 16; i++) {
+            env->aregs[i] = sregs.acrs[i];
+            env->cregs[i] = sregs.crs[i];
+        }
+    }
+
+    /* Finally the prefix */
+    if (cap_sync_regs && env->kvm_run->kvm_valid_regs & KVM_SYNC_PREFIX) {
+        env->psa = env->kvm_run->s.regs.prefix;
+    } else {
+        /* no prefix without sync regs */
+    }
+
     return 0;
+}
+
+/*
+ * Legacy layout for s390:
+ * Older S390 KVM requires the topmost vma of the RAM to be
+ * smaller than an system defined value, which is at least 256GB.
+ * Larger systems have larger values. We put the guest between
+ * the end of data segment (system break) and this value. We
+ * use 32GB as a base to have enough room for the system break
+ * to grow. We also have to use MAP parameters that avoid
+ * read-only mapping of guest pages.
+ */
+static void *legacy_s390_alloc(ram_addr_t size)
+{
+    void *mem;
+
+    mem = mmap((void *) 0x800000000ULL, size,
+               PROT_EXEC|PROT_READ|PROT_WRITE,
+               MAP_SHARED | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    if (mem == MAP_FAILED) {
+        fprintf(stderr, "Allocating RAM failed\n");
+        abort();
+    }
+    return mem;
+}
+
+void *kvm_arch_vmalloc(ram_addr_t size)
+{
+    /* Can we use the standard allocation ? */
+    if (kvm_check_extension(kvm_state, KVM_CAP_S390_GMAP) &&
+        kvm_check_extension(kvm_state, KVM_CAP_S390_COW)) {
+        return NULL;
+    } else {
+        return legacy_s390_alloc(size);
+    }
 }
 
 int kvm_arch_insert_sw_breakpoint(CPUS390XState *env, struct kvm_sw_breakpoint *bp)
@@ -237,7 +341,7 @@ static int kvm_sclp_service_call(CPUS390XState *env, struct kvm_run *run,
     sccb = env->regs[ipbh0 & 0xf];
     code = env->regs[(ipbh0 & 0xf0) >> 4];
 
-    r = sclp_service_call(env, sccb, code);
+    r = sclp_service_call(sccb, code);
     if (r < 0) {
         enter_pgmcheck(env, -r);
     }
@@ -293,11 +397,13 @@ static int handle_diag(CPUS390XState *env, struct kvm_run *run, int ipb_code)
     return r;
 }
 
-static int s390_cpu_restart(CPUS390XState *env)
+static int s390_cpu_restart(S390CPU *cpu)
 {
+    CPUS390XState *env = &cpu->env;
+
     kvm_s390_interrupt(env, KVM_S390_RESTART, 0);
     s390_add_running_cpu(env);
-    qemu_cpu_kick(env);
+    qemu_cpu_kick(CPU(cpu));
     dprintf("DONE: SIGP cpu restart: %p\n", env);
     return 0;
 }
@@ -313,6 +419,7 @@ static int s390_cpu_initial_reset(CPUS390XState *env)
 {
     int i;
 
+    s390_del_running_cpu(env);
     if (kvm_vcpu_ioctl(env, KVM_S390_INITIAL_RESET, NULL) < 0) {
         perror("cannot init reset vcpu");
     }
@@ -334,6 +441,7 @@ static int handle_sigp(CPUS390XState *env, struct kvm_run *run, uint8_t ipa1)
     uint16_t cpu_addr;
     uint8_t t;
     int r = -1;
+    S390CPU *target_cpu;
     CPUS390XState *target_env;
 
     cpu_synchronize_state(env);
@@ -354,14 +462,15 @@ static int handle_sigp(CPUS390XState *env, struct kvm_run *run, uint8_t ipa1)
     parameter = env->regs[t] & 0x7ffffe00;
     cpu_addr = env->regs[ipa1 & 0x0f];
 
-    target_env = s390_cpu_addr2state(cpu_addr);
-    if (!target_env) {
+    target_cpu = s390_cpu_addr2state(cpu_addr);
+    if (target_cpu == NULL) {
         goto out;
     }
+    target_env = &target_cpu->env;
 
     switch (order_code) {
         case SIGP_RESTART:
-            r = s390_cpu_restart(target_env);
+            r = s390_cpu_restart(target_cpu);
             break;
         case SIGP_STORE_STATUS_ADDR:
             r = s390_store_status(target_env, parameter);

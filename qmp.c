@@ -85,7 +85,11 @@ void qmp_quit(Error **err)
 
 void qmp_stop(Error **errp)
 {
-    vm_stop(RUN_STATE_PAUSED);
+    if (runstate_check(RUN_STATE_INMIGRATE)) {
+        autostart = 0;
+    } else {
+        vm_stop(RUN_STATE_PAUSED);
+    }
 }
 
 void qmp_system_reset(Error **errp)
@@ -144,10 +148,7 @@ void qmp_cont(Error **errp)
 {
     Error *local_err = NULL;
 
-    if (runstate_check(RUN_STATE_INMIGRATE)) {
-        error_set(errp, QERR_MIGRATION_EXPECTED);
-        return;
-    } else if (runstate_check(RUN_STATE_INTERNAL_ERROR) ||
+    if (runstate_check(RUN_STATE_INTERNAL_ERROR) ||
                runstate_check(RUN_STATE_SHUTDOWN)) {
         error_set(errp, QERR_RESET_REQUIRED);
         return;
@@ -162,7 +163,11 @@ void qmp_cont(Error **errp)
         return;
     }
 
-    vm_start();
+    if (runstate_check(RUN_STATE_INMIGRATE)) {
+        autostart = 1;
+    } else {
+        vm_start();
+    }
 }
 
 void qmp_system_wakeup(Error **errp)
@@ -349,11 +354,9 @@ void qmp_change_vnc_password(const char *password, Error **errp)
     }
 }
 
-static void qmp_change_vnc_listen(const char *target, Error **err)
+static void qmp_change_vnc_listen(const char *target, Error **errp)
 {
-    if (vnc_display_open(NULL, target) < 0) {
-        error_set(err, QERR_VNC_SERVER_FAILED, target);
-    }
+    vnc_display_open(NULL, target, errp);
 }
 
 static void qmp_change_vnc(const char *target, bool has_arg, const char *arg,
@@ -416,4 +419,103 @@ ObjectTypeInfoList *qmp_qom_list_types(bool has_implements,
     object_class_foreach(qom_list_types_tramp, implements, abstract, &ret);
 
     return ret;
+}
+
+DevicePropertyInfoList *qmp_device_list_properties(const char *typename,
+                                                   Error **errp)
+{
+    ObjectClass *klass;
+    Property *prop;
+    DevicePropertyInfoList *prop_list = NULL;
+
+    klass = object_class_by_name(typename);
+    if (klass == NULL) {
+        error_set(errp, QERR_DEVICE_NOT_FOUND, typename);
+        return NULL;
+    }
+
+    klass = object_class_dynamic_cast(klass, TYPE_DEVICE);
+    if (klass == NULL) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE,
+                  "name", TYPE_DEVICE);
+        return NULL;
+    }
+
+    do {
+        for (prop = DEVICE_CLASS(klass)->props; prop && prop->name; prop++) {
+            DevicePropertyInfoList *entry;
+            DevicePropertyInfo *info;
+
+            /*
+             * TODO Properties without a parser are just for dirty hacks.
+             * qdev_prop_ptr is the only such PropertyInfo.  It's marked
+             * for removal.  This conditional should be removed along with
+             * it.
+             */
+            if (!prop->info->set) {
+                continue;           /* no way to set it, don't show */
+            }
+
+            info = g_malloc0(sizeof(*info));
+            info->name = g_strdup(prop->name);
+            info->type = g_strdup(prop->info->legacy_name ?: prop->info->name);
+
+            entry = g_malloc0(sizeof(*entry));
+            entry->value = info;
+            entry->next = prop_list;
+            prop_list = entry;
+        }
+        klass = object_class_get_parent(klass);
+    } while (klass != object_class_by_name(TYPE_DEVICE));
+
+    return prop_list;
+}
+
+CpuDefinitionInfoList *qmp_query_cpu_definitions(Error **errp)
+{
+    return arch_query_cpu_definitions(errp);
+}
+
+void qmp_add_client(const char *protocol, const char *fdname,
+                    bool has_skipauth, bool skipauth, bool has_tls, bool tls,
+                    Error **errp)
+{
+    CharDriverState *s;
+    int fd;
+
+    fd = monitor_get_fd(cur_mon, fdname, errp);
+    if (fd < 0) {
+        return;
+    }
+
+    if (strcmp(protocol, "spice") == 0) {
+        if (!using_spice) {
+            error_set(errp, QERR_DEVICE_NOT_ACTIVE, "spice");
+            close(fd);
+            return;
+        }
+        skipauth = has_skipauth ? skipauth : false;
+        tls = has_tls ? tls : false;
+        if (qemu_spice_display_add_client(fd, skipauth, tls) < 0) {
+            error_setg(errp, "spice failed to add client");
+            close(fd);
+        }
+        return;
+#ifdef CONFIG_VNC
+    } else if (strcmp(protocol, "vnc") == 0) {
+        skipauth = has_skipauth ? skipauth : false;
+        vnc_display_add_client(NULL, fd, skipauth);
+        return;
+#endif
+    } else if ((s = qemu_chr_find(protocol)) != NULL) {
+        if (qemu_chr_add_client(s, fd) < 0) {
+            error_setg(errp, "failed to add client");
+            close(fd);
+            return;
+        }
+        return;
+    }
+
+    error_setg(errp, "protocol '%s' is invalid", protocol);
+    close(fd);
 }

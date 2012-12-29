@@ -13,6 +13,8 @@
 
 #include "trace.h"
 #include "block_int.h"
+#include "blockjob.h"
+#include "qemu/ratelimit.h"
 
 enum {
     /*
@@ -25,38 +27,11 @@ enum {
 
 #define SLICE_TIME 100000000ULL /* ns */
 
-typedef struct {
-    int64_t next_slice_time;
-    uint64_t slice_quota;
-    uint64_t dispatched;
-} RateLimit;
-
-static int64_t ratelimit_calculate_delay(RateLimit *limit, uint64_t n)
-{
-    int64_t now = qemu_get_clock_ns(rt_clock);
-
-    if (limit->next_slice_time < now) {
-        limit->next_slice_time = now + SLICE_TIME;
-        limit->dispatched = 0;
-    }
-    if (limit->dispatched == 0 || limit->dispatched + n <= limit->slice_quota) {
-        limit->dispatched += n;
-        return 0;
-    } else {
-        limit->dispatched = n;
-        return limit->next_slice_time - now;
-    }
-}
-
-static void ratelimit_set_speed(RateLimit *limit, uint64_t speed)
-{
-    limit->slice_quota = speed / (1000000000ULL / SLICE_TIME);
-}
-
 typedef struct StreamBlockJob {
     BlockJob common;
     RateLimit limit;
     BlockDriverState *base;
+    BlockdevOnError on_error;
     char backing_file_id[1024];
 } StreamBlockJob;
 
@@ -98,80 +73,20 @@ static void close_unused_images(BlockDriverState *top, BlockDriverState *base,
     top->backing_hd = base;
 }
 
-/*
- * Given an image chain: [BASE] -> [INTER1] -> [INTER2] -> [TOP]
- *
- * Return true if the given sector is allocated in top.
- * Return false if the given sector is allocated in intermediate images.
- * Return true otherwise.
- *
- * 'pnum' is set to the number of sectors (including and immediately following
- *  the specified sector) that are known to be in the same
- *  allocated/unallocated state.
- *
- */
-static int coroutine_fn is_allocated_base(BlockDriverState *top,
-                                          BlockDriverState *base,
-                                          int64_t sector_num,
-                                          int nb_sectors, int *pnum)
-{
-    BlockDriverState *intermediate;
-    int ret, n;
-
-    ret = bdrv_co_is_allocated(top, sector_num, nb_sectors, &n);
-    if (ret) {
-        *pnum = n;
-        return ret;
-    }
-
-    /*
-     * Is the unallocated chunk [sector_num, n] also
-     * unallocated between base and top?
-     */
-    intermediate = top->backing_hd;
-
-    while (intermediate != base) {
-        int pnum_inter;
-
-        ret = bdrv_co_is_allocated(intermediate, sector_num, nb_sectors,
-                                   &pnum_inter);
-        if (ret < 0) {
-            return ret;
-        } else if (ret) {
-            *pnum = pnum_inter;
-            return 0;
-        }
-
-        /*
-         * [sector_num, nb_sectors] is unallocated on top but intermediate
-         * might have
-         *
-         * [sector_num+x, nr_sectors] allocated.
-         */
-        if (n > pnum_inter) {
-            n = pnum_inter;
-        }
-
-        intermediate = intermediate->backing_hd;
-    }
-
-    *pnum = n;
-    return 1;
-}
-
 static void coroutine_fn stream_run(void *opaque)
 {
     StreamBlockJob *s = opaque;
     BlockDriverState *bs = s->common.bs;
     BlockDriverState *base = s->base;
     int64_t sector_num, end;
+    int error = 0;
     int ret = 0;
     int n = 0;
     void *buf;
 
     s->common.len = bdrv_getlength(bs);
     if (s->common.len < 0) {
-        block_job_complete(&s->common, s->common.len);
+        block_job_completed(&s->common, s->common.len);
         return;
     }
 
@@ -189,6 +104,7 @@ static void coroutine_fn stream_run(void *opaque)
 
     for (sector_num = 0; sector_num < end; sector_num += n) {
         uint64_t delay_ns = 0;
+        bool copy;
 
 wait:
         /* Note that even when no rate limit is applied we need to yield
@@ -199,10 +115,26 @@ wait:
             break;
         }
 
-        ret = is_allocated_base(bs, base, sector_num,
-                                STREAM_BUFFER_SIZE / BDRV_SECTOR_SIZE, &n);
+        ret = bdrv_co_is_allocated(bs, sector_num,
+                                   STREAM_BUFFER_SIZE / BDRV_SECTOR_SIZE, &n);
+        if (ret == 1) {
+            /* Allocated in the top, no need to copy.  */
+            copy = false;
+        } else {
+            /* Copy if allocated in the intermediate images.  Limit to the
+             * known-unallocated area [sector_num, sector_num+n).  */
+            ret = bdrv_co_is_allocated_above(bs->backing_hd, base,
+                                             sector_num, n, &n);
+
+            /* Finish early if end of backing file has been reached */
+            if (ret == 0 && n == 0) {
+                n = end - sector_num;
+            }
+
+            copy = (ret == 1);
+        }
         trace_stream_one_iteration(s, sector_num, n, ret);
-        if (ret == 0) {
+        if (ret >= 0 && copy) {
             if (s->common.speed) {
                 delay_ns = ratelimit_calculate_delay(&s->limit, n);
                 if (delay_ns > 0) {
@@ -212,7 +144,19 @@ wait:
             ret = stream_populate(bs, sector_num, n, buf);
         }
         if (ret < 0) {
-            break;
+            BlockErrorAction action =
+                block_job_error_action(&s->common, s->common.bs, s->on_error,
+                                       true, -ret);
+            if (action == BDRV_ACTION_STOP) {
+                n = 0;
+                continue;
+            }
+            if (error == 0) {
+                error = ret;
+            }
+            if (action == BDRV_ACTION_REPORT) {
+                break;
+            }
         }
         ret = 0;
 
@@ -223,6 +167,9 @@ wait:
     if (!base) {
         bdrv_disable_copy_on_read(bs);
     }
+
+    /* Do not remove the backing file if an error was there but ignored.  */
+    ret = error;
 
     if (!block_job_is_cancelled(&s->common) && sector_num == end && ret == 0) {
         const char *base_id = NULL, *base_fmt = NULL;
@@ -237,7 +184,7 @@ wait:
     }
 
     qemu_vfree(buf);
-    block_job_complete(&s->common, ret);
+    block_job_completed(&s->common, ret);
 }
 
 static void stream_set_speed(BlockJob *job, int64_t speed, Error **errp)
@@ -248,7 +195,7 @@ static void stream_set_speed(BlockJob *job, int64_t speed, Error **errp)
         error_set(errp, QERR_INVALID_PARAMETER, "speed");
         return;
     }
-    ratelimit_set_speed(&s->limit, speed / BDRV_SECTOR_SIZE);
+    ratelimit_set_speed(&s->limit, speed / BDRV_SECTOR_SIZE, SLICE_TIME);
 }
 
 static BlockJobType stream_job_type = {
@@ -259,10 +206,18 @@ static BlockJobType stream_job_type = {
 
 void stream_start(BlockDriverState *bs, BlockDriverState *base,
                   const char *base_id, int64_t speed,
+                  BlockdevOnError on_error,
                   BlockDriverCompletionFunc *cb,
                   void *opaque, Error **errp)
 {
     StreamBlockJob *s;
+
+    if ((on_error == BLOCKDEV_ON_ERROR_STOP ||
+         on_error == BLOCKDEV_ON_ERROR_ENOSPC) &&
+        !bdrv_iostatus_is_enabled(bs)) {
+        error_set(errp, QERR_INVALID_PARAMETER, "on-error");
+        return;
+    }
 
     s = block_job_create(&stream_job_type, bs, speed, cb, opaque, errp);
     if (!s) {
@@ -274,6 +229,7 @@ void stream_start(BlockDriverState *bs, BlockDriverState *base,
         pstrcpy(s->backing_file_id, sizeof(s->backing_file_id), base_id);
     }
 
+    s->on_error = on_error;
     s->common.co = qemu_coroutine_create(stream_run);
     trace_stream_start(bs, base, s, s->common.co, opaque);
     qemu_coroutine_enter(s->common.co, s);

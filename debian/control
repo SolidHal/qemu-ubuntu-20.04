@@ -16,7 +16,10 @@ Build-Depends: debhelper (>= 5), nasm, device-tree-compiler, libfdt-dev,
  libspice-server-dev [amd64], libspice-protocol-dev [amd64],
  libxen-dev [amd64 i386],
  libiscsi-dev,
- libusbredirparser-dev [linux-any]
+ libusbredirparser-dev [linux-any],
+ libcap-dev,
+ libcap-ng-dev,
+ libpixman-1-dev
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.3
 Homepage: http://www.qemu.org/
@@ -127,3 +130,4 @@ Description: QEMU utilities
   * qemu-img: QEMU disk image utility
   * qemu-io:  QEMU disk exerciser
   * qemu-nbd: QEMU disk network block device server
+  * virtfs-proxy-helper: QEMU proxy helper for virtfs (aka 9pfs)

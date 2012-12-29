@@ -161,10 +161,11 @@ static int zipit_lcd_init(SSISlave *dev)
 
 static VMStateDescription vmstate_zipit_lcd_state = {
     .name = "zipit-lcd",
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .minimum_version_id_old = 2,
     .fields = (VMStateField[]) {
+        VMSTATE_SSI_SLAVE(ssidev, ZipitLCD),
         VMSTATE_INT32(selected, ZipitLCD),
         VMSTATE_INT32(enabled, ZipitLCD),
         VMSTATE_BUFFER(buf, ZipitLCD),
@@ -294,14 +295,15 @@ static TypeInfo aer915_info = {
     .class_init    = aer915_class_init,
 };
 
-static void z2_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void z2_init(QEMUMachineInitArgs *args)
 {
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
     MemoryRegion *address_space_mem = get_system_memory();
     uint32_t sector_len = 0x10000;
-    PXA2xxState *cpu;
+    PXA2xxState *mpu;
     DriveInfo *dinfo;
     int be;
     void *z2_lcd;
@@ -313,7 +315,7 @@ static void z2_init(ram_addr_t ram_size,
     }
 
     /* Setup CPU & memory */
-    cpu = pxa270_init(address_space_mem, z2_binfo.ram_size, cpu_model);
+    mpu = pxa270_init(address_space_mem, z2_binfo.ram_size, cpu_model);
 
 #ifdef TARGET_WORDS_BIGENDIAN
     be = 1;
@@ -337,25 +339,25 @@ static void z2_init(ram_addr_t ram_size,
     }
 
     /* setup keypad */
-    pxa27x_register_keypad(cpu->kp, map, 0x100);
+    pxa27x_register_keypad(mpu->kp, map, 0x100);
 
     /* MMC/SD host */
-    pxa2xx_mmci_handlers(cpu->mmc,
+    pxa2xx_mmci_handlers(mpu->mmc,
         NULL,
-        qdev_get_gpio_in(cpu->gpio, Z2_GPIO_SD_DETECT));
+        qdev_get_gpio_in(mpu->gpio, Z2_GPIO_SD_DETECT));
 
     type_register_static(&zipit_lcd_info);
     type_register_static(&aer915_info);
-    z2_lcd = ssi_create_slave(cpu->ssp[1], "zipit-lcd");
-    bus = pxa2xx_i2c_bus(cpu->i2c[0]);
+    z2_lcd = ssi_create_slave(mpu->ssp[1], "zipit-lcd");
+    bus = pxa2xx_i2c_bus(mpu->i2c[0]);
     i2c_create_slave(bus, "aer915", 0x55);
     wm = i2c_create_slave(bus, "wm8750", 0x1b);
-    cpu->i2s->opaque = wm;
-    cpu->i2s->codec_out = wm8750_dac_dat;
-    cpu->i2s->codec_in = wm8750_adc_dat;
-    wm8750_data_req_set(wm, cpu->i2s->data_req, cpu->i2s);
+    mpu->i2s->opaque = wm;
+    mpu->i2s->codec_out = wm8750_dac_dat;
+    mpu->i2s->codec_in = wm8750_adc_dat;
+    wm8750_data_req_set(wm, mpu->i2s->data_req, mpu->i2s);
 
-    qdev_connect_gpio_out(cpu->gpio, Z2_GPIO_LCD_CS,
+    qdev_connect_gpio_out(mpu->gpio, Z2_GPIO_LCD_CS,
         qemu_allocate_irqs(z2_lcd_cs, z2_lcd, 1)[0]);
 
     if (kernel_filename) {
@@ -363,7 +365,7 @@ static void z2_init(ram_addr_t ram_size,
         z2_binfo.kernel_cmdline = kernel_cmdline;
         z2_binfo.initrd_filename = initrd_filename;
         z2_binfo.board_id = 0x6dd;
-        arm_load_kernel(cpu->env, &z2_binfo);
+        arm_load_kernel(mpu->cpu, &z2_binfo);
     }
 }
 

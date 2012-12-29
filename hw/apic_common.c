@@ -43,8 +43,8 @@ uint64_t cpu_get_apic_base(DeviceState *d)
         trace_cpu_get_apic_base((uint64_t)s->apicbase);
         return s->apicbase;
     } else {
-        trace_cpu_get_apic_base(0);
-        return 0;
+        trace_cpu_get_apic_base(MSR_IA32_APICBASE_BSP);
+        return MSR_IA32_APICBASE_BSP;
     }
 }
 
@@ -89,7 +89,7 @@ void apic_enable_tpr_access_reporting(DeviceState *d, bool enable)
     }
 }
 
-void apic_enable_vapic(DeviceState *d, target_phys_addr_t paddr)
+void apic_enable_vapic(DeviceState *d, hwaddr paddr)
 {
     APICCommonState *s = DO_UPCAST(APICCommonState, busdev.qdev, d);
     APICCommonClass *info = APIC_COMMON_GET_CLASS(s);
@@ -103,7 +103,7 @@ void apic_handle_tpr_access_report(DeviceState *d, target_ulong ip,
 {
     APICCommonState *s = DO_UPCAST(APICCommonState, busdev.qdev, d);
 
-    vapic_report_tpr_access(s->vapic, s->cpu_env, ip, access);
+    vapic_report_tpr_access(s->vapic, &s->cpu->env, ip, access);
 }
 
 void apic_report_irq_delivered(int delivered)
@@ -201,13 +201,23 @@ void apic_init_reset(DeviceState *d)
     s->timer_expiry = -1;
 }
 
+void apic_designate_bsp(DeviceState *d)
+{
+    if (d == NULL) {
+        return;
+    }
+
+    APICCommonState *s = APIC_COMMON(d);
+    s->apicbase |= MSR_IA32_APICBASE_BSP;
+}
+
 static void apic_reset_common(DeviceState *d)
 {
     APICCommonState *s = DO_UPCAST(APICCommonState, busdev.qdev, d);
     APICCommonClass *info = APIC_COMMON_GET_CLASS(s);
     bool bsp;
 
-    bsp = cpu_is_bsp(s->cpu_env);
+    bsp = cpu_is_bsp(s->cpu);
     s->apicbase = 0xfee00000 |
         (bsp ? MSR_IA32_APICBASE_BSP : 0) | MSR_IA32_APICBASE_ENABLE;
 
@@ -358,7 +368,6 @@ static const VMStateDescription vmstate_apic_common = {
 
 static Property apic_properties_common[] = {
     DEFINE_PROP_UINT8("id", APICCommonState, id, -1),
-    DEFINE_PROP_PTR("cpu_env", APICCommonState, cpu_env),
     DEFINE_PROP_BIT("vapic", APICCommonState, vapic_control, VAPIC_ENABLE_BIT,
                     true),
     DEFINE_PROP_END_OF_LIST(),

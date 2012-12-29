@@ -47,7 +47,7 @@ struct nand_state_t
 };
 
 static struct nand_state_t nand_state;
-static uint64_t nand_read(void *opaque, target_phys_addr_t addr, unsigned size)
+static uint64_t nand_read(void *opaque, hwaddr addr, unsigned size)
 {
     struct nand_state_t *s = opaque;
     uint32_t r;
@@ -62,7 +62,7 @@ static uint64_t nand_read(void *opaque, target_phys_addr_t addr, unsigned size)
 }
 
 static void
-nand_write(void *opaque, target_phys_addr_t addr, uint64_t value,
+nand_write(void *opaque, hwaddr addr, uint64_t value,
            unsigned size)
 {
     struct nand_state_t *s = opaque;
@@ -166,7 +166,7 @@ static struct gpio_state_t
     uint32_t regs[0x5c / 4];
 } gpio_state;
 
-static uint64_t gpio_read(void *opaque, target_phys_addr_t addr, unsigned size)
+static uint64_t gpio_read(void *opaque, hwaddr addr, unsigned size)
 {
     struct gpio_state_t *s = opaque;
     uint32_t r = 0;
@@ -195,7 +195,7 @@ static uint64_t gpio_read(void *opaque, target_phys_addr_t addr, unsigned size)
     D(printf("%s %x=%x\n", __func__, addr, r));
 }
 
-static void gpio_write(void *opaque, target_phys_addr_t addr, uint64_t value,
+static void gpio_write(void *opaque, hwaddr addr, uint64_t value,
                        unsigned size)
 {
     struct gpio_state_t *s = opaque;
@@ -242,11 +242,13 @@ static const MemoryRegionOps gpio_ops = {
 static struct cris_load_info li;
 
 static
-void axisdev88_init (ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+void axisdev88_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    CRISCPU *cpu;
     CPUCRISState *env;
     DeviceState *dev;
     SysBusDevice *s;
@@ -263,7 +265,8 @@ void axisdev88_init (ram_addr_t ram_size,
     if (cpu_model == NULL) {
         cpu_model = "crisv32";
     }
-    env = cpu_init(cpu_model);
+    cpu = cpu_cris_init(cpu_model);
+    env = &cpu->env;
 
     /* allocate RAM */
     memory_region_init_ram(phys_ram, "axisdev88.ram", ram_size);
@@ -344,7 +347,7 @@ void axisdev88_init (ram_addr_t ram_size,
 
     li.image_filename = kernel_filename;
     li.cmdline = kernel_cmdline;
-    cris_load_image(env, &li);
+    cris_load_image(cpu, &li);
 }
 
 static QEMUMachine axisdev88_machine = {

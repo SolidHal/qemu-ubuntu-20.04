@@ -1,3 +1,43 @@
+qemu (1.3.0+dfsg-1~exp1) experimental; urgency=low
+
+  [ Michael Tokarev ]
+  * new upstream version (1.3.0) (Closes: #676374)
+   - Removed patches included upstream:
+     do-not-include-libutil.h.patch
+     configure-nss-usbredir.patch
+     tcg_s390-fix-ld_st-with-CONFIG_TCG_PASS_AREG0.patch
+     net-add--netdev-options-to-man-page.patch
+   - update 02_kfreebsd.patch
+   - do not build mpc8544ds.dtb
+   - include new targets
+  * Cleaned up the build system ALOT.  Larger changes:
+    - used explicit lists of emulated targets in debian/rules
+      and generate everything else from there, instead of repeating
+      these lists in lots of places.
+    - stop using debian/$pkg.manpages and other auxilary files like this,
+      moving eveything to debian/$pkg.install, because with the number
+      of packages growing, amount of these small files becomes very
+      large and the result is difficult to maintain.
+  * ship forgotten target-x86_64.conf in qemu-system.
+  * ship virtfs-proxy-helper in qemu-utils.
+  * stop shipping tundev.c, since it does not reflect the reality for
+    a long time now (Closes: #325761, #325754).
+  * remove debian/patches/fix-armhf-prctl.patch, it is included
+    upstream in 1.1.0 version and is misapplied since 1.1.0~rc3+dfsg-1.
+  * drop -jN passing to downstream makes, as it breaks dpkg-buildpackage -j
+    and actually breaks build (Closes: #597524 - said to be fixed in 0.14.1
+    but was still present)
+  * add revert-serial-fix-retry-logic.patch that restores
+    old (semi-)working behavour of a virtual serial port.
+  * re-introduce support parallel build using DEB_BUULD_OPTIONS=parallel=N,
+    this time by adding to $MAKEFLAGS instead of passing down to submakes
+  * build-depend on libcap-ng-dev (for virtfs-proxy-helper)
+
+  [ Vagrant Cascadian ]
+  * Add libcap-dev to Build-Depends to support virtfs-proxy-helper.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 30 Dec 2012 01:52:21 +0400
+
 qemu (1.1.2+dfsg-1) unstable; urgency=low
 
   [Michael  Tokarev]
@@ -17,9 +57,9 @@ qemu (1.1.2+dfsg-1) unstable; urgency=low
 
   [Vagrant Cascadian]
   * qemu-system: Add symlinks for extboot.bin, kvmvapic.bin and vapic.bin to 
-    binaries shipped in seabios. Closes: #678217, #678217.
+    binaries shipped in seabios. Closes: #678217, #679004.
   * qemu-system: Remove dead link for ne2k_isa.rom, which is not included in 
-    ipxe. Closes: #678217. 
+    ipxe. Closes: #679004. 
   * qemu-system: Bump versioned openbios-sparc and openbios-ppc Depends to 
     1.0+svn1060, to ensure we use at least version which is used by upstream.
     Wheezy already has the right version, but we should not break partial

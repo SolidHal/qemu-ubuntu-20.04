@@ -168,7 +168,7 @@ typedef struct dp8393xState {
     int loopback_packet;
 
     /* Memory access */
-    void (*memory_rw)(void *opaque, target_phys_addr_t addr, uint8_t *buf, int len, int is_write);
+    void (*memory_rw)(void *opaque, hwaddr addr, uint8_t *buf, int len, int is_write);
     void* mem_opaque;
 } dp8393xState;
 
@@ -603,7 +603,7 @@ static void dp8393x_watchdog(void *opaque)
     dp8393x_update_irq(s);
 }
 
-static uint32_t dp8393x_readw(void *opaque, target_phys_addr_t addr)
+static uint32_t dp8393x_readw(void *opaque, hwaddr addr)
 {
     dp8393xState *s = opaque;
     int reg;
@@ -616,13 +616,13 @@ static uint32_t dp8393x_readw(void *opaque, target_phys_addr_t addr)
     return read_register(s, reg);
 }
 
-static uint32_t dp8393x_readb(void *opaque, target_phys_addr_t addr)
+static uint32_t dp8393x_readb(void *opaque, hwaddr addr)
 {
     uint16_t v = dp8393x_readw(opaque, addr & ~0x1);
     return (v >> (8 * (addr & 0x1))) & 0xff;
 }
 
-static uint32_t dp8393x_readl(void *opaque, target_phys_addr_t addr)
+static uint32_t dp8393x_readl(void *opaque, hwaddr addr)
 {
     uint32_t v;
     v = dp8393x_readw(opaque, addr);
@@ -630,7 +630,7 @@ static uint32_t dp8393x_readl(void *opaque, target_phys_addr_t addr)
     return v;
 }
 
-static void dp8393x_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
+static void dp8393x_writew(void *opaque, hwaddr addr, uint32_t val)
 {
     dp8393xState *s = opaque;
     int reg;
@@ -644,7 +644,7 @@ static void dp8393x_writew(void *opaque, target_phys_addr_t addr, uint32_t val)
     write_register(s, reg, (uint16_t)val);
 }
 
-static void dp8393x_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
+static void dp8393x_writeb(void *opaque, hwaddr addr, uint32_t val)
 {
     uint16_t old_val = dp8393x_readw(opaque, addr & ~0x1);
 
@@ -659,7 +659,7 @@ static void dp8393x_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
     dp8393x_writew(opaque, addr & ~0x1, val);
 }
 
-static void dp8393x_writel(void *opaque, target_phys_addr_t addr, uint32_t val)
+static void dp8393x_writel(void *opaque, hwaddr addr, uint32_t val)
 {
     dp8393x_writew(opaque, addr, val & 0xffff);
     dp8393x_writew(opaque, addr + 2, (val >> 16) & 0xffff);
@@ -673,7 +673,7 @@ static const MemoryRegionOps dp8393x_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static int nic_can_receive(VLANClientState *nc)
+static int nic_can_receive(NetClientState *nc)
 {
     dp8393xState *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -722,7 +722,7 @@ static int receive_filter(dp8393xState *s, const uint8_t * buf, int size)
     return -1;
 }
 
-static ssize_t nic_receive(VLANClientState *nc, const uint8_t * buf, size_t size)
+static ssize_t nic_receive(NetClientState *nc, const uint8_t * buf, size_t size)
 {
     dp8393xState *s = DO_UPCAST(NICState, nc, nc)->opaque;
     uint16_t data[10];
@@ -858,7 +858,7 @@ static void nic_reset(void *opaque)
     dp8393x_update_irq(s);
 }
 
-static void nic_cleanup(VLANClientState *nc)
+static void nic_cleanup(NetClientState *nc)
 {
     dp8393xState *s = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -872,17 +872,17 @@ static void nic_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_dp83932_info = {
-    .type = NET_CLIENT_TYPE_NIC,
+    .type = NET_CLIENT_OPTIONS_KIND_NIC,
     .size = sizeof(NICState),
     .can_receive = nic_can_receive,
     .receive = nic_receive,
     .cleanup = nic_cleanup,
 };
 
-void dp83932_init(NICInfo *nd, target_phys_addr_t base, int it_shift,
+void dp83932_init(NICInfo *nd, hwaddr base, int it_shift,
                   MemoryRegion *address_space,
                   qemu_irq irq, void* mem_opaque,
-                  void (*memory_rw)(void *opaque, target_phys_addr_t addr, uint8_t *buf, int len, int is_write))
+                  void (*memory_rw)(void *opaque, hwaddr addr, uint8_t *buf, int len, int is_write))
 {
     dp8393xState *s;
 
@@ -899,7 +899,6 @@ void dp83932_init(NICInfo *nd, target_phys_addr_t base, int it_shift,
     s->regs[SONIC_SR] = 0x0004; /* only revision recognized by Linux */
 
     s->conf.macaddr = nd->macaddr;
-    s->conf.vlan = nd->vlan;
     s->conf.peer = nd->netdev;
 
     s->nic = qemu_new_nic(&net_dp83932_info, &s->conf, nd->model, nd->name, s);

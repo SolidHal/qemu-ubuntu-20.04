@@ -24,6 +24,7 @@
 
 #include "hw.h"
 #include "pc.h"
+#include "serial.h"
 #include "fdc.h"
 #include "net.h"
 #include "boards.h"
@@ -33,7 +34,6 @@
 #include "mips.h"
 #include "mips_cpudevs.h"
 #include "pci.h"
-#include "vmware_vga.h"
 #include "qemu-char.h"
 #include "sysemu.h"
 #include "arch_init.h"
@@ -231,7 +231,7 @@ static void eeprom24c0x_write(int scl, int sda)
     eeprom.sda = sda;
 }
 
-static uint64_t malta_fpga_read(void *opaque, target_phys_addr_t addr,
+static uint64_t malta_fpga_read(void *opaque, hwaddr addr,
                                 unsigned size)
 {
     MaltaFPGAState *s = opaque;
@@ -319,7 +319,7 @@ static uint64_t malta_fpga_read(void *opaque, target_phys_addr_t addr,
     return val;
 }
 
-static void malta_fpga_write(void *opaque, target_phys_addr_t addr,
+static void malta_fpga_write(void *opaque, hwaddr addr,
                              uint64_t val, unsigned size)
 {
     MaltaFPGAState *s = opaque;
@@ -441,7 +441,7 @@ static void malta_fpga_led_init(CharDriverState *chr)
 }
 
 static MaltaFPGAState *malta_fpga_init(MemoryRegion *address_space,
-         target_phys_addr_t base, qemu_irq uart_irq, CharDriverState *uart_chr)
+         hwaddr base, qemu_irq uart_irq, CharDriverState *uart_chr)
 {
     MaltaFPGAState *s;
 
@@ -751,8 +751,10 @@ static void malta_mips_config(CPUMIPSState *env)
 
 static void main_cpu_reset(void *opaque)
 {
-    CPUMIPSState *env = opaque;
-    cpu_state_reset(env);
+    MIPSCPU *cpu = opaque;
+    CPUMIPSState *env = &cpu->env;
+
+    cpu_reset(CPU(cpu));
 
     /* The bootloader does not need to be rewritten as it is located in a
        read only location. The kernel location and the arguments table
@@ -774,11 +776,13 @@ static void cpu_request_exit(void *opaque, int irq, int level)
 }
 
 static
-void mips_malta_init (ram_addr_t ram_size,
-                      const char *boot_device,
-                      const char *kernel_filename, const char *kernel_cmdline,
-                      const char *initrd_filename, const char *cpu_model)
+void mips_malta_init(QEMUMachineInitArgs *args)
 {
+    ram_addr_t ram_size = args->ram_size;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
     char *filename;
     pflash_t *fl;
     MemoryRegion *system_memory = get_system_memory();
@@ -788,6 +792,7 @@ void mips_malta_init (ram_addr_t ram_size,
     int64_t kernel_entry;
     PCIBus *pci_bus;
     ISABus *isa_bus;
+    MIPSCPU *cpu;
     CPUMIPSState *env;
     qemu_irq *isa_irq;
     qemu_irq *cpu_exit_irq;
@@ -825,15 +830,17 @@ void mips_malta_init (ram_addr_t ram_size,
     }
 
     for (i = 0; i < smp_cpus; i++) {
-        env = cpu_init(cpu_model);
-        if (!env) {
+        cpu = cpu_mips_init(cpu_model);
+        if (cpu == NULL) {
             fprintf(stderr, "Unable to find CPU definition\n");
             exit(1);
         }
+        env = &cpu->env;
+
         /* Init internal devices */
         cpu_mips_irq_init_cpu(env);
         cpu_mips_clock_init(env);
-        qemu_register_reset(main_cpu_reset, env);
+        qemu_register_reset(main_cpu_reset, cpu);
     }
     env = first_cpu;
 
@@ -854,7 +861,8 @@ void mips_malta_init (ram_addr_t ram_size,
     be = 0;
 #endif
     /* FPGA */
-    malta_fpga_init(system_memory, FPGA_ADDRESS, env->irq[2], serial_hds[2]);
+    /* The CBUS UART is attached to the MIPS CPU INT2 pin, ie interrupt 4 */
+    malta_fpga_init(system_memory, FPGA_ADDRESS, env->irq[4], serial_hds[2]);
 
     /* Load firmware in flash / BIOS. */
     dinfo = drive_get(IF_PFLASH, 0, fl_idx);
@@ -954,7 +962,7 @@ void mips_malta_init (ram_addr_t ram_size,
     pci_piix4_ide_init(pci_bus, hd, piix4_devfn + 1);
     pci_create_simple(pci_bus, piix4_devfn + 2, "piix4-usb-uhci");
     smbus = piix4_pm_init(pci_bus, piix4_devfn + 3, 0x1100,
-                          isa_get_irq(NULL, 9), NULL, 0);
+                          isa_get_irq(NULL, 9), NULL, 0, NULL);
     /* TODO: Populate SPD eeprom data.  */
     smbus_eeprom_init(smbus, 8, NULL, 0);
     pit = pit_init(isa_bus, 0x40, 0, NULL);
@@ -981,13 +989,7 @@ void mips_malta_init (ram_addr_t ram_size,
     network_init();
 
     /* Optional PCI video card */
-    if (cirrus_vga_enabled) {
-        pci_cirrus_vga_init(pci_bus);
-    } else if (vmsvga_enabled) {
-        pci_vmsvga_init(pci_bus);
-    } else if (std_vga_enabled) {
-        pci_vga_init(pci_bus);
-    }
+    pci_vga_init(pci_bus);
 }
 
 static int mips_malta_sysbus_device_init(SysBusDevice *sysbusdev)

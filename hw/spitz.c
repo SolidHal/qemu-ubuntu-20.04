@@ -60,7 +60,7 @@ typedef struct {
     ECCState ecc;
 } SLNANDState;
 
-static uint64_t sl_read(void *opaque, target_phys_addr_t addr, unsigned size)
+static uint64_t sl_read(void *opaque, hwaddr addr, unsigned size)
 {
     SLNANDState *s = (SLNANDState *) opaque;
     int ryby;
@@ -102,7 +102,7 @@ static uint64_t sl_read(void *opaque, target_phys_addr_t addr, unsigned size)
     return 0;
 }
 
-static void sl_write(void *opaque, target_phys_addr_t addr,
+static void sl_write(void *opaque, hwaddr addr,
                      uint64_t value, unsigned size)
 {
     SLNANDState *s = (SLNANDState *) opaque;
@@ -879,23 +879,22 @@ static struct arm_boot_info spitz_binfo = {
     .ram_size = 0x04000000,
 };
 
-static void spitz_common_init(ram_addr_t ram_size,
-                const char *kernel_filename,
-                const char *kernel_cmdline, const char *initrd_filename,
-                const char *cpu_model, enum spitz_model_e model, int arm_id)
+static void spitz_common_init(QEMUMachineInitArgs *args,
+                              enum spitz_model_e model, int arm_id)
 {
-    PXA2xxState *cpu;
+    PXA2xxState *mpu;
     DeviceState *scp0, *scp1 = NULL;
     MemoryRegion *address_space_mem = get_system_memory();
     MemoryRegion *rom = g_new(MemoryRegion, 1);
+    const char *cpu_model = args->cpu_model;
 
     if (!cpu_model)
         cpu_model = (model == terrier) ? "pxa270-c5" : "pxa270-c0";
 
     /* Setup CPU & memory */
-    cpu = pxa270_init(address_space_mem, spitz_binfo.ram_size, cpu_model);
+    mpu = pxa270_init(address_space_mem, spitz_binfo.ram_size, cpu_model);
 
-    sl_flash_register(cpu, (model == spitz) ? FLASH_128M : FLASH_1024M);
+    sl_flash_register(mpu, (model == spitz) ? FLASH_128M : FLASH_1024M);
 
     memory_region_init_ram(rom, "spitz.rom", SPITZ_ROM);
     vmstate_register_ram_global(rom);
@@ -903,73 +902,57 @@ static void spitz_common_init(ram_addr_t ram_size,
     memory_region_add_subregion(address_space_mem, 0, rom);
 
     /* Setup peripherals */
-    spitz_keyboard_register(cpu);
+    spitz_keyboard_register(mpu);
 
-    spitz_ssp_attach(cpu);
+    spitz_ssp_attach(mpu);
 
     scp0 = sysbus_create_simple("scoop", 0x10800000, NULL);
     if (model != akita) {
         scp1 = sysbus_create_simple("scoop", 0x08800040, NULL);
     }
 
-    spitz_scoop_gpio_setup(cpu, scp0, scp1);
+    spitz_scoop_gpio_setup(mpu, scp0, scp1);
 
-    spitz_gpio_setup(cpu, (model == akita) ? 1 : 2);
+    spitz_gpio_setup(mpu, (model == akita) ? 1 : 2);
 
-    spitz_i2c_setup(cpu);
+    spitz_i2c_setup(mpu);
 
     if (model == akita)
-        spitz_akita_i2c_setup(cpu);
+        spitz_akita_i2c_setup(mpu);
 
     if (model == terrier)
         /* A 6.0 GB microdrive is permanently sitting in CF slot 1.  */
-        spitz_microdrive_attach(cpu, 1);
+        spitz_microdrive_attach(mpu, 1);
     else if (model != akita)
         /* A 4.0 GB microdrive is permanently sitting in CF slot 0.  */
-        spitz_microdrive_attach(cpu, 0);
+        spitz_microdrive_attach(mpu, 0);
 
-    spitz_binfo.kernel_filename = kernel_filename;
-    spitz_binfo.kernel_cmdline = kernel_cmdline;
-    spitz_binfo.initrd_filename = initrd_filename;
+    spitz_binfo.kernel_filename = args->kernel_filename;
+    spitz_binfo.kernel_cmdline = args->kernel_cmdline;
+    spitz_binfo.initrd_filename = args->initrd_filename;
     spitz_binfo.board_id = arm_id;
-    arm_load_kernel(cpu->env, &spitz_binfo);
+    arm_load_kernel(mpu->cpu, &spitz_binfo);
     sl_bootparam_write(SL_PXA_PARAM_BASE);
 }
 
-static void spitz_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void spitz_init(QEMUMachineInitArgs *args)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, spitz, 0x2c9);
+    spitz_common_init(args, spitz, 0x2c9);
 }
 
-static void borzoi_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void borzoi_init(QEMUMachineInitArgs *args)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, borzoi, 0x33f);
+    spitz_common_init(args, borzoi, 0x33f);
 }
 
-static void akita_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void akita_init(QEMUMachineInitArgs *args)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, akita, 0x2e8);
+    spitz_common_init(args, akita, 0x2e8);
 }
 
-static void terrier_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void terrier_init(QEMUMachineInitArgs *args)
 {
-    spitz_common_init(ram_size, kernel_filename,
-                kernel_cmdline, initrd_filename, cpu_model, terrier, 0x33f);
+    spitz_common_init(args, terrier, 0x33f);
 }
 
 static QEMUMachine akitapda_machine = {
@@ -1083,10 +1066,11 @@ static TypeInfo spitz_keyboard_info = {
 
 static const VMStateDescription vmstate_corgi_ssp_regs = {
     .name = "corgi-ssp",
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
+    .minimum_version_id_old = 2,
     .fields = (VMStateField []) {
+        VMSTATE_SSI_SLAVE(ssidev, CorgiSSPState),
         VMSTATE_UINT32_ARRAY(enable, CorgiSSPState, 3),
         VMSTATE_END_OF_LIST(),
     }
@@ -1115,6 +1099,7 @@ static const VMStateDescription vmstate_spitz_lcdtg_regs = {
     .minimum_version_id = 1,
     .minimum_version_id_old = 1,
     .fields = (VMStateField []) {
+        VMSTATE_SSI_SLAVE(ssidev, SpitzLCDTG),
         VMSTATE_UINT32(bl_intensity, SpitzLCDTG),
         VMSTATE_UINT32(bl_power, SpitzLCDTG),
         VMSTATE_END_OF_LIST(),

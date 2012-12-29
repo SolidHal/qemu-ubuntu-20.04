@@ -27,25 +27,25 @@
 #include "loader.h"
 #include "exec-memory.h"
 
-static uint32_t static_readb(void *opaque, target_phys_addr_t offset)
+static uint32_t static_readb(void *opaque, hwaddr offset)
 {
     uint32_t *val = (uint32_t *) opaque;
     return *val >> ((offset & 3) << 3);
 }
 
-static uint32_t static_readh(void *opaque, target_phys_addr_t offset)
+static uint32_t static_readh(void *opaque, hwaddr offset)
 {
     uint32_t *val = (uint32_t *) opaque;
     return *val >> ((offset & 1) << 3);
 }
 
-static uint32_t static_readw(void *opaque, target_phys_addr_t offset)
+static uint32_t static_readw(void *opaque, hwaddr offset)
 {
     uint32_t *val = (uint32_t *) opaque;
     return *val >> ((offset & 0) << 3);
 }
 
-static void static_write(void *opaque, target_phys_addr_t offset,
+static void static_write(void *opaque, hwaddr offset,
                 uint32_t value)
 {
 #ifdef SPY
@@ -190,13 +190,14 @@ static struct arm_boot_info palmte_binfo = {
     .board_id = 0x331,
 };
 
-static void palmte_init(ram_addr_t ram_size,
-                const char *boot_device,
-                const char *kernel_filename, const char *kernel_cmdline,
-                const char *initrd_filename, const char *cpu_model)
+static void palmte_init(QEMUMachineInitArgs *args)
 {
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
+    const char *initrd_filename = args->initrd_filename;
     MemoryRegion *address_space_mem = get_system_memory();
-    struct omap_mpu_state_s *cpu;
+    struct omap_mpu_state_s *mpu;
     int flash_size = 0x00800000;
     int sdram_size = palmte_binfo.ram_size;
     static uint32_t cs0val = 0xffffffff;
@@ -208,7 +209,7 @@ static void palmte_init(ram_addr_t ram_size,
     MemoryRegion *flash = g_new(MemoryRegion, 1);
     MemoryRegion *cs = g_new(MemoryRegion, 4);
 
-    cpu = omap310_mpu_init(address_space_mem, sdram_size, cpu_model);
+    mpu = omap310_mpu_init(address_space_mem, sdram_size, cpu_model);
 
     /* External Flash (EMIFS) */
     memory_region_init_ram(flash, "palmte.flash", flash_size);
@@ -230,11 +231,11 @@ static void palmte_init(ram_addr_t ram_size,
                           OMAP_CS3_SIZE);
     memory_region_add_subregion(address_space_mem, OMAP_CS3_BASE, &cs[3]);
 
-    palmte_microwire_setup(cpu);
+    palmte_microwire_setup(mpu);
 
-    qemu_add_kbd_event_handler(palmte_button_event, cpu);
+    qemu_add_kbd_event_handler(palmte_button_event, mpu);
 
-    palmte_gpio_setup(cpu);
+    palmte_gpio_setup(mpu);
 
     /* Setup initial (reset) machine state */
     if (nb_option_roms) {
@@ -265,14 +266,14 @@ static void palmte_init(ram_addr_t ram_size,
         palmte_binfo.kernel_filename = kernel_filename;
         palmte_binfo.kernel_cmdline = kernel_cmdline;
         palmte_binfo.initrd_filename = initrd_filename;
-        arm_load_kernel(cpu->env, &palmte_binfo);
+        arm_load_kernel(mpu->cpu, &palmte_binfo);
     }
 
     /* FIXME: We shouldn't really be doing this here.  The LCD controller
        will set the size once configured, so this just sets an initial
        size until the guest activates the display.  */
     ds->surface = qemu_resize_displaysurface(ds, 320, 320);
-    dpy_resize(ds);
+    dpy_gfx_resize(ds);
 }
 
 static QEMUMachine palmte_machine = {

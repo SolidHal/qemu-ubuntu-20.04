@@ -18,7 +18,6 @@
 
 #define KERNEL_ARGS_ADDR 0x100
 #define KERNEL_LOAD_ADDR 0x00010000
-#define INITRD_LOAD_ADDR 0x00d00000
 
 /* The worlds second smallest bootloader.  Set r0-r2, then jump to kernel.  */
 static uint32_t bootloader[] = {
@@ -59,7 +58,7 @@ static uint32_t smpboot[] = {
   0           /* bootreg: Boot register address is held here */
 };
 
-static void default_write_secondary(CPUARMState *env,
+static void default_write_secondary(ARMCPU *cpu,
                                     const struct arm_boot_info *info)
 {
     int n;
@@ -72,9 +71,11 @@ static void default_write_secondary(CPUARMState *env,
                        info->smp_loader_start);
 }
 
-static void default_reset_secondary(CPUARMState *env,
+static void default_reset_secondary(ARMCPU *cpu,
                                     const struct arm_boot_info *info)
 {
+    CPUARMState *env = &cpu->env;
+
     stl_phys_notdirty(info->smp_bootreg_addr, 0);
     env->regs[15] = info->smp_loader_start;
 }
@@ -87,8 +88,8 @@ static void default_reset_secondary(CPUARMState *env,
 static void set_kernel_args(const struct arm_boot_info *info)
 {
     int initrd_size = info->initrd_size;
-    target_phys_addr_t base = info->loader_start;
-    target_phys_addr_t p;
+    hwaddr base = info->loader_start;
+    hwaddr p;
 
     p = base + KERNEL_ARGS_ADDR;
     /* ATAG_CORE */
@@ -107,7 +108,7 @@ static void set_kernel_args(const struct arm_boot_info *info)
         /* ATAG_INITRD2 */
         WRITE_WORD(p, 4);
         WRITE_WORD(p, 0x54420005);
-        WRITE_WORD(p, info->loader_start + INITRD_LOAD_ADDR);
+        WRITE_WORD(p, info->initrd_start);
         WRITE_WORD(p, initrd_size);
     }
     if (info->kernel_cmdline && *info->kernel_cmdline) {
@@ -140,10 +141,10 @@ static void set_kernel_args(const struct arm_boot_info *info)
 
 static void set_kernel_args_old(const struct arm_boot_info *info)
 {
-    target_phys_addr_t p;
+    hwaddr p;
     const char *s;
     int initrd_size = info->initrd_size;
-    target_phys_addr_t base = info->loader_start;
+    hwaddr base = info->loader_start;
 
     /* see linux/include/asm-arm/setup.h */
     p = base + KERNEL_ARGS_ADDR;
@@ -183,10 +184,11 @@ static void set_kernel_args_old(const struct arm_boot_info *info)
     /* pages_in_vram */
     WRITE_WORD(p, 0);
     /* initrd_start */
-    if (initrd_size)
-        WRITE_WORD(p, info->loader_start + INITRD_LOAD_ADDR);
-    else
+    if (initrd_size) {
+        WRITE_WORD(p, info->initrd_start);
+    } else {
         WRITE_WORD(p, 0);
+    }
     /* initrd_size */
     WRITE_WORD(p, initrd_size);
     /* rd_start */
@@ -211,14 +213,15 @@ static void set_kernel_args_old(const struct arm_boot_info *info)
     }
 }
 
-static int load_dtb(target_phys_addr_t addr, const struct arm_boot_info *binfo)
+static int load_dtb(hwaddr addr, const struct arm_boot_info *binfo)
 {
 #ifdef CONFIG_FDT
-    uint32_t mem_reg_property[] = { cpu_to_be32(binfo->loader_start),
-                                    cpu_to_be32(binfo->ram_size) };
+    uint32_t *mem_reg_property;
+    uint32_t mem_reg_propsize;
     void *fdt = NULL;
     char *filename;
     int size, rc;
+    uint32_t acells, scells, hival;
 
     filename = qemu_find_file(QEMU_FILE_TYPE_BIOS, binfo->dtb_filename);
     if (!filename) {
@@ -234,28 +237,57 @@ static int load_dtb(target_phys_addr_t addr, const struct arm_boot_info *binfo)
     }
     g_free(filename);
 
+    acells = qemu_devtree_getprop_cell(fdt, "/", "#address-cells");
+    scells = qemu_devtree_getprop_cell(fdt, "/", "#size-cells");
+    if (acells == 0 || scells == 0) {
+        fprintf(stderr, "dtb file invalid (#address-cells or #size-cells 0)\n");
+        return -1;
+    }
+
+    mem_reg_propsize = acells + scells;
+    mem_reg_property = g_new0(uint32_t, mem_reg_propsize);
+    mem_reg_property[acells - 1] = cpu_to_be32(binfo->loader_start);
+    hival = cpu_to_be32(binfo->loader_start >> 32);
+    if (acells > 1) {
+        mem_reg_property[acells - 2] = hival;
+    } else if (hival != 0) {
+        fprintf(stderr, "qemu: dtb file not compatible with "
+                "RAM start address > 4GB\n");
+        exit(1);
+    }
+    mem_reg_property[acells + scells - 1] = cpu_to_be32(binfo->ram_size);
+    hival = cpu_to_be32(binfo->ram_size >> 32);
+    if (scells > 1) {
+        mem_reg_property[acells + scells - 2] = hival;
+    } else if (hival != 0) {
+        fprintf(stderr, "qemu: dtb file not compatible with "
+                "RAM size > 4GB\n");
+        exit(1);
+    }
+
     rc = qemu_devtree_setprop(fdt, "/memory", "reg", mem_reg_property,
-                               sizeof(mem_reg_property));
+                              mem_reg_propsize * sizeof(uint32_t));
     if (rc < 0) {
         fprintf(stderr, "couldn't set /memory/reg\n");
     }
 
-    rc = qemu_devtree_setprop_string(fdt, "/chosen", "bootargs",
-                                      binfo->kernel_cmdline);
-    if (rc < 0) {
-        fprintf(stderr, "couldn't set /chosen/bootargs\n");
+    if (binfo->kernel_cmdline && *binfo->kernel_cmdline) {
+        rc = qemu_devtree_setprop_string(fdt, "/chosen", "bootargs",
+                                          binfo->kernel_cmdline);
+        if (rc < 0) {
+            fprintf(stderr, "couldn't set /chosen/bootargs\n");
+        }
     }
 
     if (binfo->initrd_size) {
         rc = qemu_devtree_setprop_cell(fdt, "/chosen", "linux,initrd-start",
-                binfo->loader_start + INITRD_LOAD_ADDR);
+                binfo->initrd_start);
         if (rc < 0) {
             fprintf(stderr, "couldn't set /chosen/linux,initrd-start\n");
         }
 
         rc = qemu_devtree_setprop_cell(fdt, "/chosen", "linux,initrd-end",
-                    binfo->loader_start + INITRD_LOAD_ADDR +
-                    binfo->initrd_size);
+                    binfo->initrd_start + binfo->initrd_size);
         if (rc < 0) {
             fprintf(stderr, "couldn't set /chosen/linux,initrd-end\n");
         }
@@ -274,10 +306,11 @@ static int load_dtb(target_phys_addr_t addr, const struct arm_boot_info *binfo)
 
 static void do_cpu_reset(void *opaque)
 {
-    CPUARMState *env = opaque;
+    ARMCPU *cpu = opaque;
+    CPUARMState *env = &cpu->env;
     const struct arm_boot_info *info = env->boot_info;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(cpu));
     if (info) {
         if (!info->is_linux) {
             /* Jump to the entry point.  */
@@ -294,20 +327,21 @@ static void do_cpu_reset(void *opaque)
                     }
                 }
             } else {
-                info->secondary_cpu_reset_hook(env, info);
+                info->secondary_cpu_reset_hook(cpu, info);
             }
         }
     }
 }
 
-void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info)
+void arm_load_kernel(ARMCPU *cpu, struct arm_boot_info *info)
 {
+    CPUARMState *env = &cpu->env;
     int kernel_size;
     int initrd_size;
     int n;
     int is_linux = 0;
     uint64_t elf_entry;
-    target_phys_addr_t entry;
+    hwaddr entry;
     int big_endian;
     QemuOpts *machine_opts;
 
@@ -340,6 +374,19 @@ void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info)
     big_endian = 0;
 #endif
 
+    /* We want to put the initrd far enough into RAM that when the
+     * kernel is uncompressed it will not clobber the initrd. However
+     * on boards without much RAM we must ensure that we still leave
+     * enough room for a decent sized initrd, and on boards with large
+     * amounts of RAM we must avoid the initrd being so far up in RAM
+     * that it is outside lowmem and inaccessible to the kernel.
+     * So for boards with less  than 256MB of RAM we put the initrd
+     * halfway into RAM, and for boards with 256MB of RAM or more we put
+     * the initrd at 128MB.
+     */
+    info->initrd_start = info->loader_start +
+        MIN(info->ram_size / 2, 128 * 1024 * 1024);
+
     /* Assume that raw images are linux kernels, and ELF images are not.  */
     kernel_size = load_elf(info->kernel_filename, NULL, NULL, &elf_entry,
                            NULL, NULL, big_endian, ELF_MACHINE, 1);
@@ -351,7 +398,7 @@ void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info)
     if (kernel_size < 0) {
         entry = info->loader_start + KERNEL_LOAD_ADDR;
         kernel_size = load_image_targphys(info->kernel_filename, entry,
-                                          ram_size - KERNEL_LOAD_ADDR);
+                                          info->ram_size - KERNEL_LOAD_ADDR);
         is_linux = 1;
     }
     if (kernel_size < 0) {
@@ -363,9 +410,9 @@ void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info)
     if (is_linux) {
         if (info->initrd_filename) {
             initrd_size = load_image_targphys(info->initrd_filename,
-                                              info->loader_start
-                                              + INITRD_LOAD_ADDR,
-                                              ram_size - INITRD_LOAD_ADDR);
+                                              info->initrd_start,
+                                              info->ram_size -
+                                              info->initrd_start);
             if (initrd_size < 0) {
                 fprintf(stderr, "qemu: could not load initrd '%s'\n",
                         info->initrd_filename);
@@ -383,15 +430,20 @@ void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info)
          */
         if (info->dtb_filename) {
             /* Place the DTB after the initrd in memory */
-            target_phys_addr_t dtb_start = TARGET_PAGE_ALIGN(info->loader_start
-                                                             + INITRD_LOAD_ADDR
-                                                             + initrd_size);
+            hwaddr dtb_start = TARGET_PAGE_ALIGN(info->initrd_start +
+                                                 initrd_size);
             if (load_dtb(dtb_start, info)) {
                 exit(1);
             }
             bootloader[5] = dtb_start;
         } else {
             bootloader[5] = info->loader_start + KERNEL_ARGS_ADDR;
+            if (info->ram_size >= (1ULL << 32)) {
+                fprintf(stderr, "qemu: RAM size must be less than 4GB to boot"
+                        " Linux kernel using ATAGS (try passing a device tree"
+                        " using -dtb)\n");
+                exit(1);
+            }
         }
         bootloader[6] = entry;
         for (n = 0; n < sizeof(bootloader) / 4; n++) {
@@ -400,13 +452,14 @@ void arm_load_kernel(CPUARMState *env, struct arm_boot_info *info)
         rom_add_blob_fixed("bootloader", bootloader, sizeof(bootloader),
                            info->loader_start);
         if (info->nb_cpus > 1) {
-            info->write_secondary_boot(env, info);
+            info->write_secondary_boot(cpu, info);
         }
     }
     info->is_linux = is_linux;
 
     for (; env; env = env->next_cpu) {
+        cpu = arm_env_get_cpu(env);
         env->boot_info = info;
-        qemu_register_reset(do_cpu_reset, env);
+        qemu_register_reset(do_cpu_reset, cpu);
     }
 }

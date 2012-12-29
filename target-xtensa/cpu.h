@@ -36,6 +36,7 @@
 #include "config.h"
 #include "qemu-common.h"
 #include "cpu-defs.h"
+#include "fpu/softfloat.h"
 
 #define TARGET_HAS_ICE 1
 
@@ -325,6 +326,8 @@ typedef struct CPUXtensaState {
     uint32_t sregs[256];
     uint32_t uregs[256];
     uint32_t phys_regs[MAX_NAREG];
+    float32 fregs[16];
+    float_status fp_status;
 
     xtensa_tlb_entry itlb[7][MAX_TLB_WAY_SIZE];
     xtensa_tlb_entry dtlb[10][MAX_TLB_WAY_SIZE];
@@ -344,13 +347,30 @@ typedef struct CPUXtensaState {
     CPU_COMMON
 } CPUXtensaState;
 
-#define cpu_init cpu_xtensa_init
+#include "cpu-qom.h"
+
 #define cpu_exec cpu_xtensa_exec
 #define cpu_gen_code cpu_xtensa_gen_code
 #define cpu_signal_handler cpu_xtensa_signal_handler
 #define cpu_list xtensa_cpu_list
 
-CPUXtensaState *cpu_xtensa_init(const char *cpu_model);
+#ifdef TARGET_WORDS_BIGENDIAN
+#define XTENSA_DEFAULT_CPU_MODEL "fsf"
+#else
+#define XTENSA_DEFAULT_CPU_MODEL "dc232b"
+#endif
+
+XtensaCPU *cpu_xtensa_init(const char *cpu_model);
+
+static inline CPUXtensaState *cpu_init(const char *cpu_model)
+{
+    XtensaCPU *cpu = cpu_xtensa_init(cpu_model);
+    if (cpu == NULL) {
+        return NULL;
+    }
+    return &cpu->env;
+}
+
 void xtensa_translate_init(void);
 int cpu_xtensa_exec(CPUXtensaState *s);
 void xtensa_register_core(XtensaConfigList *node);
@@ -448,6 +468,8 @@ static inline int cpu_mmu_index(CPUXtensaState *env)
 #define XTENSA_TBFLAG_LITBASE 0x8
 #define XTENSA_TBFLAG_DEBUG 0x10
 #define XTENSA_TBFLAG_ICOUNT 0x20
+#define XTENSA_TBFLAG_CPENABLE_MASK 0x3fc0
+#define XTENSA_TBFLAG_CPENABLE_SHIFT 6
 
 static inline void cpu_get_tb_cpu_state(CPUXtensaState *env, target_ulong *pc,
         target_ulong *cs_base, int *flags)
@@ -471,14 +493,18 @@ static inline void cpu_get_tb_cpu_state(CPUXtensaState *env, target_ulong *pc,
             *flags |= XTENSA_TBFLAG_ICOUNT;
         }
     }
+    if (xtensa_option_enabled(env->config, XTENSA_OPTION_COPROCESSOR)) {
+        *flags |= env->sregs[CPENABLE] << XTENSA_TBFLAG_CPENABLE_SHIFT;
+    }
 }
 
 #include "cpu-all.h"
-#include "cpu-qom.h"
 #include "exec-all.h"
 
-static inline int cpu_has_work(CPUXtensaState *env)
+static inline int cpu_has_work(CPUState *cpu)
 {
+    CPUXtensaState *env = &XTENSA_CPU(cpu)->env;
+
     return env->pending_irq_level;
 }
 

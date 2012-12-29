@@ -243,6 +243,10 @@ struct CPUMBState {
     /* Stack protectors. Yes, it's a hw feature.  */
     uint32_t slr, shr;
 
+    /* lwx/swx reserved address */
+#define RES_ADDR_NONE 0xffffffff /* Use 0xffffffff to indicate no reservation */
+    uint32_t res_addr;
+
     /* Internal flags.  */
 #define IMM_FLAG	4
 #define MSR_EE_FLAG     (1 << 8)
@@ -268,7 +272,7 @@ struct CPUMBState {
 
 #include "cpu-qom.h"
 
-CPUMBState *cpu_mb_init(const char *cpu_model);
+MicroBlazeCPU *cpu_mb_init(const char *cpu_model);
 int cpu_mb_exec(CPUMBState *s);
 void cpu_mb_close(CPUMBState *s);
 void do_interrupt(CPUMBState *env);
@@ -291,7 +295,15 @@ enum {
 #define TARGET_PHYS_ADDR_SPACE_BITS 32
 #define TARGET_VIRT_ADDR_SPACE_BITS 32
 
-#define cpu_init cpu_mb_init
+static inline CPUMBState *cpu_init(const char *cpu_model)
+{
+    MicroBlazeCPU *cpu = cpu_mb_init(cpu_model);
+    if (cpu == NULL) {
+        return NULL;
+    }
+    return &cpu->env;
+}
+
 #define cpu_exec cpu_mb_exec
 #define cpu_gen_code cpu_mb_gen_code
 #define cpu_signal_handler cpu_mb_signal_handler
@@ -333,6 +345,7 @@ static inline void cpu_clone_regs(CPUMBState *env, target_ulong newsp)
 
 static inline void cpu_set_tls(CPUMBState *env, target_ulong newtls)
 {
+    env->regs[21] = newtls;
 }
 
 static inline int cpu_interrupts_enabled(CPUMBState *env)
@@ -357,12 +370,14 @@ static inline void cpu_get_tb_cpu_state(CPUMBState *env, target_ulong *pc,
 }
 
 #if !defined(CONFIG_USER_ONLY)
-void cpu_unassigned_access(CPUMBState *env1, target_phys_addr_t addr,
+void cpu_unassigned_access(CPUMBState *env1, hwaddr addr,
                            int is_write, int is_exec, int is_asi, int size);
 #endif
 
-static inline bool cpu_has_work(CPUMBState *env)
+static inline bool cpu_has_work(CPUState *cpu)
 {
+    CPUMBState *env = &MICROBLAZE_CPU(cpu)->env;
+
     return env->interrupt_request & (CPU_INTERRUPT_HARD | CPU_INTERRUPT_NMI);
 }
 

@@ -28,13 +28,15 @@
 #include "pixel_ops.h"
 #include "qemu-timer.h"
 
+#define VGA_RAM_SIZE (8192 * 1024)
+
 typedef struct ISAVGAMMState {
     VGACommonState vga;
     int it_shift;
 } ISAVGAMMState;
 
 /* Memory mapped interface */
-static uint32_t vga_mm_readb (void *opaque, target_phys_addr_t addr)
+static uint32_t vga_mm_readb (void *opaque, hwaddr addr)
 {
     ISAVGAMMState *s = opaque;
 
@@ -42,14 +44,14 @@ static uint32_t vga_mm_readb (void *opaque, target_phys_addr_t addr)
 }
 
 static void vga_mm_writeb (void *opaque,
-                           target_phys_addr_t addr, uint32_t value)
+                           hwaddr addr, uint32_t value)
 {
     ISAVGAMMState *s = opaque;
 
     vga_ioport_write(&s->vga, addr >> s->it_shift, value & 0xff);
 }
 
-static uint32_t vga_mm_readw (void *opaque, target_phys_addr_t addr)
+static uint32_t vga_mm_readw (void *opaque, hwaddr addr)
 {
     ISAVGAMMState *s = opaque;
 
@@ -57,14 +59,14 @@ static uint32_t vga_mm_readw (void *opaque, target_phys_addr_t addr)
 }
 
 static void vga_mm_writew (void *opaque,
-                           target_phys_addr_t addr, uint32_t value)
+                           hwaddr addr, uint32_t value)
 {
     ISAVGAMMState *s = opaque;
 
     vga_ioport_write(&s->vga, addr >> s->it_shift, value & 0xffff);
 }
 
-static uint32_t vga_mm_readl (void *opaque, target_phys_addr_t addr)
+static uint32_t vga_mm_readl (void *opaque, hwaddr addr)
 {
     ISAVGAMMState *s = opaque;
 
@@ -72,7 +74,7 @@ static uint32_t vga_mm_readl (void *opaque, target_phys_addr_t addr)
 }
 
 static void vga_mm_writel (void *opaque,
-                           target_phys_addr_t addr, uint32_t value)
+                           hwaddr addr, uint32_t value)
 {
     ISAVGAMMState *s = opaque;
 
@@ -95,8 +97,8 @@ static const MemoryRegionOps vga_mm_ctrl_ops = {
     .endianness = DEVICE_NATIVE_ENDIAN,
 };
 
-static void vga_mm_init(ISAVGAMMState *s, target_phys_addr_t vram_base,
-                        target_phys_addr_t ctrl_base, int it_shift,
+static void vga_mm_init(ISAVGAMMState *s, hwaddr vram_base,
+                        hwaddr ctrl_base, int it_shift,
                         MemoryRegion *address_space)
 {
     MemoryRegion *s_ioport_ctrl, *vga_io_memory;
@@ -105,6 +107,7 @@ static void vga_mm_init(ISAVGAMMState *s, target_phys_addr_t vram_base,
     s_ioport_ctrl = g_malloc(sizeof(*s_ioport_ctrl));
     memory_region_init_io(s_ioport_ctrl, &vga_mm_ctrl_ops, s,
                           "vga-mm-ctrl", 0x100000);
+    memory_region_set_flush_coalesced(s_ioport_ctrl);
 
     vga_io_memory = g_malloc(sizeof(*vga_io_memory));
     /* XXX: endianness? */
@@ -120,15 +123,16 @@ static void vga_mm_init(ISAVGAMMState *s, target_phys_addr_t vram_base,
     memory_region_set_coalescing(vga_io_memory);
 }
 
-int isa_vga_mm_init(target_phys_addr_t vram_base,
-                    target_phys_addr_t ctrl_base, int it_shift,
+int isa_vga_mm_init(hwaddr vram_base,
+                    hwaddr ctrl_base, int it_shift,
                     MemoryRegion *address_space)
 {
     ISAVGAMMState *s;
 
     s = g_malloc0(sizeof(*s));
 
-    vga_common_init(&s->vga, VGA_RAM_SIZE);
+    s->vga.vram_size_mb = VGA_RAM_SIZE >> 20;
+    vga_common_init(&s->vga);
     vga_mm_init(s, vram_base, ctrl_base, it_shift, address_space);
 
     s->vga.ds = graphic_console_init(s->vga.update, s->vga.invalidate,

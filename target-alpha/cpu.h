@@ -40,9 +40,20 @@
 
 #define TARGET_PAGE_BITS 13
 
+#ifdef CONFIG_USER_ONLY
+/* ??? The kernel likes to give addresses in high memory.  If the host has
+   more virtual address space than the guest, this can lead to impossible
+   allocations.  Honor the long-standing assumption that only kernel addrs
+   are negative, but otherwise allow allocations anywhere.  This could lead
+   to tricky emulation problems for programs doing tagged addressing, but
+   that's far fewer than encounter the impossible allocation problem.  */
+#define TARGET_PHYS_ADDR_SPACE_BITS  63
+#define TARGET_VIRT_ADDR_SPACE_BITS  63
+#else
 /* ??? EV4 has 34 phys addr bits, EV5 has 40, EV6 has 44.  */
-#define TARGET_PHYS_ADDR_SPACE_BITS	44
-#define TARGET_VIRT_ADDR_SPACE_BITS	(30 + TARGET_PAGE_BITS)
+#define TARGET_PHYS_ADDR_SPACE_BITS  44
+#define TARGET_VIRT_ADDR_SPACE_BITS  (30 + TARGET_PAGE_BITS)
+#endif
 
 /* Alpha major type */
 enum {
@@ -443,7 +454,7 @@ void cpu_alpha_store_fpcr (CPUAlphaState *env, uint64_t val);
 #ifndef CONFIG_USER_ONLY
 void swap_shadow_regs(CPUAlphaState *env);
 QEMU_NORETURN void cpu_unassigned_access(CPUAlphaState *env1,
-                                         target_phys_addr_t addr, int is_write,
+                                         hwaddr addr, int is_write,
                                          int is_exec, int unused, int size);
 #endif
 
@@ -499,8 +510,10 @@ static inline void cpu_set_tls(CPUAlphaState *env, target_ulong newtls)
 }
 #endif
 
-static inline bool cpu_has_work(CPUAlphaState *env)
+static inline bool cpu_has_work(CPUState *cpu)
 {
+    CPUAlphaState *env = &ALPHA_CPU(cpu)->env;
+
     /* Here we are checking to see if the CPU should wake up from HALT.
        We will have gotten into this state only for WTINT from PALmode.  */
     /* ??? I'm not sure how the IPL state works with WTINT to keep a CPU

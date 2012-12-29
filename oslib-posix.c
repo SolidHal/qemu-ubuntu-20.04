@@ -41,6 +41,9 @@ extern int daemon(int, int);
       therefore we need special code which handles running on Valgrind. */
 #  define QEMU_VMALLOC_ALIGN (512 * 4096)
 #  define CONFIG_VALGRIND
+#elif defined(__linux__) && defined(__s390x__)
+   /* Use 1 MiB (segment size) alignment so gmap can be used by KVM. */
+#  define QEMU_VMALLOC_ALIGN (256 * 4096)
 #else
 #  define QEMU_VMALLOC_ALIGN getpagesize()
 #endif
@@ -57,9 +60,6 @@ static int running_on_valgrind = -1;
 #endif
 #ifdef CONFIG_LINUX
 #include <sys/syscall.h>
-#endif
-#ifdef CONFIG_EVENTFD
-#include <sys/eventfd.h>
 #endif
 
 int qemu_get_thread_id(void)
@@ -105,6 +105,8 @@ void *qemu_memalign(size_t alignment, size_t size)
     return ptr;
 }
 
+/* conflicts with qemu_vmalloc in bsd-user/mmap.c */
+#if !defined(CONFIG_BSD_USER)
 /* alloc shared memory pages */
 void *qemu_vmalloc(size_t size)
 {
@@ -127,6 +129,7 @@ void *qemu_vmalloc(size_t size)
     trace_qemu_vmalloc(size, ptr);
     return ptr;
 }
+#endif
 
 void qemu_vfree(void *ptr)
 {
@@ -175,34 +178,6 @@ int qemu_pipe(int pipefd[2])
     }
 
     return ret;
-}
-
-/*
- * Creates an eventfd that looks like a pipe and has EFD_CLOEXEC set.
- */
-int qemu_eventfd(int fds[2])
-{
-#ifdef CONFIG_EVENTFD
-    int ret;
-
-    ret = eventfd(0, 0);
-    if (ret >= 0) {
-        fds[0] = ret;
-        fds[1] = dup(ret);
-        if (fds[1] == -1) {
-            close(ret);
-            return -1;
-        }
-        qemu_set_cloexec(ret);
-        qemu_set_cloexec(fds[1]);
-        return 0;
-    }
-    if (errno != ENOSYS) {
-        return -1;
-    }
-#endif
-
-    return qemu_pipe(fds);
 }
 
 int qemu_utimens(const char *path, const struct timespec *times)

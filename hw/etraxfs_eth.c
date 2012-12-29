@@ -374,7 +374,7 @@ static void eth_validate_duplex(struct fs_eth *eth)
 }
 
 static uint64_t
-eth_read(void *opaque, target_phys_addr_t addr, unsigned int size)
+eth_read(void *opaque, hwaddr addr, unsigned int size)
 {
 	struct fs_eth *eth = opaque;
 	uint32_t r = 0;
@@ -418,7 +418,7 @@ static void eth_update_ma(struct fs_eth *eth, int ma)
 }
 
 static void
-eth_write(void *opaque, target_phys_addr_t addr,
+eth_write(void *opaque, hwaddr addr,
           uint64_t val64, unsigned int size)
 {
 	struct fs_eth *eth = opaque;
@@ -507,12 +507,12 @@ static int eth_match_groupaddr(struct fs_eth *eth, const unsigned char *sa)
 	return match;
 }
 
-static int eth_can_receive(VLANClientState *nc)
+static int eth_can_receive(NetClientState *nc)
 {
 	return 1;
 }
 
-static ssize_t eth_receive(VLANClientState *nc, const uint8_t *buf, size_t size)
+static ssize_t eth_receive(NetClientState *nc, const uint8_t *buf, size_t size)
 {
 	unsigned char sa_bcast[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 	struct fs_eth *eth = DO_UPCAST(NICState, nc, nc)->opaque;
@@ -549,7 +549,7 @@ static int eth_tx_push(void *opaque, unsigned char *buf, int len, bool eop)
 	return len;
 }
 
-static void eth_set_link(VLANClientState *nc)
+static void eth_set_link(NetClientState *nc)
 {
 	struct fs_eth *eth = DO_UPCAST(NICState, nc, nc)->opaque;
 	D(printf("%s %d\n", __func__, nc->link_down));
@@ -566,7 +566,7 @@ static const MemoryRegionOps eth_ops = {
 	}
 };
 
-static void eth_cleanup(VLANClientState *nc)
+static void eth_cleanup(NetClientState *nc)
 {
 	struct fs_eth *eth = DO_UPCAST(NICState, nc, nc)->opaque;
 
@@ -579,7 +579,7 @@ static void eth_cleanup(VLANClientState *nc)
 }
 
 static NetClientInfo net_etraxfs_info = {
-	.type = NET_CLIENT_TYPE_NIC,
+	.type = NET_CLIENT_OPTIONS_KIND_NIC,
 	.size = sizeof(NICState),
 	.can_receive = eth_can_receive,
 	.receive = eth_receive,

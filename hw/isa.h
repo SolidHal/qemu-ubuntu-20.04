@@ -9,8 +9,6 @@
 
 #define ISA_NUM_IRQS 16
 
-typedef struct ISADevice ISADevice;
-
 #define TYPE_ISA_DEVICE "isa-device"
 #define ISA_DEVICE(obj) \
      OBJECT_CHECK(ISADevice, (obj), TYPE_ISA_DEVICE)
@@ -18,6 +16,9 @@ typedef struct ISADevice ISADevice;
      OBJECT_CLASS_CHECK(ISADeviceClass, (klass), TYPE_ISA_DEVICE)
 #define ISA_DEVICE_GET_CLASS(obj) \
      OBJECT_GET_CLASS(ISADeviceClass, (obj), TYPE_ISA_DEVICE)
+
+#define TYPE_ISA_BUS "ISA"
+#define ISA_BUS(obj) OBJECT_CHECK(ISABus, (obj), TYPE_ISA_BUS)
 
 typedef struct ISADeviceClass {
     DeviceClass parent_class;
@@ -45,6 +46,8 @@ MemoryRegion *isa_address_space(ISADevice *dev);
 ISADevice *isa_create(ISABus *bus, const char *name);
 ISADevice *isa_try_create(ISABus *bus, const char *name);
 ISADevice *isa_create_simple(ISABus *bus, const char *name);
+
+ISADevice *isa_vga_init(ISABus *bus);
 
 /**
  * isa_register_ioport: Install an I/O port region on the ISA bus.
@@ -81,10 +84,10 @@ static inline ISABus *isa_bus_from_device(ISADevice *d)
     return DO_UPCAST(ISABus, qbus, d->qdev.parent_bus);
 }
 
-extern target_phys_addr_t isa_mem_base;
+extern hwaddr isa_mem_base;
 
-void isa_mmio_setup(MemoryRegion *mr, target_phys_addr_t size);
-void isa_mmio_init(target_phys_addr_t base, target_phys_addr_t size);
+void isa_mmio_setup(MemoryRegion *mr, hwaddr size);
+void isa_mmio_init(hwaddr base, hwaddr size);
 
 /* dma.c */
 int DMA_get_channel_mode (int nchan);

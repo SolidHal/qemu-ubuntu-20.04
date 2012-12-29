@@ -31,9 +31,11 @@
 #include "elf.h"
 #include "memory.h"
 #include "exec-memory.h"
-#include "pc.h"
+#include "serial.h"
+#include "net.h"
 #include "sysbus.h"
 #include "flash.h"
+#include "blockdev.h"
 #include "xtensa_bootparam.h"
 
 typedef struct LxBoardDesc {
@@ -56,7 +58,7 @@ static void lx60_fpga_reset(void *opaque)
     s->switches = 0;
 }
 
-static uint64_t lx60_fpga_read(void *opaque, target_phys_addr_t addr,
+static uint64_t lx60_fpga_read(void *opaque, hwaddr addr,
         unsigned size)
 {
     Lx60FpgaState *s = opaque;
@@ -77,7 +79,7 @@ static uint64_t lx60_fpga_read(void *opaque, target_phys_addr_t addr,
     return 0;
 }
 
-static void lx60_fpga_write(void *opaque, target_phys_addr_t addr,
+static void lx60_fpga_write(void *opaque, hwaddr addr,
         uint64_t val, unsigned size)
 {
     Lx60FpgaState *s = opaque;
@@ -102,7 +104,7 @@ static const MemoryRegionOps lx60_fpga_ops = {
 };
 
 static Lx60FpgaState *lx60_fpga_init(MemoryRegion *address_space,
-        target_phys_addr_t base)
+        hwaddr base)
 {
     Lx60FpgaState *s = g_malloc(sizeof(Lx60FpgaState));
 
@@ -115,9 +117,9 @@ static Lx60FpgaState *lx60_fpga_init(MemoryRegion *address_space,
 }
 
 static void lx60_net_init(MemoryRegion *address_space,
-        target_phys_addr_t base,
-        target_phys_addr_t descriptors,
-        target_phys_addr_t buffers,
+        hwaddr base,
+        hwaddr descriptors,
+        hwaddr buffers,
         qemu_irq irq, NICInfo *nd)
 {
     DeviceState *dev;
@@ -148,15 +150,12 @@ static uint64_t translate_phys_addr(void *env, uint64_t addr)
 
 static void lx60_reset(void *opaque)
 {
-    CPUXtensaState *env = opaque;
+    XtensaCPU *cpu = opaque;
 
-    cpu_state_reset(env);
+    cpu_reset(CPU(cpu));
 }
 
-static void lx_init(const LxBoardDesc *board,
-        ram_addr_t ram_size, const char *boot_device,
-        const char *kernel_filename, const char *kernel_cmdline,
-        const char *initrd_filename, const char *cpu_model)
+static void lx_init(const LxBoardDesc *board, QEMUMachineInitArgs *args)
 {
 #ifdef TARGET_WORDS_BIGENDIAN
     int be = 1;
@@ -164,32 +163,38 @@ static void lx_init(const LxBoardDesc *board,
     int be = 0;
 #endif
     MemoryRegion *system_memory = get_system_memory();
+    XtensaCPU *cpu = NULL;
     CPUXtensaState *env = NULL;
     MemoryRegion *ram, *rom, *system_io;
     DriveInfo *dinfo;
     pflash_t *flash = NULL;
+    const char *cpu_model = args->cpu_model;
+    const char *kernel_filename = args->kernel_filename;
+    const char *kernel_cmdline = args->kernel_cmdline;
     int n;
 
     if (!cpu_model) {
-        cpu_model = "dc232b";
+        cpu_model = XTENSA_DEFAULT_CPU_MODEL;
     }
 
     for (n = 0; n < smp_cpus; n++) {
-        env = cpu_init(cpu_model);
-        if (!env) {
+        cpu = cpu_xtensa_init(cpu_model);
+        if (cpu == NULL) {
             fprintf(stderr, "Unable to find CPU definition\n");
             exit(1);
         }
+        env = &cpu->env;
+
         env->sregs[PRID] = n;
-        qemu_register_reset(lx60_reset, env);
+        qemu_register_reset(lx60_reset, cpu);
         /* Need MMU initialized prior to ELF loading,
          * so that ELF gets loaded into virtual addresses
          */
-        cpu_state_reset(env);
+        cpu_reset(CPU(cpu));
     }
 
     ram = g_malloc(sizeof(*ram));
-    memory_region_init_ram(ram, "lx60.dram", ram_size);
+    memory_region_init_ram(ram, "lx60.dram", args->ram_size);
     vmstate_register_ram_global(ram);
     memory_region_add_subregion(system_memory, 0, ram);
 
@@ -197,7 +202,7 @@ static void lx_init(const LxBoardDesc *board,
     memory_region_init(system_io, "lx60.io", 224 * 1024 * 1024);
     memory_region_add_subregion(system_memory, 0xf0000000, system_io);
     lx60_fpga_init(system_io, 0x0d020000);
-    if (nd_table[0].vlan) {
+    if (nd_table[0].used) {
         lx60_net_init(system_io, 0x0d030000, 0x0d030400, 0x0d800000,
                 xtensa_get_extint(env, 1), nd_table);
     }
@@ -264,46 +269,36 @@ static void lx_init(const LxBoardDesc *board,
     }
 }
 
-static void xtensa_lx60_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void xtensa_lx60_init(QEMUMachineInitArgs *args)
 {
     static const LxBoardDesc lx60_board = {
         .flash_size = 0x400000,
         .flash_sector_size = 0x10000,
         .sram_size = 0x20000,
     };
-    lx_init(&lx60_board, ram_size, boot_device,
-            kernel_filename, kernel_cmdline,
-            initrd_filename, cpu_model);
+    lx_init(&lx60_board, args);
 }
 
-static void xtensa_lx200_init(ram_addr_t ram_size,
-                     const char *boot_device,
-                     const char *kernel_filename, const char *kernel_cmdline,
-                     const char *initrd_filename, const char *cpu_model)
+static void xtensa_lx200_init(QEMUMachineInitArgs *args)
 {
     static const LxBoardDesc lx200_board = {
         .flash_size = 0x1000000,
         .flash_sector_size = 0x20000,
         .sram_size = 0x2000000,
     };
-    lx_init(&lx200_board, ram_size, boot_device,
-            kernel_filename, kernel_cmdline,
-            initrd_filename, cpu_model);
+    lx_init(&lx200_board, args);
 }
 
 static QEMUMachine xtensa_lx60_machine = {
     .name = "lx60",
-    .desc = "lx60 EVB (dc232b)",
+    .desc = "lx60 EVB (" XTENSA_DEFAULT_CPU_MODEL ")",
     .init = xtensa_lx60_init,
     .max_cpus = 4,
 };
 
 static QEMUMachine xtensa_lx200_machine = {
     .name = "lx200",
-    .desc = "lx200 EVB (dc232b)",
+    .desc = "lx200 EVB (" XTENSA_DEFAULT_CPU_MODEL ")",
     .init = xtensa_lx200_init,
     .max_cpus = 4,
 };

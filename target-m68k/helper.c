@@ -98,11 +98,6 @@ static int fpu_gdb_set_reg(CPUM68KState *env, uint8_t *mem_buf, int n)
     return 0;
 }
 
-void cpu_state_reset(CPUM68KState *env)
-{
-    cpu_reset(ENV_GET_CPU(env));
-}
-
 CPUM68KState *cpu_m68k_init(const char *cpu_model)
 {
     M68kCPU *cpu;
@@ -294,7 +289,7 @@ int cpu_m68k_handle_mmu_fault (CPUM68KState *env, target_ulong address, int rw,
 /* MMU */
 
 /* TODO: This will need fixing once the MMU is implemented.  */
-target_phys_addr_t cpu_get_phys_page_debug(CPUM68KState *env, target_ulong addr)
+hwaddr cpu_get_phys_page_debug(CPUM68KState *env, target_ulong addr)
 {
     return addr;
 }

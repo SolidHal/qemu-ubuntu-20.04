@@ -19,6 +19,7 @@
 import os
 import re
 import subprocess
+import string
 import unittest
 import sys; sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'QMP'))
 import qmp
@@ -41,6 +42,10 @@ def qemu_img(*args):
     devnull = open('/dev/null', 'r+')
     return subprocess.call(qemu_img_args + list(args), stdin=devnull, stdout=devnull)
 
+def qemu_img_verbose(*args):
+    '''Run qemu-img without supressing its output and return the exit code'''
+    return subprocess.call(qemu_img_args + list(args))
+
 def qemu_io(*args):
     '''Run qemu-io and return the stdout data'''
     args = qemu_io_args + list(args)
@@ -54,7 +59,9 @@ class VM(object):
         self._qemu_log_path = os.path.join(test_dir, 'qemu-log.%d' % os.getpid())
         self._args = qemu_args + ['-chardev',
                      'socket,id=mon,path=' + self._monitor_path,
-                     '-mon', 'chardev=mon,mode=control', '-nographic']
+                     '-mon', 'chardev=mon,mode=control',
+                     '-qtest', 'stdio', '-machine', 'accel=qtest',
+                     '-display', 'none', '-vga', 'none']
         self._num_drives = 0
 
     def add_drive(self, path, opts=''):
@@ -94,9 +101,18 @@ class VM(object):
             os.remove(self._qemu_log_path)
             self._popen = None
 
+    underscore_to_dash = string.maketrans('_', '-')
     def qmp(self, cmd, **args):
         '''Invoke a QMP command and return the result dict'''
-        return self._qmp.cmd(cmd, args=args)
+        qmp_args = dict()
+        for k in args.keys():
+            qmp_args[k.translate(self.underscore_to_dash)] = args[k]
+
+        return self._qmp.cmd(cmd, args=qmp_args)
+
+    def get_qmp_event(self, wait=False):
+        '''Poll for one queued QMP events and return it'''
+        return self._qmp.pull_event(wait=wait)
 
     def get_qmp_events(self, wait=False):
         '''Poll for queued QMP events and return a list of dicts'''
@@ -129,6 +145,13 @@ class QMPTestCase(unittest.TestCase):
                 except IndexError:
                     self.fail('invalid index "%s" in path "%s" in "%s"' % (idx, path, str(d)))
         return d
+
+    def assert_qmp_absent(self, d, path):
+        try:
+            result = self.dictpath(d, path)
+        except AssertionError:
+            return
+        self.fail('path "%s" has value "%s"' % (path, str(result)))
 
     def assert_qmp(self, d, path, value):
         '''Assert that the value for a specific path in a QMP dict matches'''
@@ -163,4 +186,4 @@ def main(supported_fmts=[]):
     try:
         unittest.main(testRunner=MyTestRunner)
     finally:
-        sys.stderr.write(re.sub(r'Ran (\d+) test[s] in [\d.]+s', r'Ran \1 tests', output.getvalue()))
+        sys.stderr.write(re.sub(r'Ran (\d+) tests? in [\d.]+s', r'Ran \1 tests', output.getvalue()))

@@ -140,8 +140,8 @@ static size_t curl_read_cb(void *ptr, size_t size, size_t nmemb, void *opaque)
             continue;
 
         if ((s->buf_off >= acb->end)) {
-            qemu_iovec_from_buffer(acb->qiov, s->orig_buf + acb->start,
-                                   acb->end - acb->start);
+            qemu_iovec_from_buf(acb->qiov, 0, s->orig_buf + acb->start,
+                                acb->end - acb->start);
             acb->common.cb(acb->common.opaque, 0);
             qemu_aio_release(acb);
             s->acb[i] = NULL;
@@ -176,7 +176,7 @@ static int curl_find_buf(BDRVCURLState *s, size_t start, size_t len,
         {
             char *buf = state->orig_buf + (start - state->buf_start);
 
-            qemu_iovec_from_buffer(acb->qiov, buf, len);
+            qemu_iovec_from_buf(acb->qiov, 0, buf, len);
             acb->common.cb(acb->common.opaque, 0);
 
             return FIND_RET_OK;
@@ -438,7 +438,7 @@ static void curl_aio_cancel(BlockDriverAIOCB *blockacb)
     // Do we have to implement canceling? Seems to work without...
 }
 
-static AIOPool curl_aio_pool = {
+static const AIOCBInfo curl_aiocb_info = {
     .aiocb_size         = sizeof(CURLAIOCB),
     .cancel             = curl_aio_cancel,
 };
@@ -505,7 +505,7 @@ static BlockDriverAIOCB *curl_aio_readv(BlockDriverState *bs,
 {
     CURLAIOCB *acb;
 
-    acb = qemu_aio_get(&curl_aio_pool, bs, cb, opaque);
+    acb = qemu_aio_get(&curl_aiocb_info, bs, cb, opaque);
 
     acb->qiov = qiov;
     acb->sector_num = sector_num;
@@ -542,8 +542,7 @@ static void curl_close(BlockDriverState *bs)
     }
     if (s->multi)
         curl_multi_cleanup(s->multi);
-    if (s->url)
-        free(s->url);
+    g_free(s->url);
 }
 
 static int64_t curl_getlength(BlockDriverState *bs)

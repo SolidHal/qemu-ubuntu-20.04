@@ -31,9 +31,7 @@ typedef struct TypeImpl TypeImpl;
 
 struct InterfaceImpl
 {
-    const char *parent;
-    void (*interface_initfn)(ObjectClass *class, void *data);
-    TypeImpl *type;
+    const char *typename;
 };
 
 struct TypeImpl
@@ -45,6 +43,7 @@ struct TypeImpl
     size_t instance_size;
 
     void (*class_init)(ObjectClass *klass, void *data);
+    void (*class_base_init)(ObjectClass *klass, void *data);
     void (*class_finalize)(ObjectClass *klass, void *data);
 
     void *class_data;
@@ -62,14 +61,6 @@ struct TypeImpl
     int num_interfaces;
     InterfaceImpl interfaces[MAX_INTERFACES];
 };
-
-typedef struct Interface
-{
-    Object parent;
-    Object *obj;
-} Interface;
-
-#define INTERFACE(obj) OBJECT_CHECK(Interface, obj, TYPE_INTERFACE)
 
 static Type type_interface;
 
@@ -94,9 +85,10 @@ static TypeImpl *type_table_lookup(const char *name)
     return g_hash_table_lookup(type_table_get(), name);
 }
 
-TypeImpl *type_register(const TypeInfo *info)
+static TypeImpl *type_register_internal(const TypeInfo *info)
 {
     TypeImpl *ti = g_malloc0(sizeof(*ti));
+    int i;
 
     g_assert(info->name != NULL);
 
@@ -112,6 +104,7 @@ TypeImpl *type_register(const TypeInfo *info)
     ti->instance_size = info->instance_size;
 
     ti->class_init = info->class_init;
+    ti->class_base_init = info->class_base_init;
     ti->class_finalize = info->class_finalize;
     ti->class_data = info->class_data;
 
@@ -120,19 +113,20 @@ TypeImpl *type_register(const TypeInfo *info)
 
     ti->abstract = info->abstract;
 
-    if (info->interfaces) {
-        int i;
-
-        for (i = 0; info->interfaces[i].type; i++) {
-            ti->interfaces[i].parent = info->interfaces[i].type;
-            ti->interfaces[i].interface_initfn = info->interfaces[i].interface_initfn;
-            ti->num_interfaces++;
-        }
+    for (i = 0; info->interfaces && info->interfaces[i].type; i++) {
+        ti->interfaces[i].typename = g_strdup(info->interfaces[i].type);
     }
+    ti->num_interfaces = i;
 
     type_table_add(ti);
 
     return ti;
+}
+
+TypeImpl *type_register(const TypeInfo *info)
+{
+    assert(info->parent);
+    return type_register_internal(info);
 }
 
 TypeImpl *type_register_static(const TypeInfo *info)
@@ -190,26 +184,48 @@ static size_t type_object_get_size(TypeImpl *ti)
     return 0;
 }
 
-static void type_class_interface_init(TypeImpl *ti, InterfaceImpl *iface)
+static bool type_is_ancestor(TypeImpl *type, TypeImpl *target_type)
 {
-    TypeInfo info = {
-        .instance_size = sizeof(Interface),
-        .parent = iface->parent,
-        .class_size = sizeof(InterfaceClass),
-        .class_init = iface->interface_initfn,
-        .abstract = true,
-    };
-    char *name = g_strdup_printf("<%s::%s>", ti->name, iface->parent);
+    assert(target_type);
 
-    info.name = name;
-    iface->type = type_register(&info);
-    g_free(name);
+    /* Check if typename is a direct ancestor of type */
+    while (type) {
+        if (type == target_type) {
+            return true;
+        }
+
+        type = type_get_parent(type);
+    }
+
+    return false;
+}
+
+static void type_initialize(TypeImpl *ti);
+
+static void type_initialize_interface(TypeImpl *ti, const char *parent)
+{
+    InterfaceClass *new_iface;
+    TypeInfo info = { };
+    TypeImpl *iface_impl;
+
+    info.parent = parent;
+    info.name = g_strdup_printf("%s::%s", ti->name, info.parent);
+    info.abstract = true;
+
+    iface_impl = type_register(&info);
+    type_initialize(iface_impl);
+    g_free((char *)info.name);
+
+    new_iface = (InterfaceClass *)iface_impl->class;
+    new_iface->concrete_class = ti->class;
+
+    ti->class->interfaces = g_slist_append(ti->class->interfaces,
+                                           iface_impl->class);
 }
 
 static void type_initialize(TypeImpl *ti)
 {
-    size_t class_size = sizeof(ObjectClass);
-    int i;
+    TypeImpl *parent;
 
     if (ti->class) {
         return;
@@ -219,53 +235,59 @@ static void type_initialize(TypeImpl *ti)
     ti->instance_size = type_object_get_size(ti);
 
     ti->class = g_malloc0(ti->class_size);
-    ti->class->type = ti;
 
-    if (type_has_parent(ti)) {
-        TypeImpl *parent = type_get_parent(ti);
-
+    parent = type_get_parent(ti);
+    if (parent) {
         type_initialize(parent);
+        GSList *e;
+        int i;
 
-        class_size = parent->class_size;
         g_assert(parent->class_size <= ti->class_size);
+        memcpy(ti->class, parent->class, parent->class_size);
 
-        memcpy((void *)ti->class + sizeof(ObjectClass),
-               (void *)parent->class + sizeof(ObjectClass),
-               parent->class_size - sizeof(ObjectClass));
+        for (e = parent->class->interfaces; e; e = e->next) {
+            ObjectClass *iface = e->data;
+            type_initialize_interface(ti, object_class_get_name(iface));
+        }
+
+        for (i = 0; i < ti->num_interfaces; i++) {
+            TypeImpl *t = type_get_by_name(ti->interfaces[i].typename);
+            for (e = ti->class->interfaces; e; e = e->next) {
+                TypeImpl *target_type = OBJECT_CLASS(e->data)->type;
+
+                if (type_is_ancestor(target_type, t)) {
+                    break;
+                }
+            }
+
+            if (e) {
+                continue;
+            }
+
+            type_initialize_interface(ti, ti->interfaces[i].typename);
+        }
     }
 
-    memset((void *)ti->class + class_size, 0, ti->class_size - class_size);
+    ti->class->type = ti;
 
-    for (i = 0; i < ti->num_interfaces; i++) {
-        type_class_interface_init(ti, &ti->interfaces[i]);
+    while (parent) {
+        if (parent->class_base_init) {
+            parent->class_base_init(ti->class, ti->class_data);
+        }
+        parent = type_get_parent(parent);
     }
 
     if (ti->class_init) {
         ti->class_init(ti->class, ti->class_data);
     }
-}
 
-static void object_interface_init(Object *obj, InterfaceImpl *iface)
-{
-    TypeImpl *ti = iface->type;
-    Interface *iface_obj;
 
-    iface_obj = INTERFACE(object_new(ti->name));
-    iface_obj->obj = obj;
-
-    obj->interfaces = g_slist_prepend(obj->interfaces, iface_obj);
 }
 
 static void object_init_with_type(Object *obj, TypeImpl *ti)
 {
-    int i;
-
     if (type_has_parent(ti)) {
         object_init_with_type(obj, type_get_parent(ti));
-    }
-
-    for (i = 0; i < ti->num_interfaces; i++) {
-        object_interface_init(obj, &ti->interfaces[i]);
     }
 
     if (ti->instance_init) {
@@ -285,6 +307,7 @@ void object_initialize_with_type(void *data, TypeImpl *type)
 
     memset(obj, 0, type->instance_size);
     obj->class = type->class;
+    object_ref(obj);
     QTAILQ_INIT(&obj->properties);
     object_init_with_type(obj, type);
 }
@@ -294,6 +317,16 @@ void object_initialize(void *data, const char *typename)
     TypeImpl *type = type_get_by_name(typename);
 
     object_initialize_with_type(data, type);
+}
+
+static inline bool object_property_is_child(ObjectProperty *prop)
+{
+    return strstart(prop->type, "child<", NULL);
+}
+
+static inline bool object_property_is_link(ObjectProperty *prop)
+{
+    return strstart(prop->type, "link<", NULL);
 }
 
 static void object_property_del_all(Object *obj)
@@ -318,7 +351,7 @@ static void object_property_del_child(Object *obj, Object *child, Error **errp)
     ObjectProperty *prop;
 
     QTAILQ_FOREACH(prop, &obj->properties, node) {
-        if (strstart(prop->type, "child<", NULL) && prop->opaque == child) {
+        if (object_property_is_child(prop) && prop->opaque == child) {
             object_property_del(obj, prop->name, errp);
             break;
         }
@@ -330,6 +363,9 @@ void object_unparent(Object *obj)
     if (obj->parent) {
         object_property_del_child(obj->parent, obj, NULL);
     }
+    if (obj->class->unparent) {
+        (obj->class->unparent)(obj);
+    }
 }
 
 static void object_deinit(Object *obj, TypeImpl *type)
@@ -338,18 +374,12 @@ static void object_deinit(Object *obj, TypeImpl *type)
         type->instance_finalize(obj);
     }
 
-    while (obj->interfaces) {
-        Interface *iface_obj = obj->interfaces->data;
-        obj->interfaces = g_slist_delete_link(obj->interfaces, obj->interfaces);
-        object_delete(OBJECT(iface_obj));
-    }
-
     if (type_has_parent(type)) {
         object_deinit(obj, type_get_parent(type));
     }
 }
 
-void object_finalize(void *data)
+static void object_finalize(void *data)
 {
     Object *obj = data;
     TypeImpl *ti = obj->class->type;
@@ -358,6 +388,9 @@ void object_finalize(void *data)
     object_property_del_all(obj);
 
     g_assert(obj->ref == 0);
+    if (obj->free) {
+        obj->free(obj);
+    }
 }
 
 Object *object_new_with_type(Type type)
@@ -369,7 +402,7 @@ Object *object_new_with_type(Type type)
 
     obj = g_malloc(type->instance_size);
     object_initialize_with_type(obj, type);
-    object_ref(obj);
+    obj->free = g_free;
 
     return obj;
 }
@@ -386,89 +419,16 @@ void object_delete(Object *obj)
     object_unparent(obj);
     g_assert(obj->ref == 1);
     object_unref(obj);
-    g_free(obj);
-}
-
-static bool type_is_ancestor(TypeImpl *type, TypeImpl *target_type)
-{
-    assert(target_type);
-
-    /* Check if typename is a direct ancestor of type */
-    while (type) {
-        if (type == target_type) {
-            return true;
-        }
-
-        type = type_get_parent(type);
-    }
-
-    return false;
-}
-
-static bool object_is_type(Object *obj, TypeImpl *target_type)
-{
-    return !target_type || type_is_ancestor(obj->class->type, target_type);
 }
 
 Object *object_dynamic_cast(Object *obj, const char *typename)
 {
-    TypeImpl *target_type = type_get_by_name(typename);
-    GSList *i;
-
-    /* Check if typename is a direct ancestor.  Special-case TYPE_OBJECT,
-     * we want to go back from interfaces to the parent.
-    */
-    if (target_type && object_is_type(obj, target_type)) {
+    if (obj && object_class_dynamic_cast(object_get_class(obj), typename)) {
         return obj;
-    }
-
-    /* Check if obj is an interface and its containing object is a direct
-     * ancestor of typename.  In principle we could do this test at the very
-     * beginning of object_dynamic_cast, avoiding a second call to
-     * object_is_type.  However, casting between interfaces is relatively
-     * rare, and object_is_type(obj, type_interface) would fail almost always.
-     *
-     * Perhaps we could add a magic value to the object header for increased
-     * (run-time) type safety and to speed up tests like this one.  If we ever
-     * do that we can revisit the order here.
-     */
-    if (object_is_type(obj, type_interface)) {
-        assert(!obj->interfaces);
-        obj = INTERFACE(obj)->obj;
-        if (object_is_type(obj, target_type)) {
-            return obj;
-        }
-    }
-
-    if (!target_type) {
-        return obj;
-    }
-
-    /* Check if obj has an interface of typename */
-    for (i = obj->interfaces; i; i = i->next) {
-        Interface *iface = i->data;
-
-        if (object_is_type(OBJECT(iface), target_type)) {
-            return OBJECT(iface);
-        }
     }
 
     return NULL;
 }
-
-
-static void register_types(void)
-{
-    static TypeInfo interface_info = {
-        .name = TYPE_INTERFACE,
-        .instance_size = sizeof(Interface),
-        .abstract = true,
-    };
-
-    type_interface = type_register_static(&interface_info);
-}
-
-type_init(register_types)
 
 Object *object_dynamic_cast_assert(Object *obj, const char *typename)
 {
@@ -476,7 +436,7 @@ Object *object_dynamic_cast_assert(Object *obj, const char *typename)
 
     inst = object_dynamic_cast(obj, typename);
 
-    if (!inst) {
+    if (!inst && obj) {
         fprintf(stderr, "Object %p is not an instance of type %s\n",
                 obj, typename);
         abort();
@@ -490,16 +450,30 @@ ObjectClass *object_class_dynamic_cast(ObjectClass *class,
 {
     TypeImpl *target_type = type_get_by_name(typename);
     TypeImpl *type = class->type;
+    ObjectClass *ret = NULL;
 
-    while (type) {
-        if (type == target_type) {
-            return class;
+    if (type->num_interfaces && type_is_ancestor(target_type, type_interface)) {
+        int found = 0;
+        GSList *i;
+
+        for (i = class->interfaces; i; i = i->next) {
+            ObjectClass *target_class = i->data;
+
+            if (type_is_ancestor(target_class->type, target_type)) {
+                ret = target_class;
+                found++;
+            }
+         }
+
+        /* The match was ambiguous, don't allow a cast */
+        if (found > 1) {
+            ret = NULL;
         }
-
-        type = type_get_parent(type);
+    } else if (type_is_ancestor(type, target_type)) {
+        ret = class;
     }
 
-    return NULL;
+    return ret;
 }
 
 ObjectClass *object_class_dynamic_cast_assert(ObjectClass *class,
@@ -534,6 +508,19 @@ const char *object_class_get_name(ObjectClass *klass)
 ObjectClass *object_class_by_name(const char *typename)
 {
     TypeImpl *type = type_get_by_name(typename);
+
+    if (!type) {
+        return NULL;
+    }
+
+    type_initialize(type);
+
+    return type->class;
+}
+
+ObjectClass *object_class_get_parent(ObjectClass *class)
+{
+    TypeImpl *type = type_get_parent(class->type);
 
     if (!type) {
         return NULL;
@@ -581,6 +568,23 @@ void object_class_foreach(void (*fn)(ObjectClass *klass, void *opaque),
     OCFData data = { fn, implements_type, include_abstract, opaque };
 
     g_hash_table_foreach(type_table_get(), object_class_foreach_tramp, &data);
+}
+
+int object_child_foreach(Object *obj, int (*fn)(Object *child, void *opaque),
+                         void *opaque)
+{
+    ObjectProperty *prop;
+    int ret = 0;
+
+    QTAILQ_FOREACH(prop, &obj->properties, node) {
+        if (object_property_is_child(prop)) {
+            ret = fn(prop->opaque, opaque);
+            if (ret != 0) {
+                break;
+            }
+        }
+    }
+    return ret;
 }
 
 static void object_class_get_list_tramp(ObjectClass *klass, void *opaque)
@@ -635,7 +639,8 @@ void object_property_add(Object *obj, const char *name, const char *type,
     QTAILQ_INSERT_TAIL(&obj->properties, prop, node);
 }
 
-static ObjectProperty *object_property_find(Object *obj, const char *name)
+ObjectProperty *object_property_find(Object *obj, const char *name,
+                                     Error **errp)
 {
     ObjectProperty *prop;
 
@@ -645,16 +650,22 @@ static ObjectProperty *object_property_find(Object *obj, const char *name)
         }
     }
 
+    error_set(errp, QERR_PROPERTY_NOT_FOUND, "", name);
     return NULL;
 }
 
 void object_property_del(Object *obj, const char *name, Error **errp)
 {
-    ObjectProperty *prop = object_property_find(obj, name);
+    ObjectProperty *prop = object_property_find(obj, name, errp);
+    if (prop == NULL) {
+        return;
+    }
+
+    if (prop->release) {
+        prop->release(obj, name, prop->opaque);
+    }
 
     QTAILQ_REMOVE(&obj->properties, prop, node);
-
-    prop->release(obj, prop->name, prop->opaque);
 
     g_free(prop->name);
     g_free(prop->type);
@@ -664,10 +675,8 @@ void object_property_del(Object *obj, const char *name, Error **errp)
 void object_property_get(Object *obj, Visitor *v, const char *name,
                          Error **errp)
 {
-    ObjectProperty *prop = object_property_find(obj, name);
-
+    ObjectProperty *prop = object_property_find(obj, name, errp);
     if (prop == NULL) {
-        error_set(errp, QERR_PROPERTY_NOT_FOUND, "", name);
         return;
     }
 
@@ -681,10 +690,8 @@ void object_property_get(Object *obj, Visitor *v, const char *name,
 void object_property_set(Object *obj, Visitor *v, const char *name,
                          Error **errp)
 {
-    ObjectProperty *prop = object_property_find(obj, name);
-
+    ObjectProperty *prop = object_property_find(obj, name, errp);
     if (prop == NULL) {
-        error_set(errp, QERR_PROPERTY_NOT_FOUND, "", name);
         return;
     }
 
@@ -837,10 +844,8 @@ char *object_property_print(Object *obj, const char *name,
 
 const char *object_property_get_type(Object *obj, const char *name, Error **errp)
 {
-    ObjectProperty *prop = object_property_find(obj, name);
-
+    ObjectProperty *prop = object_property_find(obj, name, errp);
     if (prop == NULL) {
-        error_set(errp, QERR_PROPERTY_NOT_FOUND, "", name);
         return NULL;
     }
 
@@ -881,12 +886,6 @@ void object_property_add_child(Object *obj, const char *name,
                                Object *child, Error **errp)
 {
     gchar *type;
-
-    /* Registering an interface object in the composition tree will mightily
-     * confuse object_get_canonical_path (which, on the other hand, knows how
-     * to get the canonical path of an interface object).
-     */
-    assert(!object_is_type(obj, type_interface));
 
     type = g_strdup_printf("child<%s>", object_get_typename(OBJECT(child)));
 
@@ -984,17 +983,13 @@ gchar *object_get_canonical_path(Object *obj)
     Object *root = object_get_root();
     char *newpath = NULL, *path = NULL;
 
-    if (object_is_type(obj, type_interface)) {
-        obj = INTERFACE(obj)->obj;
-    }
-
     while (obj != root) {
         ObjectProperty *prop = NULL;
 
         g_assert(obj->parent != NULL);
 
         QTAILQ_FOREACH(prop, &obj->parent->properties, node) {
-            if (!strstart(prop->type, "child<", NULL)) {
+            if (!object_property_is_child(prop)) {
                 continue;
             }
 
@@ -1023,14 +1018,14 @@ gchar *object_get_canonical_path(Object *obj)
 
 Object *object_resolve_path_component(Object *parent, gchar *part)
 {
-    ObjectProperty *prop = object_property_find(parent, part);
+    ObjectProperty *prop = object_property_find(parent, part, NULL);
     if (prop == NULL) {
         return NULL;
     }
 
-    if (strstart(prop->type, "link<", NULL)) {
+    if (object_property_is_link(prop)) {
         return *(Object **)prop->opaque;
-    } else if (strstart(prop->type, "child<", NULL)) {
+    } else if (object_property_is_child(prop)) {
         return prop->opaque;
     } else {
         return NULL;
@@ -1073,7 +1068,7 @@ static Object *object_resolve_partial_path(Object *parent,
     QTAILQ_FOREACH(prop, &parent->properties, node) {
         Object *found;
 
-        if (!strstart(prop->type, "child<", NULL)) {
+        if (!object_property_is_child(prop)) {
             continue;
         }
 
@@ -1193,3 +1188,90 @@ void object_property_add_str(Object *obj, const char *name,
                         property_release_str,
                         prop, errp);
 }
+
+typedef struct BoolProperty
+{
+    bool (*get)(Object *, Error **);
+    void (*set)(Object *, bool, Error **);
+} BoolProperty;
+
+static void property_get_bool(Object *obj, Visitor *v, void *opaque,
+                              const char *name, Error **errp)
+{
+    BoolProperty *prop = opaque;
+    bool value;
+
+    value = prop->get(obj, errp);
+    visit_type_bool(v, &value, name, errp);
+}
+
+static void property_set_bool(Object *obj, Visitor *v, void *opaque,
+                              const char *name, Error **errp)
+{
+    BoolProperty *prop = opaque;
+    bool value;
+    Error *local_err = NULL;
+
+    visit_type_bool(v, &value, name, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    prop->set(obj, value, errp);
+}
+
+static void property_release_bool(Object *obj, const char *name,
+                                  void *opaque)
+{
+    BoolProperty *prop = opaque;
+    g_free(prop);
+}
+
+void object_property_add_bool(Object *obj, const char *name,
+                              bool (*get)(Object *, Error **),
+                              void (*set)(Object *, bool, Error **),
+                              Error **errp)
+{
+    BoolProperty *prop = g_malloc0(sizeof(*prop));
+
+    prop->get = get;
+    prop->set = set;
+
+    object_property_add(obj, name, "bool",
+                        get ? property_get_bool : NULL,
+                        set ? property_set_bool : NULL,
+                        property_release_bool,
+                        prop, errp);
+}
+
+static char *qdev_get_type(Object *obj, Error **errp)
+{
+    return g_strdup(object_get_typename(obj));
+}
+
+static void object_instance_init(Object *obj)
+{
+    object_property_add_str(obj, "type", qdev_get_type, NULL, NULL);
+}
+
+static void register_types(void)
+{
+    static TypeInfo interface_info = {
+        .name = TYPE_INTERFACE,
+        .class_size = sizeof(InterfaceClass),
+        .abstract = true,
+    };
+
+    static TypeInfo object_info = {
+        .name = TYPE_OBJECT,
+        .instance_size = sizeof(Object),
+        .instance_init = object_instance_init,
+        .abstract = true,
+    };
+
+    type_interface = type_register_internal(&interface_info);
+    type_register_internal(&object_info);
+}
+
+type_init(register_types)
