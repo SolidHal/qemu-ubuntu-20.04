@@ -1,0 +1,67 @@
+#! /bin/sh
+#
+# List of optional features which should be enabled
+# during debian build of qemu package.
+# This is a shell code AND data file.  Run with two arguments,
+# OS (linux|kfreebsd|...) and Arch (i386|mips|...).
+
+sed -e '1,/^__DATA__/D' \
+ -e 's/#.*//' -e '/^[^a-z]/D' $0 |
+while read opt cond; do
+  [ -n "$opt" ] || continue
+  x=
+  [ -z "$cond" ] && x=y
+  [ -n "$x" ] || eval "case \"$1\" in $cond) x=y;; esac"
+  [ -n "$x" ] || eval "case \"$2\" in $cond) x=y;; esac"
+  [ -z "$x" ] || echo --$opt
+done
+
+exit
+
+__DATA__
+# Format of the data portion is a feature (configure option),
+# followed with a shell-style "case" wildcard for os, arch or os:arch
+# (linux:i386, kfreebsd:amd64 etc).
+# Empty lines and everything after "#" char are ignored.
+
+# audio drivers
+audio-drv-list=alsa,oss,sdl,pa	linux
+audio-drv-list=oss,sdl,pa	kfreebsd
+
+# virtfs needs libcap and libcap-ng, linux-only
+enable-virtfs	linux
+enable-cap-ng	linux	# is virtfs enough?
+enable-attr	# linux-specific?
+
+# SDL is always enabled
+enable-sdl
+# vnc and related options are always enabled
+enable-vnc
+enable-vnc-tls
+enable-vnc-sasl
+enable-vnc-jpeg
+enable-vnc-png
+
+enable-curses
+enable-curl
+enable-fdt
+enable-bluez		# linux-specific?
+enable-uuid
+enable-vde		# linux-specific?
+enable-libiscsi
+
+enable-linux-aio	linux
+
+# kvm is linux-specific
+enable-kvm	linux
+enable-vhost-net linux	# is vhost-net linux-specific
+#enable-xen	amd64|i386	XXX todo! does not work for some reason
+
+# should we enable spice on more arches?
+#enable-spice	amd64		XXX todo! does not work with old spice
+#enable-rbd	# rbd isn't enabled yet
+#enable-smartcard
+#enable-smartcard-nss
+#enable-usb-redir	# XXX needs libusbredirparser-dev >= 0.5
+#enable-seccomp		# XXX todo
+#enable-glusterfs	# XXX todo

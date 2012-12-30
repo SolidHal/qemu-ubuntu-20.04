@@ -3,7 +3,7 @@
 # $Id: rules 391 2009-03-07 05:21:19Z aurel32 $
 #
 
-# support parallel build using DEB_BUULD_OPTIONS=parallel=N
+# support parallel build using DEB_BUILD_OPTIONS=parallel=N
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
   MAKEFLAGS += -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
@@ -25,17 +25,11 @@ common_configure_opts = \
 	--extra-ldflags="$(LDFLAGS)" \
 	--prefix=/usr \
 	--sysconfdir=/etc \
+	--libexecdir=/usr/lib \
 	--disable-blobs \
 	--disable-strip \
 	--with-system-pixman \
-
-ifeq ($(DEB_HOST_ARCH_OS),linux)
-       conf_audio_drv = --audio-drv-list=alsa,oss,sdl,pa
-else ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
-       conf_audio_drv = --audio-drv-list=oss,sdl,pa
-else
-       conf_audio_drv = 
-endif
+	--interp-prefix=/etc/qemu-binfmt/%M \
 
 # list of system (softmmu) targets, from ./configure
 system_targets = \
@@ -48,7 +42,7 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 # list of linux-user targets, from ./configure
 user_targets = \
  i386 x86_64 alpha arm armeb cris m68k microblaze microblazeel \
- mips mipsel ppc ppc64 ppc64abi32 sh4 sh4eb sparc sparc64 sparc32plus \
+ mips mipsel or32 ppc ppc64 ppc64abi32 sh4 sh4eb sparc sparc64 sparc32plus \
  unicore32 s390x
 
 # binfmt linux-user support
@@ -71,40 +65,40 @@ filter_binfmts = $(shell \
 
 binfmt_targets = $(filter-out $(filter_binfmts), $(all_binfmt_targets))
 
-user_configure_opts = \
-	--target-list="$(addsuffix -linux-user,${user_targets})" \
-	--interp-prefix=/etc/qemu-binfmt/%M \
-	--disable-system
+enable_linux_user = --enable-linux-user
 
-endif	# binfmt
+else
+
+enable_linux_user =
+
+endif	# linux
 
 configure-stamp: configure
 	dh_testdir
 
 	# system build
-	mkdir -p system-build && cd system-build && \
+	mkdir -p qemu-build && cd qemu-build && \
 		../configure ${common_configure_opts} \
-			--disable-linux-user \
-			--disable-bsd-user \
-			${conf_audio_drv}
+			--enable-system --disable-user ${enable_linux_user} \
+			$(shell sh debian/configure-opts $(DEB_HOST_ARCH) $(DEB_HOST_ARCH_OS))
+			$(QEMU_CONFIGURE_OPTIONS)
 
 ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
-# Hack alert.  XXX need to verify if it is still the case.
+# Hack alert.  qemu-1.3 still needs this.
 # On recent kFreebsd, old USB host API has been removed,
 # but qemu did not learn to use new USB API.
 # Just do not build USB host support.
 	sed -i 's/^HOST_USB=bsd/HOST_USB=stub/' \
-		$(CURDIR)/system-build/config-host.mak
+		$(CURDIR)/qemu-build/config-host.mak
 endif
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-	# user build
-	mkdir -p user-build && cd user-build && \
-		../configure ${common_configure_opts} ${user_configure_opts}
-	# static user build
+# do not use debian/configure-opts here, all optional stuff will be enabled
+# automatically, dependencies are already verified in the main build
 	mkdir -p user-static-build && cd user-static-build && \
-		../configure ${common_configure_opts} ${user_configure_opts} \
-			--static
+		../configure ${common_configure_opts} \
+			--static --disable-system \
+			--target-list="$(addsuffix -linux-user,${user_targets})"
 endif
 	touch $@
 
@@ -115,13 +109,28 @@ build-stamp: configure-stamp
 	dh_testdir
 
 	# system build
-	$(MAKE) -C $(CURDIR)/system-build
-	dtc -o system-build/pc-bios/bamboo.dtb pc-bios/bamboo.dts
+	$(MAKE) -C $(CURDIR)/qemu-build
+	dtc -o qemu-build/pc-bios/bamboo.dtb pc-bios/bamboo.dts
+
+# special case for spapr-rtas.bin file.
+# this is an entry point for PPC architecture, which consists of just 5
+# processor instructions.  We use a pre-compiled pseudo-assembler version
+# in debian/spapr-rtas.hex which can be "compiled" using sed magic.
+# After "compiling" it this way, we compare with the upstream version,
+# it should be the same.
+# Use /usr/bin/printf since dash's printf does not understand \xNN.
+	/usr/bin/printf "$$(sed -n 's|^ .*:	\(.*\)	.*|\1|p' debian/spapr-rtas.hex | \
+		tr -d ' \n' | sed 's|\([0-9a-f]\{2\}\)|\\x\1|g')" > \
+		qemu-build/pc-bios/spapr-rtas.bin
+ifeq ($(DEB_HOST_ARCH),powerpc)
+	make -C qemu-build/pc-bios/spapr-rtas spapr-rtas.bin
+	cmp qemu-build/pc-bios/spapr-rtas.bin \
+	    qemu-build/pc-bios/spapr-rtas/spapr-rtas.bin
+endif
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-	# user and user-static build
+	# user-static build
 	# we use this invocation to build just the binaries
-	$(MAKE) -C $(CURDIR)/user-build $(foreach t,${user_targets},subdir-${t}-linux-user)
 	$(MAKE) -C $(CURDIR)/user-static-build $(foreach t,${user_targets},subdir-${t}-linux-user)
 endif
 	touch $@
@@ -140,7 +149,7 @@ install: build
 	dh_installdirs -a
 
 	# system build
-	$(MAKE) -C $(CURDIR)/system-build DESTDIR=$(CURDIR)/debian/tmp install
+	$(MAKE) -C $(CURDIR)/qemu-build DESTDIR=$(CURDIR)/debian/tmp install
 
 	# qemu-system
 	mkdir -p debian/qemu-system/usr/bin debian/qemu-system/usr/share/man/man1
@@ -151,16 +160,22 @@ install: build
 	done
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
-	# qemu-user and qemu-user-static
-	for x in "" -static; do \
-	    mkdir -p debian/qemu-user$$x/usr/bin \
-		debian/qemu-user$$x/usr/share/man/man1 ;\
-	    for t in ${user_targets} ; do \
-		cp -p user$$x-build/$$t-linux-user/qemu-$$t \
-		    debian/qemu-user$$x/usr/bin/qemu-$$t$$x ;\
-		ln -s qemu-user$$x.1 \
-		    debian/qemu-user$$x/usr/share/man/man1/qemu-$$t$$x.1 ;\
-	    done ;\
+	# qemu-user
+	mkdir -p debian/qemu-user/usr/bin debian/qemu-user/usr/share/man/man1
+	for t in ${user_targets}; do \
+	    mv debian/tmp/usr/bin/qemu-$$t \
+		debian/qemu-user/usr/bin ; \
+	    ln -s qemu-user.1 \
+		debian/qemu-user/usr/share/man/man1/qemu-$$t.1 ; \
+	done
+
+	# qemu-user-static
+	mkdir -p debian/qemu-user-static/usr/bin debian/qemu-user-static/usr/share/man/man1
+	for t in ${user_targets}; do \
+	    cp -p user-static-build/$$t-linux-user/qemu-$$t \
+		debian/qemu-user-static/usr/bin/qemu-$$t-static ; \
+	    ln -s qemu-user-static.1 \
+		    debian/qemu-user-static/usr/share/man/man1/qemu-$$t-static.1 ; \
 	done
 
 	# binfmt support

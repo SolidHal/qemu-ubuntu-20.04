@@ -1,7 +1,49 @@
+qemu (1.3.0+dfsg-1~exp2) experimental; urgency=low
+
+  * mention that 1.3: Closes #622319, #597527, #593547, #660154
+  * libcap and libcap-ng are linux-specific
+  * include spapr-rtas.bin file in a pre-compiled pseudo-hex-with-assembly
+    form in debian/spapr-rtas.hex, "compile" it (using sed magic) in
+    build step and compare the result with the actually built binary
+    on ppc.  This binary is needed for ppc system emulation (qemu-system-ppc*).
+    (Closes: #670909).
+  * rename system-build to qemu-build, and merge user-build to qemu-build,
+    building qemu-system and qemu-user in one go.  Only qemu-system-static
+    is left in separate build dir.  Note that current qemu-user is
+    linux-specific, even if qemu has bsd-user targets.
+  * add or32 user target
+  * debian/configure-opts - list of (possible arch- or os-specific)
+    features to enable/disable.  This is in order to ensure we always
+    build with specific options enabled and error out if new upstream
+    will dislike our dependencies, or if the deps will not work.
+    Move config_audio_drv from debian/rules to this file too.
+    For now do not explicitly enable xen, spice, usb-redir, since
+    these requires some more work.
+    Also pass $(QEMU_CONFIGURE_OPTIONS) to qemu configure line,
+    to be able to quickly override some options.
+  * do not build-depend on sharutils, since no uuencoded binaries
+    are shipped anymore
+  * do not build-depend on nasm, we don't compile from assembly anymore
+  * remove libgpmg1-dev from build-depends.  It was due to #267174,
+    because of static link of qemu with libsdl.  Now only qemu-user-static
+    is linked statically, and this one does not use libsdl.
+  * add myself to uploaders, and remove dm-upload-allowed
+  * added main docs to qemu-system package
+  * specify --libexecdir=/usr/lib to configure
+  * mark all packages as Multi-Arch: foreign
+    (at least it is possible to install i386 versions on amd64 arch)
+  * replace "flags OC" with "credentials yes" in debian/binfmts/*,
+    since that's the format update-binfmts expects to enable setuid
+    binaries. (Closes: #683205)
+  * build-depend on debhelper 9, and set debian/compat to 9
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 31 Dec 2012 01:40:35 +0400
+
 qemu (1.3.0+dfsg-1~exp1) experimental; urgency=low
 
   [ Michael Tokarev ]
-  * new upstream version (1.3.0) (Closes: #676374)
+  * new upstream version (1.3.0)
+    (Closes: #676374, #622319, #597527, #593547, #660154)
    - Removed patches included upstream:
      do-not-include-libutil.h.patch
      configure-nss-usbredir.patch
@@ -29,7 +71,7 @@ qemu (1.3.0+dfsg-1~exp1) experimental; urgency=low
     but was still present)
   * add revert-serial-fix-retry-logic.patch that restores
     old (semi-)working behavour of a virtual serial port.
-  * re-introduce support parallel build using DEB_BUULD_OPTIONS=parallel=N,
+  * re-introduce support parallel build using DEB_BUILD_OPTIONS=parallel=N,
     this time by adding to $MAKEFLAGS instead of passing down to submakes
   * build-depend on libcap-ng-dev (for virtfs-proxy-helper)
 

@@ -2,23 +2,25 @@ Source: qemu
 Section: misc
 Priority: optional
 Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
-Uploaders: Aurelien Jarno <aurel32@debian.org>, Riku Voipio <riku.voipio@iki.fi>, Vagrant Cascadian <vagrant@debian.org>
-DM-Upload-Allowed: yes
-Build-Depends: debhelper (>= 5), nasm, device-tree-compiler, libfdt-dev,
+Uploaders: Aurelien Jarno <aurel32@debian.org>,
+	Riku Voipio <riku.voipio@iki.fi>,
+	Vagrant Cascadian <vagrant@debian.org>,
+	Michael Tokarev <mjt@tls.msk.ru>
+Build-Depends: debhelper (>= 9), device-tree-compiler, libfdt-dev,
  libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
- texi2html, sharutils, libbrlapi-dev,
+ texi2html, libbrlapi-dev,
  libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
  libvdeplug2-dev [linux-any], libasound2-dev [linux-any],
  libbluetooth-dev [linux-any], libattr1-dev, 
- libgpmg1-dev [linux-any], linux-libc-dev (>= 2.6.34) [linux-any],
+ linux-libc-dev (>= 2.6.34) [linux-any],
  libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo,
  python,
  libspice-server-dev [amd64], libspice-protocol-dev [amd64],
  libxen-dev [amd64 i386],
  libiscsi-dev,
  libusbredirparser-dev [linux-any],
- libcap-dev,
- libcap-ng-dev,
+ libcap-dev [linux-any],
+ libcap-ng-dev [linux-any],
  libpixman-1-dev
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.3
@@ -28,6 +30,7 @@ Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
 
 Package: qemu
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
+Multi-Arch: foreign
 Depends: ${misc:Depends}, qemu-system (>= ${source:Version}), qemu-user (>= ${source:Version}) [linux-any], qemu-utils (>= ${source:Version})
 Suggests: qemu-user-static [linux-any]
 Description: fast processor emulator
@@ -51,6 +54,7 @@ Description: fast processor emulator
 
 Package: qemu-keymaps
 Architecture: all
+Multi-Arch: foreign
 Depends: ${misc:Depends}
 Breaks: qemu (<< 0.11.0-2), qemu-system (<< 0.12.4+dfsg-4)
 Replaces: qemu (<< 0.11.0-2), qemu-system (<< 0.12.4+dfsg-4)
@@ -65,6 +69,7 @@ Description: QEMU keyboard maps
 
 Package: qemu-system
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
+Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3~), seabios (>= 1.7.0~), openbios-ppc (>= 1.0+svn1060), openbios-sparc (>= 1.0+svn1060), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
 Recommends: vde2, qemu-utils
 Breaks: qemu (<< 0.11.0-2)
@@ -84,6 +89,7 @@ Description: QEMU full system emulation binaries
 
 Package: qemu-user
 Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc ppc64 s390x sparc sparc64
+Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Breaks: qemu (<< 0.11.0-2)
 Replaces: qemu (<< 0.11.0-2)
@@ -99,6 +105,7 @@ Description: QEMU user mode emulation binaries
 
 Package: qemu-user-static
 Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc ppc64 s390x sparc sparc64
+Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: binfmt-support
 Suggests: sudo
@@ -114,6 +121,7 @@ Description: QEMU user mode emulation binaries (static version)
 
 Package: qemu-utils
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
+Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: sharutils
 Suggests: debootstrap
