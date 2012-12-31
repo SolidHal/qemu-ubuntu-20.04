@@ -7,6 +7,10 @@ General packaging items:
 
   and add versioned dependencies to debian/control.
 
+* create package for qemu-ga (#676959)
+
+* decide what to do with qemu-bridge-helper (#691138)
+
 * Add -dbg package(s).
 
   Current linux-user binaries are built in a way that results in inclusion

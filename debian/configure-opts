@@ -45,9 +45,9 @@ enable-vnc-png
 enable-curses
 enable-curl
 enable-fdt
-enable-bluez		# linux-specific?
+enable-bluez		linux
 enable-uuid
-enable-vde		# linux-specific?
+enable-vde
 enable-libiscsi
 
 enable-linux-aio	linux
