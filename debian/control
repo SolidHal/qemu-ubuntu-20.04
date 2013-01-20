@@ -45,7 +45,7 @@ Build-Depends: debhelper (>= 9),
 # --enable-sdl
  libsdl1.2-dev (>> 1.2.1),
 # --enable-seccomp
- libseccomp-dev (>> 1.0.0) [linux-any],
+ libseccomp-dev (>> 1.0.0) [linux-amd64 linux-i386],
 # --enable-spice
  libspice-server-dev (>= 0.12.2~) [amd64 i386],
 # --enable-usb-redir

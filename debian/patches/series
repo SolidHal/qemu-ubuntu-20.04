@@ -3,3 +3,4 @@ qemu-ifunc-sparc.patch
 revert-serial-fix-retry-logic.patch
 savevm.c-cleanup-system-includes.patch
 link-seccomp-only-with-softmmu-targets.patch
+e1000-discard-oversized-packets-based-on-SBP_LPE.patch

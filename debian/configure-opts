@@ -13,6 +13,7 @@ while read opt cond; do
   [ -z "$cond" ] && x=y
   [ -n "$x" ] || eval "case \"$1\" in $cond) x=y;; esac"
   [ -n "$x" ] || eval "case \"$2\" in $cond) x=y;; esac"
+  [ -n "$x" ] || eval "case \"$1-$2\" in $cond) x=y;; esac"
   [ -z "$x" ] || echo --$opt
 done
 
@@ -52,7 +53,8 @@ enable-libiscsi
 
 enable-linux-aio	linux
 enable-xfsctl		linux
-enable-seccomp		linux
+# somehow seccomp is linux-x86-specific
+enable-seccomp		linux-amd64 | linux-i386
 
 # kvm is linux-specific
 enable-kvm	linux
