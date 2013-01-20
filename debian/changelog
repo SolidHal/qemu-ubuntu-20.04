@@ -1,3 +1,39 @@
+qemu (1.3.0+dfsg-2exp) experimental; urgency=low
+
+  * qemu-nbd and qemu-io should be installed on kFreeBSD too
+  * install qemu-system docs into /usr/share/doc/qemu-system,
+    not .../qemu (Closes: #697085)
+  * do not depend on ipxe, it does not provide our ROMs
+  * move vde2 from Recommends to Suggests, since it isn't
+    used often
+  * require libspice-server-dev >= 0.12.2 and require it on i386 too,
+    enable spice support
+  * require libusbredirparser-dev >= 0.6, enable usb-redir
+  * enable xen explicitly on amd64|i386
+  * enable xfsctl explicitly on linux
+  * sort build-deps in debian/control and add comments
+  * set permissions of /dev/kvm in qemu-system.postinst
+    the same way it is done in old qemu-kvm package
+  * set --localstatedir=/var (will be used later by guest agent)
+  * bump qemu-system dependency on seabios to 1.7.2
+    and add symlinks for acpi-dsdt.aml and q35-acpi-dsdt.aml
+  * import qemu-ifup and qemu-ifdown scripts from qemu-kvm,
+    and modify qemu-ifup to allow usage of just `ip' command
+    from iproute package (if installed) instead of old brctl+ifconfig.
+    Add Breaks: for old iproute without bridge controls.
+    Add iproute to Recomments, so that the scripts will actually work
+    (previous script used sudo which should be in recommends too)
+  * enable seccomp (and libseccomp-dev b-d) on linux,
+    and add link-seccomp-only-with-softmmu-targets.patch
+  * use $(MAKE) not make when building spapr-rtas.bin
+  * update debian/watch (new place and new extensions)
+  * add qemu-kvm package (transitional, depends on qemu-system),
+    and add /usr/bin/kvm wrapper that calls qemu-system-x86_64
+    with some arguments to match original qemu-kvm behavour.
+    (Closes: #560853)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 20 Jan 2013 22:12:11 +0400
+
 qemu (1.3.0+dfsg-1~exp3) experimental; urgency=low
 
   * enable vde on kFreebsd too (no idea why it was disabled)

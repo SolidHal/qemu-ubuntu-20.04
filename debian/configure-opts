@@ -51,17 +51,19 @@ enable-vde
 enable-libiscsi
 
 enable-linux-aio	linux
+enable-xfsctl		linux
+enable-seccomp		linux
 
 # kvm is linux-specific
 enable-kvm	linux
-enable-vhost-net linux	# is vhost-net linux-specific
-#enable-xen	amd64|i386	XXX todo! does not work for some reason
+enable-vhost-net linux	# is vhost-net linux-specific?
+enable-xen	amd64|i386
 
 # should we enable spice on more arches?
-#enable-spice	amd64		XXX todo! does not work with old spice
+enable-spice	amd64|i386
+
 #enable-rbd	# rbd isn't enabled yet
-#enable-smartcard
-#enable-smartcard-nss
-#enable-usb-redir	# XXX needs libusbredirparser-dev >= 0.5
+#enable-smartcard-nss	# requires libnss3-dev and libtool
+enable-usb-redir	linux
 #enable-seccomp		# XXX todo
 #enable-glusterfs	# XXX todo

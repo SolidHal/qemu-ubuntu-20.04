@@ -4,6 +4,10 @@ qemu-build/pc-bios/*.dtb usr/share/qemu/
 qemu-build/pc-bios/spapr-rtas.bin /usr/share/qemu/
 debian/tmp/etc/qemu/target-x86_64.conf
 pc-bios/qemu-icon.bmp /usr/share/qemu/
-debian/tmp/usr/share/doc/qemu/qemu-tech.html
-debian/tmp/usr/share/doc/qemu/qemu-doc.html
-debian/tmp/usr/share/doc/qemu/qmp-commands.txt
+# qemu-kvm compatibility wrapper
+debian/kvm /usr/bin/kvm
+# until we have qemu-docs package,
+# these are duplicated here and in qemu metapackage
+debian/tmp/usr/share/doc/qemu/qemu-tech.html /usr/share/doc/qemu-system/
+debian/tmp/usr/share/doc/qemu/qemu-doc.html /usr/share/doc/qemu-system/
+debian/tmp/usr/share/doc/qemu/qmp-commands.txt /usr/share/doc/qemu-system/

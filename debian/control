@@ -6,22 +6,64 @@ Uploaders: Aurelien Jarno <aurel32@debian.org>,
 	Riku Voipio <riku.voipio@iki.fi>,
 	Vagrant Cascadian <vagrant@debian.org>,
 	Michael Tokarev <mjt@tls.msk.ru>
-Build-Depends: debhelper (>= 9), device-tree-compiler, libfdt-dev,
- libx11-dev, libsdl1.2-dev (>> 1.2.1), libncurses5-dev, zlib1g-dev,
- texi2html, libbrlapi-dev,
- libpulse-dev, libcurl4-gnutls-dev, libgnutls-dev, libsasl2-dev, uuid-dev,
- libvdeplug2-dev, libasound2-dev [linux-any],
- libbluetooth-dev [linux-any], libattr1-dev, 
- linux-libc-dev (>= 2.6.34) [linux-any],
- libaio-dev [linux-any], xfslibs-dev [linux-any], texinfo,
+Build-Depends: debhelper (>= 9),
+# pc-bios/*.dts => *.dtb (PPC firmware)
+ device-tree-compiler,
+ texi2html,
+ texinfo,
  python,
- libspice-server-dev [amd64], libspice-protocol-dev [amd64],
- libxen-dev [amd64 i386],
- libiscsi-dev,
- libusbredirparser-dev [linux-any],
+# --enable-linux-aio
+ libaio-dev [linux-any],
+# audio-drv-list += alsa
+ libasound2-dev [linux-any],
+# --enable-attr # incl. virtfs
+ libattr1-dev,
+# --enable-bluez
+ libbluetooth-dev [linux-any],
+# --enable-brlapi
+ libbrlapi-dev,
+# needed for virtfs
  libcap-dev [linux-any],
+# --enable-cap-ng
  libcap-ng-dev [linux-any],
- libpixman-1-dev
+# --enable-curl
+ libcurl4-gnutls-dev,
+# --enable-fdt
+ libfdt-dev,
+# --enable-vnc-tls
+ libgnutls-dev,
+# --enable-libiscsi
+ libiscsi-dev,
+# --enable-curses
+ libncurses5-dev,
+# --with-system-pixman
+ libpixman-1-dev,
+# audio-drv-list += pa
+ libpulse-dev,
+# --enable-vnc-sasl
+ libsasl2-dev,
+# --enable-sdl
+ libsdl1.2-dev (>> 1.2.1),
+# --enable-seccomp
+ libseccomp-dev (>> 1.0.0) [linux-any],
+# --enable-spice
+ libspice-server-dev (>= 0.12.2~) [amd64 i386],
+# --enable-usb-redir
+ libusbredirparser-dev (>= 0.6~) [linux-any],
+# --enable-vde
+ libvdeplug2-dev,
+# needed for sdl
+ libx11-dev,
+# --enable-xen
+ libxen-dev [amd64 i386],
+# XXX need to check minimum linux-headers requiriment
+ linux-libc-dev (>= 2.6.34) [linux-any],
+# --enable-uuid
+ uuid-dev,
+# --enable-xfsctl
+ xfslibs-dev [linux-any],
+# always needed
+ zlib1g-dev,
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.3
 Homepage: http://www.qemu.org/
@@ -70,11 +112,20 @@ Description: QEMU keyboard maps
 Package: qemu-system
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-keymaps (>= ${source:Version}), vgabios (>= 0.6c-3~), seabios (>= 1.7.0~), openbios-ppc (>= 1.0+svn1060), openbios-sparc (>= 1.0+svn1060), openhackware, ipxe-qemu | ipxe (<< 1.0.0+git-20120202.f6840ba-2)
-Recommends: vde2, qemu-utils
-Breaks: qemu (<< 0.11.0-2)
+Depends: ${shlibs:Depends}, ${misc:Depends},
+ ipxe-qemu,
+ openbios-ppc (>= 1.0+svn1060),
+ openbios-sparc (>= 1.0+svn1060),
+ openhackware,
+ qemu-keymaps (>= ${source:Version}),
+ seabios (>= 1.7.2~),
+ vgabios (>= 0.6c-3~),
+Recommends: qemu-utils, iproute
+Breaks: qemu (<< 0.11.0-2),
+# iproute before 20110315 were unable to deal with bridge (set master device)
+  iproute (<< 20110315-1)
 Replaces: qemu (<< 0.11.0-2)
-Suggests: samba
+Suggests: samba, vde2
 Description: QEMU full system emulation binaries
  QEMU is a fast processor emulator: currently the package supports
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
@@ -86,6 +137,16 @@ Description: QEMU full system emulation binaries
  peripherals. It enables easier testing and debugging of system code.
  It can also be used to provide virtual hosting of several virtual
  machines on a single server.
+
+Package: qemu-kvm
+Architecture: i386 amd64
+Multi-Arch: foreign
+Depends: qemu-system (>= ${source:Version})
+Provides: kvm
+Section: oldlibs
+Description: QEMU Full virtualization on x86 hardware (transitional package)
+ QEMU is a fast processor emulator.  This package is a transitional
+ package from old qemu-kvm to qemu-system.  It is safe to remove it.
 
 Package: qemu-user
 Architecture: amd64 arm armel armhf hppa i386 ia64 mips mipsel powerpc ppc64 s390x sparc sparc64

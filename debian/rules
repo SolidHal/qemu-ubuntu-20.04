@@ -30,6 +30,7 @@ common_configure_opts = \
 	--disable-strip \
 	--with-system-pixman \
 	--interp-prefix=/etc/qemu-binfmt/%M \
+	--localstatedir=/var \
 
 # list of system (softmmu) targets, from ./configure
 system_targets = \
@@ -80,7 +81,7 @@ configure-stamp: configure
 	mkdir -p qemu-build && cd qemu-build && \
 		../configure ${common_configure_opts} \
 			--enable-system --disable-user ${enable_linux_user} \
-			$(shell sh debian/configure-opts $(DEB_HOST_ARCH) $(DEB_HOST_ARCH_OS))
+			$(shell sh debian/configure-opts $(DEB_HOST_ARCH) $(DEB_HOST_ARCH_OS)) \
 			$(QEMU_CONFIGURE_OPTIONS)
 
 ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
@@ -123,7 +124,7 @@ build-stamp: configure-stamp
 		tr -d ' \n' | sed 's|\([0-9a-f]\{2\}\)|\\x\1|g')" > \
 		qemu-build/pc-bios/spapr-rtas.bin
 ifeq ($(DEB_HOST_ARCH),powerpc)
-	make -C qemu-build/pc-bios/spapr-rtas spapr-rtas.bin
+	$(MAKE) -C qemu-build/pc-bios/spapr-rtas spapr-rtas.bin
 	cmp qemu-build/pc-bios/spapr-rtas.bin \
 	    qemu-build/pc-bios/spapr-rtas/spapr-rtas.bin
 endif
