@@ -2,7 +2,5 @@ debian/tmp/usr/bin/qemu-img
 debian/tmp/usr/share/man/man1/qemu-img.1
 debian/tmp/usr/bin/qemu-nbd
 debian/tmp/usr/share/man/man8/qemu-nbd.8
-debian/tmp/usr/bin/virtfs-proxy-helper
-debian/tmp/usr/share/man/man1/virtfs-proxy-helper.1
 debian/tmp/usr/bin/qemu-io
 debian/qemu-make-debian-root usr/sbin/

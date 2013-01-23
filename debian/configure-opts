@@ -26,8 +26,11 @@ __DATA__
 # Empty lines and everything after "#" char are ignored.
 
 # audio drivers
+# ubuntu prefers pa here, debian uses alsa first
 audio-drv-list=alsa,oss,sdl,pa	linux
 audio-drv-list=oss,sdl,pa	kfreebsd
+# enable all available audio devices
+audio-card-list=ac97,es1370,sb16,cs4231a,adlib,gus,hda
 
 # virtfs needs libcap and libcap-ng, linux-only
 enable-virtfs	linux

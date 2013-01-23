@@ -161,6 +161,13 @@ install: build
 	done
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
+
+# /usr/bin/kvm compat script.  This needs some more work for other arches
+# How about a manpage for it?
+ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
+	dh_install -pqemu-system debian/kvm /usr/bin/
+endif
+
 	# qemu-user
 	mkdir -p debian/qemu-user/usr/bin debian/qemu-user/usr/share/man/man1
 	for t in ${user_targets}; do \
