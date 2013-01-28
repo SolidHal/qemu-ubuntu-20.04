@@ -3,7 +3,7 @@ qemu (1.3.0+dfsg-2exp) experimental; urgency=low
   * Since version 1.3 of qemu, all remaining bits of former qemu-kvm
     were merged into qemu.  So since this version, we don't have
     separate qemu-kvm source package, and qemu-kvm binary package
-    becomes transitional, from qemu-kvm to qemu-system.
+    becomes transitional, from qemu-kvm to qemu-system-x86.
 
     New executable to run instead of kvm is qemu-system-x86_64.
 

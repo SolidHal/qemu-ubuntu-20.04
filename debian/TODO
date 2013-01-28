@@ -1,17 +1,17 @@
 General packaging items:
 
-* package new versions of:
-
-    libusbredirparser (>> 0.5)
-    libspice-server & libspice-protocol (>> 0.12)
-
-  and add versioned dependencies to debian/control.
-
-* create package for qemu-ga (#676959)
+* write startup scripts for qemu-guest-agent
 
 * decide what to do with qemu-bridge-helper (#691138)
 
-* Add -dbg package(s).
+* -dbg package(s): these are very large, there are either
+  many of them (esp. if we split qemu-system or maybe qemu-user
+  to per-target pkgs) or they're unflexible, adds significant
+  data to Packages files (which are fetched by everyone), and
+  gains little (for the lifetime of qemu-kvm-dbg it was useful
+  only once).  I think we will not provide them.
+
+  Below are some old observations about this.
 
   Current linux-user binaries are built in a way that results in inclusion
   of .gnu_debuglink section in the binaries.  These sections comes from

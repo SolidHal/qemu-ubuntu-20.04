@@ -1,0 +1,10 @@
+# set up /usr/bin/qemu alternative to be one the qemu-system emulators
+if [ "$1" = configure -a -x /usr/sbin/update-alternatives ]; then
+  for arch in @ARCH@ ; do
+    # Set i386 as highest priority,
+    # as it has been the default qemu for quite some time.
+    case $arch in i386) prio=20;; *) prio=10;; esac
+    update-alternatives --install /usr/bin/qemu qemu \
+                /usr/bin/qemu-system-$arch $prio
+  done
+fi

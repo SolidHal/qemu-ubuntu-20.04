@@ -38,6 +38,16 @@ system_targets = \
  mips mipsel mips64 mips64el or32 ppc ppcemb ppc64 sh4 sh4eb \
  sparc sparc64 s390x xtensa xtensaeb unicore32
 
+# qemu-system subpackages
+sys_systems = arm mips ppc sparc x86
+systems = ${sys_systems} misc
+sysarch_arm   = $(filter arm,${system_targets})
+sysarch_mips  = $(filter mips mipsel mips64 mips64el,${system_targets})
+sysarch_ppc   = $(filter ppc ppc64 ppcemb,${system_targets})
+sysarch_sparc = $(filter sparc sparc64,${system_targets})
+sysarch_x86   = $(filter i386 x86_64,${system_targets})
+sysarch_misc  = $(filter-out $(foreach s,${sys_systems},${sysarch_$s}),${system_targets})
+
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
 # list of linux-user targets, from ./configure
@@ -143,7 +153,22 @@ clean:
 	find $(CURDIR)/scripts/ -name '*.pyc' -delete || :
 	dh_clean
 
-install: build
+define inst-system
+	for x in postinst prerm; do \
+	  sed 's/@ARCH@/${sysarch_$1}/' debian/qemu-system.$$x-in > debian/qemu-system-$1.$$x.debhelper; \
+	done
+	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
+	for t in ${sysarch_$1}; do \
+	    mv debian/tmp/usr/bin/qemu-system-$$t debian/qemu-system-$1/usr/bin/; \
+	    echo ".so qemu.1" > debian/qemu-system-$1/usr/share/man/man1/qemu-system-$$t.1; \
+	done
+	echo sysarch:$1=${sysarch_$1} > debian/qemu-system-$1.substvars
+	echo sysprovides:$1=${addprefix qemu-system-,${filter-out $1,${sysarch_$1}}} | \
+	  sed -e 's/ /, /g' -e 'y/_/-/' >> debian/qemu-system-$1.substvars
+
+endef
+
+install: build-stamp
 	dh_testdir
 	dh_testroot
 	dh_prep
@@ -152,21 +177,23 @@ install: build
 	# system build
 	$(MAKE) -C $(CURDIR)/qemu-build DESTDIR=$(CURDIR)/debian/tmp install
 
-	# qemu-system
-	mkdir -p debian/qemu-system/usr/bin debian/qemu-system/usr/share/man/man1
-	mv $(addprefix debian/tmp/usr/bin/qemu-system-,${system_targets}) \
-	    debian/qemu-system/usr/bin/
-	for t in ${system_targets}; do \
-		ln -s qemu.1 debian/qemu-system/usr/share/man/man1/qemu-system-$$t.1 ;\
-	done
+	# qemu-system subpackages
+	$(foreach s,${systems},$(call inst-system,$s))
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
 # /usr/bin/kvm compat script.  This needs some more work for other arches
 # How about a manpage for it?
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-	dh_install -pqemu-system debian/kvm /usr/bin/
+	dh_install -pqemu-system-x86 debian/kvm /usr/bin/
 endif
+
+# virtfs-proxy-helper is linux-specific
+	for f in usr/bin/virtfs-proxy-helper \
+	         usr/share/man/man1/virtfs-proxy-helper.1 ; do \
+	  mkdir -p debian/qemu-system-common/$${f%.*} ; \
+	  mv debian/tmp/$$f debian/qemu-system-common/$$f ; \
+	done
 
 	# qemu-user
 	mkdir -p debian/qemu-user/usr/bin debian/qemu-user/usr/share/man/man1
@@ -196,6 +223,10 @@ endif
 	install -m 644 -t debian/qemu-user-static/usr/share/binfmts/ \
 		$(addprefix debian/binfmts/qemu-,${binfmt_targets})
 endif
+
+# qemu-ifup is arch-specific
+	install -D debian/qemu-ifup.$(DEB_HOST_ARCH_OS) \
+		debian/qemu-system-common/etc/qemu-ifup
 
 	dh_install --list-missing
 	dh_installdocs

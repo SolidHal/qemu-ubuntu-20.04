@@ -1,3 +1,19 @@
+qemu (1.3.0+dfsg-5exp) experimental; urgency=low
+
+  * qemu-system-split: split qemu-system into several target-specific packages:
+    qemu-system-arm, qemu-system-mips, qemu-system-ppc, qemu-system-sparc,
+    qemu-system-x86, and qemu-system-misc, plus qemu-system-common.
+    (Closes: #636000)
+  * add initial qemu-guest-agent package (just the binary for now,
+    no startup script) (Closes: #676959)
+  * do not try to install (linux-specific) virtfs-proxy-helper on kfreebsd
+  * change order of audio drivers, in particular put pulseaudio (pa) first
+  * ship OS-specific qemu-ifup (use trivial ifconfig invocation on kfreebsd)
+  * qemu-system replaces qemu-utils due to virtfs-proxy-helper binary
+  * chmod +x qemu-ifdown
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 28 Jan 2013 15:05:57 +0400
+
 qemu (1.3.0+dfsg-4exp) experimental; urgency=low
 
   * install forgotten /etc/qemu-ifdown (dummy, but qemu complains without it)

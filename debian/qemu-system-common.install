@@ -1,12 +1,6 @@
-debian/qemu-ifup etc/
 debian/qemu-ifdown etc/
 debian/tmp/usr/share/man/man1/qemu.1
-qemu-build/pc-bios/*.dtb usr/share/qemu/
-qemu-build/pc-bios/spapr-rtas.bin /usr/share/qemu/
-debian/tmp/etc/qemu/target-x86_64.conf
 pc-bios/qemu-icon.bmp /usr/share/qemu/
-debian/tmp/usr/bin/virtfs-proxy-helper
-debian/tmp/usr/share/man/man1/virtfs-proxy-helper.1
 # until we have qemu-docs package,
 # these are duplicated here and in qemu metapackage
 debian/tmp/usr/share/doc/qemu/qemu-tech.html /usr/share/doc/qemu-system/
