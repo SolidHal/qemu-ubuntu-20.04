@@ -7,24 +7,30 @@ Uploaders: Aurelien Jarno <aurel32@debian.org>,
 	Vagrant Cascadian <vagrant@debian.org>,
 	Michael Tokarev <mjt@tls.msk.ru>
 Build-Depends: debhelper (>= 9),
+# In comments below we also specify (system-specific) arguments
+# to qemu's configure script, -- optional features which depend
+# on build-dependencies.
 # pc-bios/*.dts => *.dtb (PPC firmware)
  device-tree-compiler,
  texi2html,
  texinfo,
  python,
-# --enable-linux-aio
+# --enable-linux-aio	linux-*
  libaio-dev [linux-any],
-# audio-drv-list += alsa
+# --audio-drv-list=pa,alsa,sdl,oss	linux-*
+# --audio-drv-list=pa,oss,sdl		kfreebsd-*
  libasound2-dev [linux-any],
-# --enable-attr # incl. virtfs
+# for virtfs
+# --enable-attr
  libattr1-dev,
-# --enable-bluez
+# --enable-bluez	linux-*
  libbluetooth-dev [linux-any],
 # --enable-brlapi
  libbrlapi-dev,
+# --enable-virtfs	linux-*
 # needed for virtfs
  libcap-dev [linux-any],
-# --enable-cap-ng
+# --enable-cap-ng	linux-*
  libcap-ng-dev [linux-any],
 # --enable-curl
  libcurl4-gnutls-dev,
@@ -44,26 +50,34 @@ Build-Depends: debhelper (>= 9),
  libsasl2-dev,
 # --enable-sdl
  libsdl1.2-dev (>> 1.2.1),
-# --enable-seccomp
+# --enable-seccomp	linux-amd64|linux-i386
  libseccomp-dev (>> 1.0.0) [linux-amd64 linux-i386],
-# --enable-spice
+# --enable-spice	*-amd64|*-i386
  libspice-server-dev (>= 0.12.2~) [amd64 i386],
-# --enable-usb-redir
+# --enable-usb-redir	linux-*
  libusbredirparser-dev (>= 0.6~) [linux-any],
 # --enable-vde
  libvdeplug2-dev,
 # needed for sdl
  libx11-dev,
-# --enable-xen
+# --enable-xen	*-amd64|*-i386
  libxen-dev [amd64 i386],
 # XXX need to check minimum linux-headers requiriment
  linux-libc-dev (>= 2.6.34) [linux-any],
 # --enable-uuid
  uuid-dev,
-# --enable-xfsctl
+# --enable-xfsctl	linux-*
  xfslibs-dev [linux-any],
 # always needed
  zlib1g-dev,
+# other optional features we enable
+# --enable-vnc
+# --enable-vnc-jpeg
+# --enable-vnc-png
+# --enable-kvm		linux-*
+# --enable-vhost-net	linux-*	# is it really linux-specific?
+##--enable-glusterfs todo
+##--enable-rbd todo
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.3
 Homepage: http://www.qemu.org/
@@ -98,8 +112,6 @@ Package: qemu-keymaps
 Architecture: all
 Multi-Arch: foreign
 Depends: ${misc:Depends}
-Breaks: qemu-common (<< 1.2.0.dfsg-1)
-Replaces: qemu-common (<< 1.2.0.dfsg-1)
 Description: QEMU keyboard maps
  QEMU is a fast processor emulator: currently the package supports
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
@@ -138,15 +150,12 @@ Depends: ${misc:Depends}, ${shlibs:Depends}
 Breaks:
 # qemu-system before qemu-system-split
   qemu-system (<< 1.3.0+dfsg-5),
-# qemu-common is ubuntu package
-  qemu-common (<< 1.2.0.dfsg-1),
 # qemu-utils had virtfs-proxy-helper
   qemu-utils (<< 1.3.0+dfsg-4),
 # iproute before 20110315 were unable to deal with bridge (set master device)
   iproute (<< 20110315-1)
 Replaces:
   qemu-system (<< 1.3.0+dfsg-5),
-  qemu-common (<< 1.2.0.dfsg-1),
   qemu-utils (<< 1.3.0+dfsg-4),
 Description: QEMU full system emulation binaries (common files)
  QEMU is a fast processor emulator: currently the package supports
@@ -291,7 +300,9 @@ Conflicts: kvm
 Breaks:
   qemu-system (<< 1.3.0+dfsg-5),
   qemu-kvm (<< 1.2.0.dfsg-1),
-  kvm
+  kvm,
+# older libvirt (eg 0.10.2.x) is known broken with qemu >= 1.3
+  libvirt0 (<< 1.0)
 Replaces:
   qemu-system (<< 1.3.0+dfsg-5),
   qemu-kvm (<< 1.2.0.dfsg-1),
@@ -386,4 +397,7 @@ Section: oldlibs
 Description: QEMU Full virtualization on x86 hardware (transitional package)
  QEMU is a fast processor emulator.  This package is a transitional
  package from old qemu-kvm to qemu-system-x86.  It is safe to remove it.
+ .
+ Please note that old qemu-kvm configuration files (in /etc/kvm/) are
+ no longer used.
 

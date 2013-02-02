@@ -837,6 +837,45 @@ STEXI
 @item nmi @var{cpu}
 @findex nmi
 Inject an NMI on the given CPU (x86 only).
+
+ETEXI
+
+    {
+        .name       = "memchar_write",
+        .args_type  = "device:s,data:s",
+        .params     = "device data",
+        .help       = "Provide writing interface for CirMemCharDriver. Write"
+                      "'data' to it.",
+        .mhandler.cmd = hmp_memchar_write,
+    },
+
+STEXI
+@item memchar_write @var{device} @var{data}
+@findex memchar_write
+Provide writing interface for CirMemCharDriver. Write @var{data}
+to char device 'memory'.
+
+ETEXI
+
+    {
+        .name       = "memchar_read",
+        .args_type  = "device:s,size:i",
+        .params     = "device size",
+        .help       = "Provide read interface for CirMemCharDriver. Read from"
+                      "it and return the data with size.",
+        .mhandler.cmd = hmp_memchar_read,
+    },
+
+STEXI
+@item memchar_read @var{device}
+@findex memchar_read
+Provide read interface for CirMemCharDriver. Read from char device
+'memory' and return the data.
+
+@var{size} is the size of data want to read from. Refer to unencoded
+size of the raw data, would adjust to the init size of the memchar
+if the requested size is larger than it.
+
 ETEXI
 
     {
@@ -1485,11 +1524,44 @@ passed since 1970, i.e. unix epoch.
 ETEXI
 
     {
+        .name       = "chardev-add",
+        .args_type  = "args:s",
+        .params     = "args",
+        .help       = "add chardev",
+        .mhandler.cmd = hmp_chardev_add,
+    },
+
+STEXI
+@item chardev_add args
+@findex chardev_add
+
+chardev_add accepts the same parameters as the -chardev command line switch.
+
+ETEXI
+
+    {
+        .name       = "chardev-remove",
+        .args_type  = "id:s",
+        .params     = "id",
+        .help       = "remove chardev",
+        .mhandler.cmd = hmp_chardev_remove,
+    },
+
+STEXI
+@item chardev_remove id
+@findex chardev_remove
+
+Removes the chardev @var{id}.
+
+ETEXI
+
+    {
         .name       = "info",
         .args_type  = "item:s?",
         .params     = "[subcommand]",
         .help       = "show various information about the system state",
-        .mhandler.cmd = do_info,
+        .mhandler.cmd = do_info_help,
+        .sub_table = info_cmds,
     },
 
 STEXI

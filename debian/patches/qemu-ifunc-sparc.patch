@@ -1,7 +1,7 @@
 Fix FTBFS on sparc, should be sent upstream (on my todo list)
 
---- qemu-0.14.1+dfsg.orig/sparc.ld
-+++ qemu-0.14.1+dfsg/sparc.ld
+--- a/ldscripts/sparc.ld
++++ b/ldscripts/sparc.ld
 @@ -37,8 +37,20 @@ SECTIONS
    .rela.fini     : { *(.rela.fini)      }
    .rel.bss       : { *(.rel.bss)                }

@@ -22,7 +22,7 @@
  */
 
 #include "hw.h"
-#include "blockdev.h"
+#include "sysemu/blockdev.h"
 #include "ssi.h"
 #include "devices.h"
 
@@ -357,6 +357,8 @@ static void complete_collecting_data(Flash *s)
     s->cur_addr = s->data[0] << 16;
     s->cur_addr |= s->data[1] << 8;
     s->cur_addr |= s->data[2];
+
+    s->state = STATE_IDLE;
 
     switch (s->cmd_in_progress) {
     case DPP:

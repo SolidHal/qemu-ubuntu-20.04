@@ -13,14 +13,14 @@
 
 #include "hw/virtio.h"
 #include "hw/pc.h"
-#include "qemu_socket.h"
+#include "qemu/sockets.h"
 #include "hw/virtio-pci.h"
 #include "virtio-9p.h"
 #include "fsdev/qemu-fsdev.h"
 #include "virtio-9p-xattr.h"
 #include "virtio-9p-coth.h"
 #include "trace.h"
-#include "migration.h"
+#include "migration/migration.h"
 
 int open_fd_hw;
 int total_open_fd;
@@ -3101,11 +3101,7 @@ static void v9fs_xattrcreate(void *opaque)
     xattr_fidp->fs.xattr.flags = flags;
     v9fs_string_init(&xattr_fidp->fs.xattr.name);
     v9fs_string_copy(&xattr_fidp->fs.xattr.name, &name);
-    if (size) {
-        xattr_fidp->fs.xattr.value = g_malloc(size);
-    } else {
-        xattr_fidp->fs.xattr.value = NULL;
-    }
+    xattr_fidp->fs.xattr.value = g_malloc(size);
     err = offset;
     put_fid(pdu, file_fidp);
 out_nofid:

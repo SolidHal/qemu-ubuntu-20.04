@@ -1,6 +1,34 @@
 General packaging items:
 
-* write startup scripts for qemu-guest-agent
+* check openbios* for 1.4 version.  Needs another link,
+  openbios-ppc64 (and the new binary ofcourse)
+
+* fix other binaries (slof, sgabios, s390-zipl, ppc_rom)
+
+* figure out what to do with kvm initscripts and udev rules.
+  Currently we ship kvm udev rules in qemu-system-common, even
+  if kvm modules makes no sence on many arches and even if
+  corresponding qemu-system-$arch might not be installed.
+  We load kvm module (on x86 only) in qemu-system-x86, but
+  we don't fix permissions of /dev/kvm at install time (see
+  qemu-system-common.postinst).  It all is.. wrong.
+
+  Maybe we should provide all - the kvm udev rules, kvm module
+  loading script, and postinst snippet to change perms - in
+  all relevant arch-specific packages only when arch is native?
+  But how to do that properly?
+
+* permissions/ownership for /dev/vhost_net???
+
+* startup script for qemu-guest-agent: check dependencies & runlevels.
+
+* maybe provide activation for udev & systemd:
+
+   SUBSYSTEM=="virtio-ports", ATTR{name}=="org.qemu.guest_agent.0", \
+     TAG+="systemd" ENV{SYSTEMD_WANTS}="qemu-guest-agent.service"
+
+  and dev-virtio/ports-org.qemu.guest_agent.0.device activation
+  for systemd.
 
 * decide what to do with qemu-bridge-helper (#691138)
 
@@ -123,9 +151,3 @@ General packaging items:
 
   Note that in both cases -dbg is much larger than sum of all other binary
   packages.
-
-Small list of things not to forget for any new (upstream) release:
-
-* Make sure it works with the BIOS files in testing or otherwise raise the
-  dependency versions
-

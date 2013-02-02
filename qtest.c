@@ -11,20 +11,20 @@
  *
  */
 
-#include "qtest.h"
+#include "sysemu/qtest.h"
 #include "hw/qdev.h"
-#include "qemu-char.h"
-#include "ioport.h"
-#include "memory.h"
+#include "char/char.h"
+#include "exec/ioport.h"
+#include "exec/memory.h"
 #include "hw/irq.h"
-#include "sysemu.h"
-#include "cpus.h"
+#include "sysemu/sysemu.h"
+#include "sysemu/cpus.h"
 
 #define MAX_IRQ 256
 
 const char *qtest_chrdev;
 const char *qtest_log;
-int qtest_allowed = 0;
+bool qtest_allowed;
 
 static DeviceState *irq_intercept_dev;
 static FILE *qtest_log_fp;
