@@ -329,9 +329,9 @@
 #
 # An enumeration of data format.
 #
-# @utf8: The data format is 'utf8'.
+# @utf8: Data is a UTF-8 string (RFC 3629)
 #
-# @base64: The data format is 'base64'.
+# @base64: Data is Base64 encoded binary (RFC 3548)
 #
 # Since: 1.4
 ##
@@ -339,64 +339,57 @@
   'data': [ 'utf8', 'base64' ] }
 
 ##
-# @memchar-write:
+# @ringbuf-write:
 #
-# Provide writing interface for memchardev. Write data to char
-# device 'memory'.
+# Write to a ring buffer character device.
 #
-# @device: the name of the memory char device.
+# @device: the ring buffer character device name
 #
-# @size: the size to write in bytes.
+# @data: data to write
 #
-# @data: the source data write to memchar.
-#
-# @format: #optional the format of the data write to chardev 'memory',
-#          by default is 'utf8'.
+# @format: #optional data encoding (default 'utf8').
+#          - base64: data must be base64 encoded text.  Its binary
+#            decoding gets written.
+#            Bug: invalid base64 is currently not rejected.
+#            Whitespace *is* invalid.
+#          - utf8: data's UTF-8 encoding is written
+#          - data itself is always Unicode regardless of format, like
+#            any other string.
 #
 # Returns: Nothing on success
-#          If @device is not a valid char device, DeviceNotFound
 #
 # Since: 1.4
 ##
-{ 'command': 'memchar-write',
-  'data': {'device': 'str', 'size': 'int', 'data': 'str',
+{ 'command': 'ringbuf-write',
+  'data': {'device': 'str', 'data': 'str',
            '*format': 'DataFormat'} }
 
 ##
-# @MemCharRead
+# @ringbuf-read:
 #
-# Result of QMP command memchar-read.
+# Read from a ring buffer character device.
 #
-# @data: The data read from memchar as string.
+# @device: the ring buffer character device name
 #
-# @count: The numbers of bytes read from.
+# @size: how many bytes to read at most
 #
-# Since: 1.4
-##
-{ 'type': 'MemCharRead',
-  'data': { 'data': 'str', 'count': 'int' } }
-
-##
-# @memchar-read:
+# @format: #optional data encoding (default 'utf8').
+#          - base64: the data read is returned in base64 encoding.
+#          - utf8: the data read is interpreted as UTF-8.
+#            Bug: can screw up when the buffer contains invalid UTF-8
+#            sequences, NUL characters, after the ring buffer lost
+#            data, and when reading stops because the size limit is
+#            reached.
+#          - The return value is always Unicode regardless of format,
+#            like any other string.
 #
-# Provide read interface for memchardev. Read from the char
-# device 'memory' and return the data.
-#
-# @device: the name of the memory char device.
-#
-# @size: the size to read in bytes.
-#
-# @format: #optional the format of the data want to read from
-#          memchardev, by default is 'utf8'.
-#
-# Returns: @MemCharRead
-#          If @device is not a valid memchr device, DeviceNotFound
+# Returns: data read from the device
 #
 # Since: 1.4
 ##
-{ 'command': 'memchar-read',
+{ 'command': 'ringbuf-read',
   'data': {'device': 'str', 'size': 'int', '*format': 'DataFormat'},
-  'returns': 'MemCharRead' }
+  'returns': 'str' }
 
 ##
 # @CommandInfo:
@@ -3102,7 +3095,7 @@
                                    'out' : 'str' } }
 
 ##
-# @ChardevPort:
+# @ChardevHostdev:
 #
 # Configuration info for device chardevs.
 #
@@ -3112,11 +3105,7 @@
 #
 # Since: 1.4
 ##
-{ 'enum': 'ChardevPortKind', 'data': [ 'serial',
-                                       'parallel' ] }
-
-{ 'type': 'ChardevPort', 'data': { 'device' : 'str',
-                                   'type'   : 'ChardevPortKind'} }
+{ 'type': 'ChardevHostdev', 'data': { 'device' : 'str' } }
 
 ##
 # @ChardevSocket:
@@ -3149,7 +3138,8 @@
 { 'type': 'ChardevDummy', 'data': { } }
 
 { 'union': 'ChardevBackend', 'data': { 'file'   : 'ChardevFile',
-                                       'port'   : 'ChardevPort',
+                                       'serial' : 'ChardevHostdev',
+                                       'parallel': 'ChardevHostdev',
                                        'socket' : 'ChardevSocket',
                                        'pty'    : 'ChardevDummy',
                                        'null'   : 'ChardevDummy' } }
@@ -3159,6 +3149,9 @@
 #
 # Return info about the chardev backend just created.
 #
+# @pty: #optional name of the slave pseudoterminal device, present if
+#       and only if a chardev of type 'pty' was created
+#
 # Since: 1.4
 ##
 { 'type' : 'ChardevReturn', 'data': { '*pty' : 'str' } }
@@ -3166,12 +3159,12 @@
 ##
 # @chardev-add:
 #
-# Add a file chardev
+# Add a character device backend
 #
 # @id: the chardev's ID, must be unique
 # @backend: backend type and parameters
 #
-# Returns: chardev info.
+# Returns: ChardevReturn.
 #
 # Since: 1.4
 ##
@@ -3182,7 +3175,7 @@
 ##
 # @chardev-remove:
 #
-# Remove a chardev
+# Remove a character device backend
 #
 # @id: the chardev's ID, must exist and not be in use
 #

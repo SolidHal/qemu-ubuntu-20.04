@@ -37,6 +37,7 @@ Build-Depends: debhelper (>= 9),
 # --enable-fdt
  libfdt-dev,
 # --enable-vnc-tls
+# --enable-vnc-ws
  libgnutls-dev,
 # --enable-libiscsi
  libiscsi-dev,
@@ -52,16 +53,16 @@ Build-Depends: debhelper (>= 9),
  libsdl1.2-dev (>> 1.2.1),
 # --enable-seccomp	linux-amd64|linux-i386
  libseccomp-dev (>> 1.0.0) [linux-amd64 linux-i386],
-# --enable-spice	*-amd64|*-i386
- libspice-server-dev (>= 0.12.2~) [amd64 i386],
+# --enable-spice	linux-amd64|linux-i386
+ libspice-server-dev (>= 0.12.2~) [linux-amd64 linux-i386],
 # --enable-usb-redir	linux-*
  libusbredirparser-dev (>= 0.6~) [linux-any],
 # --enable-vde
  libvdeplug2-dev,
 # needed for sdl
  libx11-dev,
-# --enable-xen	*-amd64|*-i386
- libxen-dev [amd64 i386],
+# --enable-xen	linux-amd64|linux-i386
+ libxen-dev [linux-amd64 linux-i386],
 # XXX need to check minimum linux-headers requiriment
  linux-libc-dev (>= 2.6.34) [linux-any],
 # --enable-uuid
@@ -81,8 +82,8 @@ Build-Depends: debhelper (>= 9),
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.3
 Homepage: http://www.qemu.org/
-Vcs-Browser: http://git.debian.org/?p=pkg-qemu/qemu.git
-Vcs-Git: git://git.debian.org/git/pkg-qemu/qemu.git
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-qemu/qemu.git
+Vcs-Git: git://anonscm.debian.org/pkg-qemu/qemu.git
 
 Package: qemu
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
@@ -392,7 +393,7 @@ Description: Guest-side qemu-system agent
 Package: qemu-kvm
 Architecture: i386 amd64
 Multi-Arch: foreign
-Depends: qemu-system-x86 (>= ${source:Version})
+Depends: ${misc:Depends}, qemu-system-x86 (>= ${source:Version})
 Section: oldlibs
 Description: QEMU Full virtualization on x86 hardware (transitional package)
  QEMU is a fast processor emulator.  This package is a transitional

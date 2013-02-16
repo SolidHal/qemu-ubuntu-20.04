@@ -33,6 +33,7 @@ common_configure_opts = \
 	--interp-prefix=/etc/qemu-binfmt/%M \
 	--localstatedir=/var \
 	--audio-card-list=ac97,es1370,sb16,cs4231a,adlib,gus,hda \
+	--enable-uname-release=2.6.32 \
 
 # list of system (softmmu) targets, from ./configure
 system_targets = \
@@ -163,7 +164,7 @@ define inst-system
 	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
 	for t in ${sysarch_$1}; do \
 	    mv debian/tmp/usr/bin/qemu-system-$$t debian/qemu-system-$1/usr/bin/; \
-	    echo ".so qemu.1" > debian/qemu-system-$1/usr/share/man/man1/qemu-system-$$t.1; \
+	    echo ".so man1/qemu.1" > debian/qemu-system-$1/usr/share/man/man1/qemu-system-$$t.1; \
 	done
 	echo sysarch:$1=${sysarch_$1} > debian/qemu-system-$1.substvars
 	echo sysprovides:$1=${addprefix qemu-system-,${filter-out $1,${sysarch_$1}}} | \

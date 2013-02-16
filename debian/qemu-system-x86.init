@@ -11,8 +11,11 @@
 # Description:       This script loads the kernel modules needed by QEMU KVM
 ### END INIT INFO
 
-. /lib/lsb/init-functions
+# check if we're running inside an (lxc) container
+# (we may copy or move this to the postinst script too, to skip installing it)
+grep -zqs ^container= /proc/1/environ && exit 0
 
+. /lib/lsb/init-functions
 
 case "$1" in
     start|restart|force-reload)
