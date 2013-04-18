@@ -1,3 +1,25 @@
+qemu (1.4.0+dfsg-2exp) experimental; urgency=low
+
+  [ Michael Tokarev ]
+  * set qemu-kvm priority to extra
+  * fix distribution field in last qemu-system.NEWS entry
+  * bump Standards-Version to 3.9.4 (no changes needed)
+  * fix update-rc.d args for qemu-system-x86
+  * pre-Depend on adduser for qemu-system-common (Closes: #700840)
+  * move guest agent binary (qemu-ga) to /usr/sbin
+  * add versioned build-depends on libspice-protocol-dev (>= 0.12.3)
+  * refresh qemu-ifunc-sparc.patch, use proper submission from patchwork
+    (sparc-linux-user-fix-missing-symbols...) instead.
+  * apply 1.4.1 upstream stable patch
+  * release as 1.4.0
+
+  [ Aurelien Jarno ]
+  * debian/rules: don't build spapr-rtas.bin from .hex file.
+  * qemu-system-ppc: add a depends on qemu-slof and add the corresponding
+    links (Closes: #686979).
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 18 Apr 2013 14:45:30 +0400
+
 qemu (1.4.0+dfsg-1exp) experimental; urgency=low
 
   [ Michael Tokarev ]
@@ -10,7 +32,7 @@ qemu (1.4.0+dfsg-1exp) experimental; urgency=low
     kfreebsd-{i386,amd64}.
   * fix manpage "links" generation (man qemu-system-* was broken)
   * change Vcs fields to point to anonscm.debian.org (lintian)
-  * add a check for (vlc) container to qemu-system-x86 initscript
+  * add a check for (lxc) container to qemu-system-x86 initscript
 
   [ Steve Langasek ]
   * Pass --enable-uname-release=2.6.32 for the user emulation builds, so that

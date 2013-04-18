@@ -1,4 +1,4 @@
-qemu (1.3.0+dfsg-4exp) UNRELEASED; urgency=low
+qemu (1.3.0+dfsg-4exp) experimental; urgency=low
 
   Starting from 1.3.0 release, qemu-system package, which provided
   QEMU system emulation targets for many architectures, has been

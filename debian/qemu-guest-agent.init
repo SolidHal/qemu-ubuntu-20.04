@@ -15,7 +15,7 @@
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="QEMU Guest Agent"
 NAME=qemu-ga
-DAEMON=/usr/bin/$NAME
+DAEMON=/usr/sbin/$NAME
 PIDFILE=/var/run/$NAME.pid
 
 # config

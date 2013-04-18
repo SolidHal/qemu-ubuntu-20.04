@@ -1,1 +1,1 @@
-debian/tmp/usr/bin/qemu-ga
+debian/tmp/usr/bin/qemu-ga /usr/sbin

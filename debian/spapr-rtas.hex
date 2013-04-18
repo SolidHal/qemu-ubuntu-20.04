@@ -1,8 +1,0 @@
-# assembly/binary code of spapr-rtas.bin file
-# (source is in pc-bios/spapr-rtas/spapr-rtas.S)
-# 00000000 <_start>:
-   0:	7c 64 1b 78 	mr      r4,r3
-   4:	3c 60 00 00 	lis     r3,0
-   8:	60 63 f0 00 	ori     r3,r3,0xf000
-   c:	44 00 00 22 	sc      1
-  10:	4e 80 00 20 	blr

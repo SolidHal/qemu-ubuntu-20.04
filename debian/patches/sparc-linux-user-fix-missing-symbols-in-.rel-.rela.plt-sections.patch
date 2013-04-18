@@ -1,0 +1,54 @@
+From patchwork Tue Jan 10 17:38:16 2012
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 8bit
+Subject: sparc-linux-user: Fix missing symbols in .rel/.rela.plt sections
+Date: Tue, 10 Jan 2012 07:38:16 -0000
+From: Aurelien Jarno <aurelien@aurel32.net>
+X-Patchwork-Id: 135267
+Message-Id: <20120110173816.GB6244@volta.aurel32.net>
+To: Blue Swirl <blauwirbel@gmail.com>
+Cc: qemu-devel@nongnu.org
+
+sparc-linux-user: Fix missing symbols in .rel/.rela.plt sections
+
+Fix .rel.plt sections in the output to not only include .rel.plt
+sections from the input but also the .rel.iplt sections and to define
+the hidden symbols __rel_iplt_start and __rel_iplt_end around
+.rel.iplt as otherwise we get undefined references to these when
+linking statically to a multiarch enabled libc (using STT_GNU_IFUNC).
+
+Cc: Blue Swirl <blauwirbel@gmail.com>
+Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
+
+---
+ldscripts/sparc.ld |   16 ++++++++++++++--
+ 1 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/sparc.ld b/sparc.ld
+index 56efe34..cec17c9 100644
+--- a/ldscripts/sparc.ld
++++ b/ldscripts/sparc.ld
+@@ -37,8 +37,20 @@ SECTIONS
+   .rela.fini     : { *(.rela.fini)      }
+   .rel.bss       : { *(.rel.bss)                }
+   .rela.bss      : { *(.rela.bss)               }
+-  .rel.plt       : { *(.rel.plt)                }
+-  .rela.plt      : { *(.rela.plt)               }
++  .rel.plt      :
++  {
++    *(.rel.plt)
++    PROVIDE (__rel_iplt_start = .);
++    *(.rel.iplt)
++    PROVIDE (__rel_iplt_end = .);
++  }
++  .rela.plt       :
++  {
++    *(.rela.plt)
++    PROVIDE (__rela_iplt_start = .);
++    *(.rela.iplt)
++    PROVIDE (__rela_iplt_end = .);
++  }
+   .init          : { *(.init)   } =0x47ff041f
+   .text      :
+   {

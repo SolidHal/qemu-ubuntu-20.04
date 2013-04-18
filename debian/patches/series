@@ -1,2 +1,3 @@
+qemu-1.4.1.diff
 02_kfreebsd.patch
-qemu-ifunc-sparc.patch
+sparc-linux-user-fix-missing-symbols-in-.rel-.rela.plt-sections.patch

@@ -127,22 +127,6 @@ build-stamp: configure-stamp
 	$(MAKE) -C $(CURDIR)/qemu-build
 	dtc -o qemu-build/pc-bios/bamboo.dtb pc-bios/bamboo.dts
 
-# special case for spapr-rtas.bin file.
-# this is an entry point for PPC architecture, which consists of just 5
-# processor instructions.  We use a pre-compiled pseudo-assembler version
-# in debian/spapr-rtas.hex which can be "compiled" using sed magic.
-# After "compiling" it this way, we compare with the upstream version,
-# it should be the same.
-# Use /usr/bin/printf since dash's printf does not understand \xNN.
-	/usr/bin/printf "$$(sed -n 's|^ .*:	\(.*\)	.*|\1|p' debian/spapr-rtas.hex | \
-		tr -d ' \n' | sed 's|\([0-9a-f]\{2\}\)|\\x\1|g')" > \
-		qemu-build/pc-bios/spapr-rtas.bin
-ifeq ($(DEB_HOST_ARCH),powerpc)
-	$(MAKE) -C qemu-build/pc-bios/spapr-rtas spapr-rtas.bin
-	cmp qemu-build/pc-bios/spapr-rtas.bin \
-	    qemu-build/pc-bios/spapr-rtas/spapr-rtas.bin
-endif
-
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 	# user-static build
 	# we use this invocation to build just the binaries
@@ -237,7 +221,7 @@ endif
 	dh_installchangelogs Changelog
 	dh_installudev
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-	dh_installinit -pqemu-system-x86 --no-restart-on-upgrade
+	dh_installinit -pqemu-system-x86 --no-restart-on-upgrade -u start 20 S .
 endif
 	dh_installinit -pqemu-guest-agent
 	dh_link
