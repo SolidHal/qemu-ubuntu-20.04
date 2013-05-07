@@ -1,3 +1,16 @@
+qemu (1.5.0~rc0+dfsg-1) experimental; urgency=low
+
+  * update to new upstream release candidate (1.5.0-rc0)
+  * remove --audio-card-list
+  * added new moxie system target
+  * added new linux-user targets: mips64 mips64el mipsn32 mipsn32el
+  * add libgtk2 and libvte to dependencies (new UI)
+  * added libssh2 to dependencies (new block device)
+  * s/libvdeplug2-dev/libvdeplug-dev/
+  * define localstatedir (for guest-agent)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 08 May 2013 01:01:01 +0400
+
 qemu (1.4.0+dfsg-2exp) experimental; urgency=low
 
   [ Michael Tokarev ]

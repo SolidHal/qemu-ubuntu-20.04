@@ -39,6 +39,9 @@ Build-Depends: debhelper (>= 9),
 # --enable-vnc-tls
 # --enable-vnc-ws
  libgnutls-dev,
+# --enable-gtk
+# --with-gtkabi=2.0
+ libgtk2.0-dev,
 # --enable-libiscsi
  libiscsi-dev,
 # --enable-curses
@@ -56,10 +59,16 @@ Build-Depends: debhelper (>= 9),
 # --enable-spice	linux-amd64|linux-i386
  libspice-server-dev (>= 0.12.2~) [linux-amd64 linux-i386],
  libspice-protocol-dev (>= 0.12.3~) [linux-amd64 linux-i386],
+## --enable-libusb -- not yet packaged
+# libusb-1.0-0-dev (>= 2:1.0.13~),
 # --enable-usb-redir	linux-*
  libusbredirparser-dev (>= 0.6~) [linux-any],
+# --enable-libssh2
+ libssh2-1-dev,
 # --enable-vde
- libvdeplug2-dev,
+ libvdeplug-dev,
+# for gtk2, revisit for gtk3
+ libvte-dev (>> 0.18.0~),
 # needed for sdl
  libx11-dev,
 # --enable-xen	linux-amd64|linux-i386
