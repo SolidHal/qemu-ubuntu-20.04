@@ -53,13 +53,6 @@
 #include <sys/select.h>
 #ifdef CONFIG_BSD
 #include <sys/stat.h>
-#if defined(__GLIBC__)
-#include <pty.h>
-#elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__DragonFly__)
-#include <libutil.h>
-#else
-#include <util.h>
-#endif
 #if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
 #include <dev/ppbus/ppi.h>
 #include <dev/ppbus/ppbconf.h>
@@ -69,8 +62,6 @@
 #endif
 #else
 #ifdef __linux__
-#include <pty.h>
-
 #include <linux/ppdev.h>
 #include <linux/parport.h>
 #endif
@@ -87,7 +78,6 @@
 #include <netinet/tcp.h>
 #include <net/if.h>
 #include <syslog.h>
-#include <stropts.h>
 #endif
 #endif
 #endif
@@ -3708,12 +3698,12 @@ static CharDriverState *qmp_chardev_open_socket(ChardevSocket *sock,
                                    is_telnet, is_waitconnect, errp);
 }
 
-static CharDriverState *qmp_chardev_open_dgram(ChardevDgram *dgram,
-                                               Error **errp)
+static CharDriverState *qmp_chardev_open_udp(ChardevUdp *udp,
+                                             Error **errp)
 {
     int fd;
 
-    fd = socket_dgram(dgram->remote, dgram->local, errp);
+    fd = socket_dgram(udp->remote, udp->local, errp);
     if (error_is_set(errp)) {
         return NULL;
     }
@@ -3749,8 +3739,8 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
     case CHARDEV_BACKEND_KIND_SOCKET:
         chr = qmp_chardev_open_socket(backend->socket, errp);
         break;
-    case CHARDEV_BACKEND_KIND_DGRAM:
-        chr = qmp_chardev_open_dgram(backend->dgram, errp);
+    case CHARDEV_BACKEND_KIND_UDP:
+        chr = qmp_chardev_open_udp(backend->udp, errp);
         break;
 #ifdef HAVE_CHARDEV_TTY
     case CHARDEV_BACKEND_KIND_PTY:

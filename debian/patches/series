@@ -1,2 +1,4 @@
 02_kfreebsd.patch
+retry-pxe-after-efi.patch
+use-fixed-data-path.patch
 sparc-linux-user-fix-missing-symbols-in-.rel-.rela.plt-sections.patch

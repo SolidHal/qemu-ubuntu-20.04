@@ -609,6 +609,7 @@ static const RunStateTransition runstate_transitions_def[] = {
     { RUN_STATE_WATCHDOG, RUN_STATE_FINISH_MIGRATE },
 
     { RUN_STATE_GUEST_PANICKED, RUN_STATE_PAUSED },
+    { RUN_STATE_GUEST_PANICKED, RUN_STATE_FINISH_MIGRATE },
 
     { RUN_STATE_MAX, RUN_STATE_MAX },
 };
@@ -1215,7 +1216,7 @@ void add_boot_device_path(int32_t bootindex, DeviceState *dev,
 
     node = g_malloc0(sizeof(FWBootEntry));
     node->bootindex = bootindex;
-    node->suffix = suffix ? g_strdup(suffix) : NULL;
+    node->suffix = g_strdup(suffix);
     node->dev = dev;
 
     QTAILQ_FOREACH(i, &fw_boot_order, link) {

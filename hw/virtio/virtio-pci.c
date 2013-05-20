@@ -744,6 +744,7 @@ static int virtio_pci_set_guest_notifier(DeviceState *d, int n, bool assign,
                                          bool with_irqfd)
 {
     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
+    VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(proxy->vdev);
     VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
     EventNotifier *notifier = virtio_queue_get_guest_notifier(vq);
 
@@ -756,6 +757,10 @@ static int virtio_pci_set_guest_notifier(DeviceState *d, int n, bool assign,
     } else {
         virtio_queue_set_guest_notifier_fd_handler(vq, false, with_irqfd);
         event_notifier_cleanup(notifier);
+    }
+
+    if (!msix_enabled(&proxy->pci_dev) && vdc->guest_notifier_mask) {
+        vdc->guest_notifier_mask(proxy->vdev, n, !assign);
     }
 
     return 0;
@@ -1393,10 +1398,13 @@ static Property virtio_net_properties[] = {
 
 static int virtio_net_pci_init(VirtIOPCIProxy *vpci_dev)
 {
+    DeviceState *qdev = DEVICE(vpci_dev);
     VirtIONetPCI *dev = VIRTIO_NET_PCI(vpci_dev);
     DeviceState *vdev = DEVICE(&dev->vdev);
 
     virtio_net_set_config_size(&dev->vdev, vpci_dev->host_features);
+    virtio_net_set_netclient_name(&dev->vdev, qdev->id,
+                                  object_get_typename(OBJECT(qdev)));
     qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
     if (qdev_init(vdev) < 0) {
         return -1;

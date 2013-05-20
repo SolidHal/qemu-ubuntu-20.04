@@ -1,9 +1,6 @@
 General packaging items:
 
-* check openbios* for 1.4 version.  Needs another link,
-  openbios-ppc64 (and the new binary ofcourse)
-
-* fix other binaries (slof, sgabios, s390-zipl, ppc_rom)
+* fix other binaries (sgabios, s390-zipl, ppc_rom)
 
 * figure out what to do with kvm initscripts and udev rules.
   Currently we ship kvm udev rules in qemu-system-common, even

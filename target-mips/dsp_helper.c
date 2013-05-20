@@ -19,6 +19,7 @@
 
 #include "cpu.h"
 #include "helper.h"
+#include "qemu/bitops.h"
 
 /* As the byte ordering doesn't matter, i.e. all columns are treated
    identically, these unions can be used directly.  */
@@ -53,9 +54,10 @@ static inline void set_DSPControl_overflow_flag(uint32_t flag, int position,
     env->active_tc.DSPControl |= (target_ulong)flag << position;
 }
 
-static inline void set_DSPControl_carryflag(uint32_t flag, CPUMIPSState *env)
+static inline void set_DSPControl_carryflag(bool flag, CPUMIPSState *env)
 {
-    env->active_tc.DSPControl |= (target_ulong)flag << 13;
+    env->active_tc.DSPControl &= ~(1 << 13);
+    env->active_tc.DSPControl |= flag << 13;
 }
 
 static inline uint32_t get_DSPControl_carryflag(CPUMIPSState *env)
@@ -90,10 +92,10 @@ static inline void set_DSPControl_pos(uint32_t pos, CPUMIPSState *env)
     dspc = env->active_tc.DSPControl;
 #ifndef TARGET_MIPS64
     dspc = dspc & 0xFFFFFFC0;
-    dspc |= pos;
+    dspc |= (pos & 0x3F);
 #else
     dspc = dspc & 0xFFFFFF80;
-    dspc |= pos;
+    dspc |= (pos & 0x7F);
 #endif
     env->active_tc.DSPControl = dspc;
 }
@@ -1266,7 +1268,7 @@ SUBUH_QB(subuh_r, 1);
 target_ulong helper_addsc(target_ulong rs, target_ulong rt, CPUMIPSState *env)
 {
     uint64_t temp, tempRs, tempRt;
-    int32_t flag;
+    bool flag;
 
     tempRs = (uint64_t)rs & MIPSDSP_LLO;
     tempRt = (uint64_t)rt & MIPSDSP_LLO;
@@ -2921,7 +2923,7 @@ target_ulong helper_##name(CPUMIPSState *env, target_ulong rs,  \
         return rt;                                              \
     }                                                           \
                                                                 \
-    filter = ((int32_t)0x01 << size) - 1;                       \
+    filter = ((int64_t)0x01 << size) - 1;                       \
     filter = filter << pos;                                     \
     temprs = (rs << pos) & filter;                              \
     temprt = rt & ~filter;                                      \
@@ -2930,7 +2932,7 @@ target_ulong helper_##name(CPUMIPSState *env, target_ulong rs,  \
     return (target_long)(ret_type)temp;                         \
 }
 
-BIT_INSV(insv, 0x1F, 0x1F, int32_t);
+BIT_INSV(insv, 0x1F, 0x3F, int32_t);
 #ifdef TARGET_MIPS64
 BIT_INSV(dinsv, 0x7F, 0x3F, target_long);
 #endif
@@ -3415,8 +3417,7 @@ target_ulong helper_extp(target_ulong ac, target_ulong size, CPUMIPSState *env)
     if (sub >= -1) {
         acc = ((uint64_t)env->active_tc.HI[ac] << 32) |
               ((uint64_t)env->active_tc.LO[ac] & MIPSDSP_LLO);
-        temp = (acc >> (start_pos - size)) &
-               (((uint32_t)0x01 << (size + 1)) - 1);
+        temp = (acc >> (start_pos - size)) & (~0U >> (31 - size));
         set_DSPControl_efi(0, env);
     } else {
         set_DSPControl_efi(1, env);
@@ -3440,10 +3441,9 @@ target_ulong helper_extpdp(target_ulong ac, target_ulong size,
     if (sub >= -1) {
         acc  = ((uint64_t)env->active_tc.HI[ac] << 32) |
                ((uint64_t)env->active_tc.LO[ac] & MIPSDSP_LLO);
-        temp = (acc >> (start_pos - size)) &
-               (((uint32_t)0x01 << (size + 1)) - 1);
+        temp = extract64(acc, start_pos - size, size + 1);
 
-        set_DSPControl_pos(start_pos - (size + 1), env);
+        set_DSPControl_pos(sub, env);
         set_DSPControl_efi(0, env);
     } else {
         set_DSPControl_efi(1, env);

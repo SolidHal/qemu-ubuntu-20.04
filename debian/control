@@ -59,8 +59,8 @@ Build-Depends: debhelper (>= 9),
 # --enable-spice	linux-amd64|linux-i386
  libspice-server-dev (>= 0.12.2~) [linux-amd64 linux-i386],
  libspice-protocol-dev (>= 0.12.3~) [linux-amd64 linux-i386],
-## --enable-libusb -- not yet packaged
-# libusb-1.0-0-dev (>= 2:1.0.13~),
+# --enable-libusb	linux-*
+ libusb-1.0-0-dev (>= 2:1.0.13~) [linux-any],
 # --enable-usb-redir	linux-*
  libusbredirparser-dev (>= 0.6~) [linux-any],
 # --enable-libssh2
@@ -258,7 +258,7 @@ Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
  qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
- openbios-ppc (>= 1.0+svn1060), openhackware, qemu-slof
+ openbios-ppc (>= 1.1), openhackware, qemu-slof
 Provides: ${sysprovides:ppc}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
 Replaces: qemu-system (<< 1.3.0+dfsg-5)
@@ -282,7 +282,7 @@ Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
  qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
- openbios-sparc (>= 1.0+svn1060)
+ openbios-sparc (>= 1.1)
 Provides: ${sysprovides:sparc}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
 Replaces: qemu-system (<< 1.3.0+dfsg-5)
@@ -306,7 +306,7 @@ Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
  qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
- vgabios (>= 0.6c-3~), seabios (>= 1.7.2~), ipxe-qemu
+ vgabios (>= 0.6c-3~), seabios (>= 1.7.2-2~), ipxe-qemu
 Provides: ${sysprovides:x86}, qemu-kvm, kvm
 Conflicts: kvm
 Breaks:

@@ -1,6 +1,26 @@
+qemu (1.5.0+dfsg-1) unstable; urgency=low
+
+  * update to 1.5.0 (Closes: #707732)
+  * upload to unstable
+  * mention that 1.5 closes #697641 and #705544
+  * bump dependency on openbios (openbios-ppc for qemu-system-ppc,
+    openbios-sparc for qemu-system-sparc) from 1.0+svn1060 to 1.1
+    (Closes: #707727)
+  * bump dependency on seabios to be >= 1.7.2-2
+  * add retry-pxe-after-efi.patch to try pxe-XXXX.rom after unsuccessfully
+    trying efi-XXXX.rom - this is for NICs, until pxe-qemu package will be
+    able to provide necessary efi-XXXX.rom files.
+  * add (versioned) dependency on libusb-1.0 now when the right version
+    is available in debian
+  * use-fixed-data-path.patch: do not try to derive data path from
+    executable location, always use /usr/share/qemu
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 21 May 2013 00:49:47 +0400
+
 qemu (1.5.0~rc0+dfsg-1) experimental; urgency=low
 
   * update to new upstream release candidate (1.5.0-rc0)
+    (Closes: #697641, #705544)
   * remove --audio-card-list
   * added new moxie system target
   * added new linux-user targets: mips64 mips64el mipsn32 mipsn32el
