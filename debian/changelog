@@ -1,3 +1,15 @@
+qemu (1.5.0+dfsg-2) unstable; urgency=low
+
+  * merged development history of wheezy and experimental branches.
+    Now the history is ordered by version, but is not chronological.
+    As a base we now have wheezy (1.1.2+dfsg-6a) version.
+  * removed trailing whitespaces from changelog file
+  * run dh_installinit properly (Closes: #709199)
+  * run dh_installman (Closes: #709241)
+  * remove build-dependendy on texi2html, upstream switched to makeinfo
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 28 May 2013 10:48:41 +0400
+
 qemu (1.5.0+dfsg-1) unstable; urgency=low
 
   * update to 1.5.0 (Closes: #707732)
@@ -262,13 +274,6 @@ qemu (1.3.0+dfsg-1~exp1) experimental; urgency=low
   * ship virtfs-proxy-helper in qemu-utils.
   * stop shipping tundev.c, since it does not reflect the reality for
     a long time now (Closes: #325761, #325754).
-  * remove debian/patches/fix-armhf-prctl.patch, it is included
-    upstream in 1.1.0 version and is misapplied since 1.1.0~rc3+dfsg-1.
-  * drop -jN passing to downstream makes, as it breaks dpkg-buildpackage -j
-    and actually breaks build (Closes: #597524 - said to be fixed in 0.14.1
-    but was still present)
-  * add revert-serial-fix-retry-logic.patch that restores
-    old (semi-)working behavour of a virtual serial port.
   * re-introduce support parallel build using DEB_BUILD_OPTIONS=parallel=N,
     this time by adding to $MAKEFLAGS instead of passing down to submakes
   * build-depend on libcap-ng-dev (for virtfs-proxy-helper)
@@ -277,6 +282,92 @@ qemu (1.3.0+dfsg-1~exp1) experimental; urgency=low
   * Add libcap-dev to Build-Depends to support virtfs-proxy-helper.
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 30 Dec 2012 01:52:21 +0400
+
+qemu (1.1.2+dfsg-6a) unstable; urgency=low
+
+  * reupload to remove two unrelated files slipped in debian/
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 18 Mar 2013 10:09:37 +0400
+
+qemu (1.1.2+dfsg-6) unstable; urgency=low
+
+  * another bugfix for USB, upstream from early days of past-1.1.
+    usb-split-endpoint-init-and-reset.patch.  With certain redirected
+    to guest USB devices, qemu process may crash:
+
+     usb_packet_complete: Assertion `((&ep->queue)->tqh_first) == p' failed.
+
+    The patch fixes this by de-coupling reset and complete paths.
+    Big thanks goes to Joseph Price who found the fix by doing a
+    reverse git bisection.
+    (Closes: #701926)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 18 Mar 2013 09:07:24 +0400
+
+qemu (1.1.2+dfsg-5) unstable; urgency=low
+
+  * fix USB regression introduced in 1.1 (Closes: #683983)
+    uhci-don-t-queue-up-packets-after-one-with-the-SPD-flag-set.patch
+    Big thanks to Peter Schaefer (https://bugs.launchpad.net/bugs/1033727)
+    for the help identifying the fix.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 14 Jan 2013 12:20:29 +0400
+
+qemu (1.1.2+dfsg-4) unstable; urgency=medium
+
+  * linux-user-fix-mips-32-on-64-prealloc-case.patch (Closes: #668658)
+  * e1000-discard-oversized-packets-based-on-SBP_LPE.patch: the second
+    half of the fix for CVE-2012-6075. (Finally Closes: #696051)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 09 Jan 2013 23:05:17 +0400
+
+qemu (1.1.2+dfsg-3) unstable; urgency=low
+
+  * add build-dependency on libcap-dev [linux-any] to enable virtfs support
+    which has been dropped in 1.1. (Closes: #677654)
+  * intel_hda-do-not-call-msi_reset-when-only-device-state-needs-resetting.patch
+    patch to fix Fixing reset of MSI function in intel-hda virtual device.
+    The fix (applied to stable-1.1.1) was partially wrong, as it actually
+    added the msi_reset() call to two code paths instead of one as planned.
+    Fix this by splitting the function in question into two parts.
+    (Closes: #688964)
+  * blockdev-preserve-readonly-and-snapshot-states-across-media-changes.patch:
+    allow opening of read-only cdrom images/devices (Closes: #686776)
+  * ahci-properly-reset-PxCMD-on-HBA-reset.patch: fix windows install on ahci
+    (Closes: #696052)
+  * e1000-discard-packets-that-are-too-long-if-not-SBP-and-not-LPE.patch:
+    discard too long rx packets which may overflow guest buffer
+    (Closes: #696051)
+  * eepro100-fix-network-hang-when-rx-buffers-run-out.patch:
+    fix e100 stall (Closes: #696061)
+  * fix possible network stalls/slowness in e1000 device emulation:
+    net-notify-iothread-after-flushing-queue.patch
+    e1000-flush-queue-whenever-can_receive-can-go-from-false-to-true.patch
+    (Closes: #696063)
+  * fixes-related-to-processing-of-qemu-s-numa-option.patch:
+    fixes numa handling (Closes: #691343)
+  * qcow2-fix-avail_sectors-in-cluster-allocation-code.patch:
+    fixes data corruption in stacked qcow2 (Closes: #695905)
+  * qcow2-fix-refcount-table-size-calculation.patch: another possible
+    corruption or crash in qcow2 (Closes: #691569)
+  * tap-reset-vnet-header-size-on-open.patch: always ensure tap device is
+    in known state initially (Closes: #696057)
+  * vmdk-fix-data-corruption-bug-in-WRITE-and-READ-handling.patch:
+    possible data corruption bug in vmdk image format (Closes: #696050)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 16 Dec 2012 23:08:40 +0400
+
+qemu (1.1.2+dfsg-2) unstable; urgency=low
+
+  * remove debian/patches/fix-armhf-prctl.patch, it is included
+    upstream in 1.1.0 version and is misapplied since 1.1.0~rc3+dfsg-1.
+  * drop -jN passing to downstream makes, as it breaks dpkg-buildpackage -j
+    and actually breaks build (Closes: #597524 - said to be fixed in 0.14.1
+    but was still present)
+  * add revert-serial-fix-retry-logic.patch that restores
+    old (semi-)working behavour of a virtual serial port.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 19 Sep 2012 13:54:05 +0400
 
 qemu (1.1.2+dfsg-1) unstable; urgency=low
 
@@ -296,11 +387,11 @@ qemu (1.1.2+dfsg-1) unstable; urgency=low
     (net-add--netdev-options-to-man-page.patch)
 
   [Vagrant Cascadian]
-  * qemu-system: Add symlinks for extboot.bin, kvmvapic.bin and vapic.bin to 
+  * qemu-system: Add symlinks for extboot.bin, kvmvapic.bin and vapic.bin to
     binaries shipped in seabios. Closes: #678217, #679004.
-  * qemu-system: Remove dead link for ne2k_isa.rom, which is not included in 
-    ipxe. Closes: #679004. 
-  * qemu-system: Bump versioned openbios-sparc and openbios-ppc Depends to 
+  * qemu-system: Remove dead link for ne2k_isa.rom, which is not included in
+    ipxe. Closes: #679004.
+  * qemu-system: Bump versioned openbios-sparc and openbios-ppc Depends to
     1.0+svn1060, to ensure we use at least version which is used by upstream.
     Wheezy already has the right version, but we should not break partial
     upgrades.
@@ -330,7 +421,7 @@ qemu (1.1.0~rc3+dfsg-1) experimental; urgency=low
     - Remove dont-block-sigchld, applied upstream.
     - Update configure-nss-usbredir.
     - Update fix-armhf-prctl.
-  * debian/rules: Remove --disable-darwin-user from configure, as it is no 
+  * debian/rules: Remove --disable-darwin-user from configure, as it is no
     longer present.
   * Apply patch to qemu-make-debian-root to improve argument handling.
     (Closes: #671723). Thanks to Askar Safin.
@@ -355,7 +446,7 @@ qemu (1.0.1+dfsg-1) unstable; urgency=low
   * depend on vgabios >= 0.6c-3~ not 0.6c-3, to assist backporting
 
   [ Hector Oron ]
-  * Fix prctl syscall (Closes: #656926, #651083). 
+  * Fix prctl syscall (Closes: #656926, #651083).
 
   [ Vagrant Cascadian ]
   * Update to Standards-Version 3.9.3, no changes necessary.
@@ -374,8 +465,8 @@ qemu (1.0+dfsg-3) unstable; urgency=low
     to just ipxe-qemu once it will be landed properly.
 
   [ Vagrant Cascadian ]
-  * Apply patch to use dpkg-buildflags (Closes: #656276). 
-    Thanks to Moritz Muehlenhoff. 
+  * Apply patch to use dpkg-buildflags (Closes: #656276).
+    Thanks to Moritz Muehlenhoff.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Mon, 06 Feb 2012 17:56:15 -0800
 
@@ -385,17 +476,17 @@ qemu (1.0+dfsg-2) unstable; urgency=low
   * Add patch from upstream to fix cmpxchg on x86.
   * Add patch to not link user builds with NSS (Closes: #648202).
   * Add binfmt support for s390x.
-  * Bump depends on openbios-ppc and openbios-sparc on versions 
+  * Bump depends on openbios-ppc and openbios-sparc on versions
     compatible with version 1.0.
   * Build on s390x (Closes: #651048).
 
   [ Vagrant Cascadian ]
-  * qemu-make-debian-root: Fix argument processing to handle when both -s and 
+  * qemu-make-debian-root: Fix argument processing to handle when both -s and
     -k are specified. Thanks to Mats Erik Andersson (Closes: #638047).
   * Add Patch from upstream to fix regression on malta with i8259 interrupts.
-  * qemu-debootstrap: Add support for armhf and s390x. 
-  * debian/rules: remove config.log in the clean target. 
-  * qemu-make-debian-root: Use debootstrap's minbase variant, instead of a 
+  * qemu-debootstrap: Add support for armhf and s390x.
+  * debian/rules: remove config.log in the clean target.
+  * qemu-make-debian-root: Use debootstrap's minbase variant, instead of a
     long list of excludes.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Mon, 09 Jan 2012 16:01:17 -0800
@@ -403,7 +494,7 @@ qemu (1.0+dfsg-2) unstable; urgency=low
 qemu (1.0+dfsg-1) experimental; urgency=low
 
   * New upstream version.
-  * Add build-dep on libxen-dev to enable xen support. 
+  * Add build-dep on libxen-dev to enable xen support.
   * Add build-dep on libiscsi-dev to enable iscsi support.
   * Add patch from upstream to not block SIGCHLD (Closes: #618743).
 
@@ -419,9 +510,9 @@ qemu (1.0~rc4+dfsg-1) experimental; urgency=low
     - runnning-typo.patch
   * Install new qemu-system variants:
     xtensa, xtensaeb, alpha
-  * debian/rules: Drop hack to rename "qemu" binary to "qemu-system-i386", as 
+  * debian/rules: Drop hack to rename "qemu" binary to "qemu-system-i386", as
     upstream now does the same.
-  * Enable spice support on amd64: 
+  * Enable spice support on amd64:
     - Add Build-Depends: libspice-server-dev, libspice-protocol-dev
   * debian/rules: use dh_prep instead of "dh_clean -k", which is deprecated.
   * qemu-system: Bump dependency on seabios to 1.6.3~.
@@ -430,16 +521,16 @@ qemu (1.0~rc4+dfsg-1) experimental; urgency=low
 
 qemu (0.15.1+dfsg-3) unstable; urgency=low
 
-  * Add patch from upstream to fix FTBFS on ia64. 
+  * Add patch from upstream to fix FTBFS on ia64.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Fri, 09 Dec 2011 23:48:21 -0800
 
 qemu (0.15.1+dfsg-2) unstable; urgency=low
 
-  * Add patch that fixes a buffer overrun (CVE-2011-4111). 
+  * Add patch that fixes a buffer overrun (CVE-2011-4111).
   * Enable spice support on amd64:
     - Add Build-Depends: libspice-server-dev, libspice-protocol-dev
-  * debian/rules: Use dh_prep instead of "dh_clean -k", which is deprecated. 
+  * debian/rules: Use dh_prep instead of "dh_clean -k", which is deprecated.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Mon, 28 Nov 2011 20:34:50 -0800
 
@@ -452,7 +543,7 @@ qemu (0.15.1+dfsg-1) unstable; urgency=low
 qemu (0.15.0+dfsg-1) unstable; urgency=low
 
   * New upstream version.
-  * Install new qemu-system, qemu-user and qemu-user-static variants: 
+  * Install new qemu-system, qemu-user and qemu-user-static variants:
     lm32, microblazeel, s390x, unicore32
   * Patch from upstream to set QEMU_INCLUDES before QEMU_CFLAGS.
   * Update debian/watch to check http://qemu.org/download.
@@ -462,13 +553,13 @@ qemu (0.15.0+dfsg-1) unstable; urgency=low
 qemu (0.15.0~rc2+dfsg-1) experimental; urgency=low
 
   * New upstream version.
-  * qemu-debootstrap: Return the exit status of debootstrap instead of 
+  * qemu-debootstrap: Return the exit status of debootstrap instead of
     hard-coding a sucessful exit status.
   * Build-depend on librbd-dev.
   * Remove qemu-mipsel-debian-rootfs.patch, a variation was applied upstream.
   * Remove pcnet-ipxe patch, applied upstream.
-  * Add Build-Depends on python. 
-  * Rename pxe rom symlinks to match upstream rename. 
+  * Add Build-Depends on python.
+  * Rename pxe rom symlinks to match upstream rename.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Sun, 07 Aug 2011 13:27:43 +0200
 
@@ -481,7 +572,7 @@ qemu (0.14.1+dfsg-3) unstable; urgency=low
   [ Vagrant Cascadian ]
   * Apply patch to fix qemu-user-static mipsel emulation (Closes: #562887).
   * Drop support for esd (Closes: #633390). Thanks to Adrian Bunk.
-  * Add dummy debian/rules build-indep/build-arch targets to resolve lintian 
+  * Add dummy debian/rules build-indep/build-arch targets to resolve lintian
     warnings and future policy requirements.
   * Remove needless mention of "Author(s)" which triggers a lintian warning.
   * Fix maintainer-script-without-set-e lintian checks.
@@ -503,9 +594,9 @@ qemu (0.14.1+dfsg-1) unstable; urgency=low
   * New upstream version.
   * Depend on ipxe instead of etherboot-qemu.
   * Add pcnet-ipxe.patch from upstream to fix ipxe with pcnet nic.
-  * Add symlink for network boot with eepro100 cards (i82551, i82557b, 
+  * Add symlink for network boot with eepro100 cards (i82551, i82557b,
     i82559er).
-  * Drop 01_rdb.patch, applied upstream. 
+  * Drop 01_rdb.patch, applied upstream.
   * Add support for building on armhf architecture.
   * Support debootstrap options that require arguments in qemu-debootstrap.
     Thanks to Stefano Rivera for the patch. Closes: #605660.
@@ -560,7 +651,7 @@ qemu (0.14.0+dfsg-1) unstable; urgency=low
 
   [ Vagrant Cascadian ]
   * New upstream release candidate version.
-  * qemu-user-static: 
+  * qemu-user-static:
     - Drop binfmt support for emulating amd64 on i386, as it is broken and
       including it interferes with environments capable of running amd64
       natively.  Closes: #604712.
@@ -576,7 +667,7 @@ qemu (0.14.0+dfsg-1) unstable; urgency=low
   [ Vagrant Cascadian ]
   * Update debian/copyright to refer to upstream git repositry and clarify
     which binary blobs are removed to make the dfsg-free tarball.
-  * Refresh debian/patches/security/leftover.patch. 
+  * Refresh debian/patches/security/leftover.patch.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Fri, 18 Feb 2011 21:07:01 -0800
 
@@ -598,7 +689,7 @@ qemu (0.13.0+dfsg-1) experimental; urgency=low
 
   [ Vagrant Cascadian ]
   * Switch to source format 3.0 (quilt).
-  * New upstream version. 
+  * New upstream version.
   * Drop 99_stable.diff, applied in new upstream version.
   * debian/watch: update to properly handle upstream rc versions.
 
@@ -620,20 +711,20 @@ qemu (0.13.0~rc0+dfsg-2) experimental; urgency=low
 qemu (0.13.0~rc0+dfsg-1) experimental; urgency=low
 
   * New upstream release candidate version.
-  * Do not configure audio drivers for qemu-user and qemu-user-static targets. 
+  * Do not configure audio drivers for qemu-user and qemu-user-static targets.
   * Remove patches:
     - 05_bochs_vbe, applied upstream.
     - 06_sh4, applied upstream.
     - 03_support_pselect_in_linux_user_arm, upstream implemented a simpler
       workaround.
-  * Add Build-Depends on texinfo. 
-  * Drop libqemu-dev package. 
+  * Add Build-Depends on texinfo.
+  * Drop libqemu-dev package.
 
  -- Vagrant Cascadian <vagrant@debian.org>  Thu, 29 Jul 2010 19:51:01 -0400
 
 qemu (0.12.5+dfsg-3) unstable; urgency=medium
 
-  * qemu-user-static: 
+  * qemu-user-static:
     - Drop binfmt support for emulating amd64 on i386, as it is broken and
       including it interferes with environments capable of running amd64
       natively.  Closes: #604712.
@@ -673,7 +764,7 @@ qemu (0.12.4+dfsg-4) unstable; urgency=high
 
 qemu (0.12.4+dfsg-3) unstable; urgency=low
 
-  * Update 99_stable.diff from the stable branch. 
+  * Update 99_stable.diff from the stable branch.
 
  -- Aurelien Jarno <aurel32@debian.org>  Wed, 16 Jun 2010 23:07:36 +0200
 
@@ -712,7 +803,7 @@ qemu (0.12.3+dfsg-3) unstable; urgency=low
   * Add symlink for seabios's multiboot.bin.
   * Change configure-stamp depends to non-phony target $(QUILT_STAMPFN).
     Closes: #574444.
-  * Fix a crash in cmd646 bmdma code that can be triggered by the guest. 
+  * Fix a crash in cmd646 bmdma code that can be triggered by the guest.
     Closes: #574539.
   * Explain that KQEMU support has been removed in qemu-system.NEWS.
   * Build-Conflicts with oss4-dev, as this package install a broken
@@ -727,7 +818,7 @@ qemu (0.12.3+dfsg-2) unstable; urgency=low
     headers.
 
   [ Vagrant Cascadian ]
-  * Support pselect for linux-user arm target. Patch by Michael Casadevall. 
+  * Support pselect for linux-user arm target. Patch by Michael Casadevall.
   * Add symlink for seabios's linuxboot.bin to fix -kernel option. Thanks to
     Sami Liedes. Closes: #574174.
   * qemu-system: Switch back to using versioned dependencies for vgabios,
@@ -778,7 +869,7 @@ qemu (0.11.1-2) unstable; urgency=low
   * Move qemu-make-debian-root to qemu-utils package, as it only produces disk
     images not useable by qemu-user. Lower recommends on debootstrap to
     suggests. Add Conflicts and Replaces on older versions of qemu-user.
-  * Register /usr/bin/qemu with the alternatives system. Closes: #413840. 
+  * Register /usr/bin/qemu with the alternatives system. Closes: #413840.
   * qemu: Add ${misc:Depends} so that debhelper can add dependencies if needed.
 
  -- Vagrant Cascadian <vagrant@freegeek.org>  Fri, 08 Jan 2010 09:26:11 -0800
@@ -789,7 +880,7 @@ qemu (0.11.1-1) unstable; urgency=low
   * New upstream version.
   * Drop build-depends on libfreebsd-dev on GNU/kFreeBSD.
   * qemu: suggests qemu-user-static.
-  * qemu-user-static: register QEMU with binfmt mecanism. Closes: 
+  * qemu-user-static: register QEMU with binfmt mecanism. Closes:
     #306637.
   * Bump conflicts on openbios-ppc to (<< 1.0+svn505-1).
   * Add 01-binutils-gold.diff to fix FTBFS with binutils-gold. Closes:
@@ -801,7 +892,7 @@ qemu (0.11.1-1) unstable; urgency=low
   * qemu-utils, qemu-user, qemu-system: Set both Conflicts and Replaces for
     older versions of qemu to ensure proper upgrade path.
   * Add versioned build-dep on linux-libc-dev to ensure that KVM support is
-    enabled. 
+    enabled.
   * qemu-system: Lower dependencies on vgabios, bochsbios, openhackware,
     openbios-ppc and openbios-sparc to recommends. Conflict with versions that
     are incompatible. Closes: #436094.
@@ -809,14 +900,14 @@ qemu (0.11.1-1) unstable; urgency=low
     versions actually conflict.
   * qemu-make-debian-root: Apply modified patch from Nicolas Boulenguez that
     documents usage of -s, exits on error, and mentions that it is normally
-    run as root. Closes: #447034. 
+    run as root. Closes: #447034.
 
  -- Aurelien Jarno <aurel32@debian.org>  Sun, 27 Dec 2009 12:09:11 +0100
 
 qemu (0.11.0-6) unstable; urgency=low
 
   * Update from stable-0.11 branch.
-  * qemu-utils: add Replaces: qemu (<< 0.11.0-2). Closes: #556627, 
+  * qemu-utils: add Replaces: qemu (<< 0.11.0-2). Closes: #556627,
     #556860.
 
  -- Aurelien Jarno <aurel32@debian.org>  Fri, 20 Nov 2009 08:24:32 +0100
@@ -832,8 +923,8 @@ qemu (0.11.0-5) unstable; urgency=low
 qemu (0.11.0-4) unstable; urgency=low
 
   [ Aurelien Jarno ]
-  * Update from stable-0.11 branch. 
-  * Default to alsa before OSS. Closes: #451234. 
+  * Update from stable-0.11 branch.
+  * Default to alsa before OSS. Closes: #451234.
 
   [ Vagrant Cascadian ]
   * Updated Vcs-Git to a url more likely to work with debcommit.
@@ -855,7 +946,7 @@ qemu (0.11.0-2) unstable; urgency=low
     package.
   * Add build-depends on uuid-dev.
   * Use a specific install file for qemu-utils on GNU/kFreeBSD.
-  * Call dh_install with -s. 
+  * Call dh_install with -s.
 
  -- Aurelien Jarno <aurel32@debian.org>  Tue, 17 Nov 2009 09:11:29 +0100
 
@@ -920,7 +1011,7 @@ qemu (0.10.6-1) unstable; urgency=low
 
   [ Josh Triplett ]
   * Remove myself from Uploaders.
-  
+
   [ Aurelien Jarno ]
   * New upstream version.
   * Bump Standards-Version to 3.8.2 (no changes).
@@ -940,7 +1031,7 @@ qemu (0.10.4-1) unstable; urgency=low
   * debian/NEWS.Debian: new file, describing the cache policy options
     (closes: bug#526832).
   * debian/patches/70_versatile_memsize.patch: new patch to set a upper
-    limit on the memory size of the versatile boards (closes: 
+    limit on the memory size of the versatile boards (closes:
     bug#527264).
 
  -- Aurelien Jarno <aurel32@debian.org>  Tue, 12 May 2009 18:31:29 +0200
@@ -954,7 +1045,7 @@ qemu (0.10.3-1) unstable; urgency=low
 
 qemu (0.10.2-2) unstable; urgency=low
 
-  * Add missing comma in build-depends (closes: bug#524207). 
+  * Add missing comma in build-depends (closes: bug#524207).
   * Tighten dependency on vgabios.
 
  -- Aurelien Jarno <aurel32@debian.org>  Wed, 15 Apr 2009 22:30:43 +0200
@@ -971,7 +1062,7 @@ qemu (0.10.1-1) unstable; urgency=low
   [ Aurelien Jarno ]
   * New upstream stable release:
     - patches/80_stable-branch.patch: remove.
-  * debian/control: 
+  * debian/control:
     - Remove depends on proll.
     - Move depends on device-tree-compiler to build-depends.
     - Bump Standards-Version to 3.8.1 (no changes).
@@ -1013,7 +1104,7 @@ qemu (0.9.1+svn20090104-1) experimental; urgency=low
 
   [ Aurelien Jarno ]
   * New upstream snapshot.
-  * Disable security/CVE-2008-0928-fedora.patch, it still breaks qcow 
+  * Disable security/CVE-2008-0928-fedora.patch, it still breaks qcow
     format.
 
  -- Aurelien Jarno <aurel32@debian.org>  Sun, 04 Jan 2009 16:31:40 +0100
@@ -1038,7 +1129,7 @@ qemu (0.9.1+svn20081214-1) experimental; urgency=low
  -- Aurelien Jarno <aurel32@debian.org>  Sun, 14 Dec 2008 23:26:04 +0100
 
 qemu (0.9.1+svn20081207-1) experimental; urgency=low
- 
+
   [ Aurelien Jarno ]
   * New upstream snapshot.
     - Do not depend on gcc-3.4 anymore (Closes: bug#440425, bug#463066).
@@ -1063,13 +1154,13 @@ qemu (0.9.1+svn20081128-1) experimental; urgency=low
 
   [ Aurelien Jarno ]
   * New upstream snapshot.
-    - Include documentation for network downscript option (Closes: 
-      bug#506994). 
+    - Include documentation for network downscript option (Closes:
+      bug#506994).
     - Drop 00_bios.patch and pass --disable-blobs instead.
     - Update 12_signal_powerpc_support.patch.
-  
+
   [ Riku Voipio ]
-  * Drop 31_syscalls.patch as it makes no sense using host uselib to 
+  * Drop 31_syscalls.patch as it makes no sense using host uselib to
     load target code into qemu's host memoryspace.
 
  -- Aurelien Jarno <aurel32@debian.org>  Sat, 29 Nov 2008 09:04:41 +0100
@@ -1146,7 +1237,7 @@ qemu (0.9.1+svn20080826-1) experimental; urgency=low
 
   * New upstream snapshot.
   * debian/qemu-make-debian-root:
-    - Use mktemp instead of $$ to create temporary directories (Closes: 
+    - Use mktemp instead of $$ to create temporary directories (Closes:
       bug#496394).
   * Ship a libqemu-dev package (Closes: bug#451618).
 
@@ -1166,7 +1257,7 @@ qemu (0.9.1+svn20080822-1) experimental; urgency=low
     - Remove debian/patches/04_do_not_print_rtc_freq_if_ok.patch (merged).
     - Remove patches/05_non-fatal_if_linux_hd_missing.patch (merged).
     - Update debian/patches/07_i386_exec_name.patch
-    - Update debian/patches/12_signal_powerpc_support.patch 
+    - Update debian/patches/12_signal_powerpc_support.patch
     - Remove debian/patches/33_syscall_ppc_clone.patch (merged differently).
     - Remove debian/patches/41_arm_fpa_sigfpe.patch (merged).
     - Remove debian/patches/42_arm_tls.patch (merged differently).
@@ -1232,7 +1323,7 @@ qemu (0.9.1-5) unstable; urgency=high
 
 qemu (0.9.1-4) unstable; urgency=high
 
-  * debian/patches/52_ne2000_return.patch: drop, the patch is wrong.  
+  * debian/patches/52_ne2000_return.patch: drop, the patch is wrong.
   * Backports from upstream:
     - Typo in curses_keys.h
     - Documentation for the -curses option
@@ -1240,15 +1331,15 @@ qemu (0.9.1-4) unstable; urgency=high
     - USB-to-serial device.
     - rtl8139: fix endianness on big endian targets
     - restore rw support for vvfat
-    - x86-64: recompute DF after eflags has been modified when emulating 
+    - x86-64: recompute DF after eflags has been modified when emulating
       SYSCALL
     - ignore reads to the EOI register
     - IDE: Improve DMA transfers by increasing the buffer size
     - Braille device support
     - Add -no-shutdown option (Closes: #326406)
-    - Ask to use "mount -o remount" instead of "umount" and "mount" 
+    - Ask to use "mount -o remount" instead of "umount" and "mount"
       /dev/shm (Closes: #476539).
-  * debian/qemu.doc-base: fix section. 
+  * debian/qemu.doc-base: fix section.
 
  -- Aurelien Jarno <aurel32@debian.org>  Sun, 20 Apr 2008 23:29:42 +0200
 
@@ -1257,7 +1348,7 @@ qemu (0.9.1-3) unstable; urgency=low
   [ Aurelien Jarno ]
   * debian/patches/42_arm_tls.patch: fix to get qemu-system-arm working
     again. (Closes: #471722).
-  * debian/patches/56_dhcp.patch: fix DHCP server to correctly support 
+  * debian/patches/56_dhcp.patch: fix DHCP server to correctly support
     MS-Windows guests. (Closes: #471452).
 
  -- Aurelien Jarno <aurel32@debian.org>  Wed, 19 Mar 2008 18:58:29 +0100
@@ -1267,13 +1358,13 @@ qemu (0.9.1-2) unstable; urgency=low
   [ Aurelien Jarno ]
   * debian/patches/80_ui_curses.patch: pull new patch from upstream CVS
     (Closes: #442274).
-  * debian/patches/65_kfreebsd.patch: link with -lfreebsd. (Closes: 
+  * debian/patches/65_kfreebsd.patch: link with -lfreebsd. (Closes:
     #465932).
   * debian/patches/81_mips32r2_fpu.patch: patch pulled from upstream
     to fix FPU issue on MIPS32R2.
   * debian/patches/42_arm_tls.patch: reenable, mistakenly disabled in the
     previous upload. (Closes: #469743).
-  * debian/rules: fix parallel building. (Closes: #469981). 
+  * debian/rules: fix parallel building. (Closes: #469981).
   * debian/patches/07_i386_exec_name.patch: install the i386 emulator as
     qemu-system-i386, and change qemu into a link pointing to the i386
     version.
@@ -1281,9 +1372,9 @@ qemu (0.9.1-2) unstable; urgency=low
     (Closes: #388735).
   * debian/patches/70_manpage.patch: describe the -curses option.
     (Closes: #433658).
-  * debian/patches/71_doc.patch: fix the monitor change option. (Closes: 
+  * debian/patches/71_doc.patch: fix the monitor change option. (Closes:
     #467106).
-  * debian/patches/35_syscall_sockaddr.patch: fix sockaddr (Closes: 
+  * debian/patches/35_syscall_sockaddr.patch: fix sockaddr (Closes:
     #469351).
   * debian/patches/43_arm_cpustate.patch: disable (Closes: #444171).
 
@@ -1804,7 +1895,7 @@ qemu (0.7.0-3) unstable; urgency=low
   * Force usage of gcc-3.4. (Closes: #319527)
   * Add missing Build-Dependency on zlib1g-dev.
     Thanks to Reinhard Tartler <siretart@tauware.de>.
-  * Include <linux/types.h> in syscall.c to avoid the broken headers in 
+  * Include <linux/types.h> in syscall.c to avoid the broken headers in
     linux-kernel-headers 2.6.12.
     - debian/patches/34_syscalls_types.patch: New file.
     Thanks to Octavian Cerna <tavy@ylabs.com>.

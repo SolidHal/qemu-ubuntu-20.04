@@ -12,7 +12,6 @@ Build-Depends: debhelper (>= 9),
 # on build-dependencies.
 # pc-bios/*.dts => *.dtb (PPC firmware)
  device-tree-compiler,
- texi2html,
  texinfo,
  python,
 # --enable-linux-aio	linux-*
