@@ -16,3 +16,4 @@ usr/lib/ipxe/virtio-net.rom usr/share/qemu/pxe-virtio.rom
 usr/lib/ipxe/pcnet32.rom usr/share/qemu/pxe-pcnet.rom
 usr/lib/ipxe/ns8390.rom usr/share/qemu/pxe-ne2k_pci.rom
 usr/lib/ipxe/eepro100.rom usr/share/qemu/eepro100.rom
+usr/share/misc/sgabios.bin usr/share/qemu/sgabios.bin

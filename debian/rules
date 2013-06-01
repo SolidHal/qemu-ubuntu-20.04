@@ -14,10 +14,17 @@ DEB_VERSION := $(shell dpkg-parsechangelog | egrep '^Version:' | cut -f 2 -d ' '
 # Compiler flags
 CFLAGS = $(shell dpkg-buildflags --get CFLAGS) $(shell dpkg-buildflags --get CPPFLAGS)
 LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS) -Wl,--as-needed
+# verbose build
+V ?= 1
 
 # Architecture/system specific configuration
 DEB_HOST_ARCH = $(shell dpkg-architecture -qDEB_HOST_ARCH)
 DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
+# list of packages we're supposed to build
+BUILD_PACKAGES = $(shell dh_listpackages)
+
+enable_system = $(if $(filter qemu-system,${BUILD_PACKAGES}),enable,disable)
+enable_linux_user = $(if $(filter qemu-user,${BUILD_PACKAGES}),enable,disable)
 
 # we add another set of configure options from debian/control
 common_configure_opts = \
@@ -35,13 +42,15 @@ common_configure_opts = \
 	--localstatedir=/var \
 	--enable-uname-release=2.6.32 \
 
+ifeq (${enable_system},enable)
+
 # list of system (softmmu) targets, from ./configure
 system_targets = \
  i386 x86_64 alpha arm cris lm32 m68k microblaze microblazeel \
  mips mipsel mips64 mips64el moxie or32 ppc ppcemb ppc64 sh4 sh4eb \
  sparc sparc64 s390x xtensa xtensaeb unicore32
 
-# qemu-system subpackages
+# qemu-system subpackages, from d/control
 sys_systems = arm mips ppc sparc x86
 systems = ${sys_systems} misc
 sysarch_arm   = $(filter arm,${system_targets})
@@ -51,7 +60,13 @@ sysarch_sparc = $(filter sparc sparc64,${system_targets})
 sysarch_x86   = $(filter i386 x86_64,${system_targets})
 sysarch_misc  = $(filter-out $(foreach s,${sys_systems},${sysarch_$s}),${system_targets})
 
-ifeq ($(DEB_HOST_ARCH_OS),linux)
+else
+
+systems =
+
+endif # enable_system
+
+ifeq (${enable_linux_user},enable)
 
 # list of linux-user targets, from ./configure
 user_targets = \
@@ -80,21 +95,16 @@ filter_binfmts = $(shell \
 
 binfmt_targets = $(filter-out $(filter_binfmts), $(all_binfmt_targets))
 
-enable_linux_user = --enable-linux-user
-
-else
-
-enable_linux_user =
-
-endif	# linux
+endif	# enable_linux_user
 
 configure-stamp: configure
 	dh_testdir
 
 	# system build
 	mkdir -p qemu-build && cd qemu-build && \
-	   ../configure ${common_configure_opts} \
-		--enable-system --disable-user ${enable_linux_user} \
+	   ../configure ${common_configure_opts} --disable-user \
+		--${enable_system}-system \
+		--${enable_linux_user}-linux-user \
 		$(shell sh debian/extract-config-opts \
 		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
 		$(QEMU_CONFIGURE_OPTIONS)
@@ -105,10 +115,10 @@ ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
 # but qemu did not learn to use new USB API.
 # Just do not build USB host support.
 	sed -i 's/^HOST_USB=bsd/HOST_USB=stub/' \
-		$(CURDIR)/qemu-build/config-host.mak
+		qemu-build/config-host.mak
 endif
 
-ifeq ($(DEB_HOST_ARCH_OS),linux)
+ifeq ($(enable_linux_user),enable)
 # do not use debian/configure-opts here, all optional stuff will be enabled
 # automatically, dependencies are already verified in the main build
 	mkdir -p user-static-build && cd user-static-build && \
@@ -124,23 +134,33 @@ build-indep: build-stamp
 build-stamp: configure-stamp
 	dh_testdir
 
-	# system build
-	$(MAKE) -C $(CURDIR)/qemu-build
+	# system and utils build
+	$(MAKE) -C qemu-build V=${V}
+ifeq (${enable_system},enable)
 	dtc -o qemu-build/pc-bios/bamboo.dtb pc-bios/bamboo.dts
+endif
 
-ifeq ($(DEB_HOST_ARCH_OS),linux)
+ifeq ($(enable_linux_user),enable)
 	# user-static build
 	# we use this invocation to build just the binaries
-	$(MAKE) -C $(CURDIR)/user-static-build $(foreach t,${user_targets},subdir-${t}-linux-user)
+	$(MAKE) -C user-static-build V=${V} $(foreach t,${user_targets},subdir-${t}-linux-user)
 endif
 	touch $@
 
 clean:
 	dh_testdir
-	rm -rf $(CURDIR)/*-build/
-	rm -f $(CURDIR)/*-stamp
-	find $(CURDIR)/scripts/ -name '*.pyc' -delete || :
+	rm -rf *-build/
+	rm -f *-stamp
+	find scripts/ -name '*.pyc' -delete || :
 	dh_clean
+
+# define ${ai} variable to be one of -i (indep), -a (arch) or nothing (both)
+ai :=
+binary-indep: ai := -i
+binary-indep: install
+binary-arch: ai := -a
+binary-arch: install
+binary: install
 
 define inst-system
 	for x in postinst prerm; do \
@@ -163,8 +183,10 @@ install: build-stamp
 	dh_prep
 	dh_installdirs -a
 
-	# system build
-	$(MAKE) -C $(CURDIR)/qemu-build DESTDIR=$(CURDIR)/debian/tmp install
+	# system and utils install
+	$(MAKE) -C qemu-build DESTDIR=$(CURDIR)/debian/tmp install
+
+ifeq (${enable_system},enable)
 
 	# qemu-system subpackages
 	$(foreach s,${systems},$(call inst-system,$s))
@@ -184,6 +206,11 @@ endif
 	  mv debian/tmp/$$f debian/qemu-system-common/$$f ; \
 	done
 
+endif # linux
+
+endif # enable_system
+
+ifeq ($(enable_linux_user),enable)
 	# qemu-user
 	mkdir -p debian/qemu-user/usr/bin debian/qemu-user/usr/share/man/man1
 	for t in ${user_targets}; do \
@@ -211,34 +238,38 @@ endif
 	mkdir -p debian/qemu-user-static/usr/share/binfmts
 	install -m 644 -t debian/qemu-user-static/usr/share/binfmts/ \
 		$(addprefix debian/binfmts/qemu-,${binfmt_targets})
-endif
 
+endif	# enable_linux_user
+
+# install whole thing so --list-missing works right
+	dh_install --list-missing
+# install the rest for arch/indep as needed
+	dh_installdocs ${ai}
+	dh_installman ${ai}
+	dh_installchangelogs ${ai} Changelog
+	dh_installudev ${ai}
+ifneq (${ai},-i)	# do not run this for binary-indep
+ifeq (${enable_system},enable)
 # qemu-ifup is arch-specific
 	install -D debian/qemu-ifup.$(DEB_HOST_ARCH_OS) \
 		debian/qemu-system-common/etc/qemu-ifup
-
-	dh_install --list-missing
-	dh_installdocs
-	dh_installman
-	dh_installchangelogs Changelog
-	dh_installudev
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-	dh_installinit -pqemu-system-x86 --no-restart-on-upgrade -- start 20 S .
+# we load kvm module only on x86 (modern kernels don't need even that),
+# and we don't want to fail installation if module can't be loaded
+	dh_installinit -pqemu-system-x86 --no-restart-on-upgrade --error-handler=: -- start 20 S .
+endif
 endif
 	dh_installinit -pqemu-guest-agent
-	dh_link
-	dh_strip
-	dh_compress
-	dh_fixperms
-	dh_installdeb
-	dh_shlibdeps
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
-
-binary-indep: install
-binary-arch: install
-binary: install
+endif
+	dh_link ${ai}
+	dh_strip ${ai}
+	dh_compress ${ai}
+	dh_fixperms ${ai}
+	dh_installdeb ${ai}
+	dh_shlibdeps ${ai}
+	dh_gencontrol ${ai}
+	dh_md5sums ${ai}
+	dh_builddeb ${ai}
 
 .PHONY: build clean binary-indep binary-arch binary install
 

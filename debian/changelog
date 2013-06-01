@@ -1,3 +1,22 @@
+qemu (1.5.0+dfsg-3) unstable; urgency=low
+
+  * fix sections: misc => otherosfs
+  * remove obsolete conffiles (kvm-ifup, kvm-ifdown, target-x86_64.conf)
+    from /etc/kvm/ in qemu-kvm (Closes: #710328)
+  * rework debian/rules a bit, to build various bits depending on
+    which packages are requested, not depending on ad-hoc host/arch
+    logic
+  * do not fail at install if kvm module loading failed on x86 or
+    if modprobe isn't installed (Closes: #710496)
+  * also suggest kmod to be able to load x86 kvm modules
+  * suggest sgabios for qemu-system-x86 and put a symlink to sgabios.bin
+    (Closes: #696985)
+  * add rules to build just one of arch/indep parts, to make
+    buildd log scanner happier (E-binary-arch-produces-all)
+  * use verbose build by default (V=1) and let it to be overridden
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 02 Jun 2013 01:49:47 +0400
+
 qemu (1.5.0+dfsg-2) unstable; urgency=low
 
   * merged development history of wheezy and experimental branches.

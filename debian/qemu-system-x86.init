@@ -11,14 +11,15 @@
 # Description:       This script loads the kernel modules needed by QEMU KVM
 ### END INIT INFO
 
-# check if we're running inside an (lxc) container
-# (we may copy or move this to the postinst script too, to skip installing it)
-grep -zqs ^container= /proc/1/environ && exit 0
-
-. /lib/lsb/init-functions
-
 case "$1" in
     start|restart|force-reload)
+
+	# check if we're running inside an (lxc) container
+	# (we may copy or move this to the postinst script too, to skip installing it)
+	grep -zqs ^container= /proc/1/environ && exit 0
+
+	. /lib/lsb/init-functions
+
 	[ ! -e /dev/kvm ] || exit 0	# nothing to do
 	if grep -q '^flags.*\<vmx\>' /proc/cpuinfo; then
 	    module=kvm_intel
@@ -26,6 +27,10 @@ case "$1" in
 	    module=kvm_amd
 	else
 	    log_warning_msg "Your system does not have support for KVM"
+	    exit 0
+	fi
+	if ! which modprobe >/dev/null; then
+	    log_warning_msg "modprobe isn't installed, not loading kvm modules."
 	    exit 0
 	fi
 	if modprobe -b $module ; then
