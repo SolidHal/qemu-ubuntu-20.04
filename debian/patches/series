@@ -2,3 +2,4 @@
 retry-pxe-after-efi.patch
 use-fixed-data-path.patch
 sparc-linux-user-fix-missing-symbols-in-.rel-.rela.plt-sections.patch
+qemu_openpty_raw-helper.patch

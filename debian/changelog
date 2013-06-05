@@ -1,3 +1,17 @@
+qemu (1.5.0+dfsg-4) unstable; urgency=medium
+
+  * urgency is medium to make it go faster because, on one hand, we've
+    been in unstable for quite a bit longer than needed already and
+    have nothing but (build) fixes in there, but on the other hand
+    we're holding migration of other packages which are waiting for
+    us, again, for too long already
+  * added qemu_openpty_raw-helper.patch - a cleanup patch submitted upstream
+    which removes #include <termios.h> from common header and hence works
+    around FTBFS problem on debian sparc where somehow, <termios.h> conflicts
+    with <linux/termio.h>.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 06 Jun 2013 01:50:32 +0400
+
 qemu (1.5.0+dfsg-3) unstable; urgency=low
 
   * fix sections: misc => otherosfs
