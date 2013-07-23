@@ -38,9 +38,10 @@ Build-Depends: debhelper (>= 9),
 # --enable-vnc-tls
 # --enable-vnc-ws
  libgnutls-dev,
-# --enable-gtk
-# --with-gtkabi=2.0
- libgtk2.0-dev,
+# gtk ui is almost the same as sdl but adds bloat
+# --disable-gtk
+## --with-gtkabi=2.0
+# libgtk2.0-dev,
 # --enable-libiscsi
  libiscsi-dev,
 # --enable-curses
@@ -395,7 +396,14 @@ Description: Guest-side qemu-system agent
  .
  This package provides a daemon (agent) to run inside qemu-system
  guests (full system emulation).  It communicates with the host using
- a virtio-serial channel org.qemu.guest_agent.0.
+ a virtio-serial channel org.qemu.guest_agent.0, and allows to perform
+ some functions in the guest from the host, including:
+  - querying and setting guest system time
+  - performing guest filesystem sync operation
+  - initiating guest shutdown or suspend to ram
+  - accessing guest files
+  - freezing/thawing guest filesystem operations
+  - others.
  .
  Install this package on a system which is running as guest inside
  qemu virtual machine.  It is not used on the host.

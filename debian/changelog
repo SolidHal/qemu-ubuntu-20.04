@@ -1,3 +1,22 @@
+qemu (1.5.0+dfsg-5) unstable; urgency=low
+
+  * new upstream 1.5.1 stable/bugfix release (as qemu-1.5.1.diff)
+    removed qemu_openpty_raw-helper.patch (included upstream)
+  * configure-explicitly-disable-virtfs-if-softmmu=no.patch -- do not
+    build virtfs-proxy-helper stuff if not building system emulator
+    (fix FTBFS on s390)
+  * disable gtk ui and build dependencies, as it adds almost nothing
+    compared with sdl (well, except bugs and limitations), and has
+    lots of additional dependencies
+  * remove obsolete /etc/init.d/qemu-kvm (Closes: #712898)
+  * fix versions of obsolete qemu-kvm conffiles to be removed
+  * provide manpage for obsolete kvm (Closes: #716891, #586973)
+  * add --daemonize option to the guest-agent startup script (Closes: #715502)
+  * clarify what qemu-guest-agent does (Closes: #714270) and provide
+    its json schema as a doc
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 23 Jul 2013 22:39:54 +0400
+
 qemu (1.5.0+dfsg-4) unstable; urgency=medium
 
   * urgency is medium to make it go faster because, on one hand, we've
