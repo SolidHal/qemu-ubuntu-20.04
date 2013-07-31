@@ -40,7 +40,7 @@ index d39261d..ab6b9fd 100644
  void os_set_proc_name(const char *s)
  {
 diff --git a/vl.c b/vl.c
-index 6e6225f..4c00fbd 100644
+index 25b8f2f..1b14f39 100644
 --- a/vl.c
 +++ b/vl.c
 @@ -179,7 +179,10 @@ int main(int argc, char **argv)
@@ -55,7 +55,7 @@ index 6e6225f..4c00fbd 100644
  static int data_dir_idx;
  const char *bios_name = NULL;
  enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
-@@ -3948,18 +3962,19 @@ int main(int argc, char **argv, char **envp)
+@@ -3939,18 +3942,19 @@ int main(int argc, char **argv, char **envp)
          exit(1);
      }
  
@@ -81,5 +81,5 @@ index 6e6225f..4c00fbd 100644
      }
 +#endif
  
-     /*
-      * Default to max_cpus = smp_cpus, in case the user doesn't
+     smp_parse(qemu_opts_find(qemu_find_opts("smp-opts"), NULL));
+ 

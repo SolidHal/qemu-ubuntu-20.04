@@ -168,7 +168,7 @@ static void i82378_request_pic_irq(void *opaque, int irq, int level)
 
 static void i82378_init(DeviceState *dev, I82378State *s)
 {
-    ISABus *isabus = DO_UPCAST(ISABus, qbus, qdev_get_child_bus(dev, "isa.0"));
+    ISABus *isabus = ISA_BUS(qdev_get_child_bus(dev, "isa.0"));
     ISADevice *pit;
     ISADevice *isa;
     qemu_irq *out0_irq;
@@ -201,7 +201,7 @@ static void i82378_init(DeviceState *dev, I82378State *s)
 
     /* 2 82C37 (dma) */
     isa = isa_create_simple(isabus, "i82374");
-    qdev_connect_gpio_out(&isa->qdev, 0, s->out[1]);
+    qdev_connect_gpio_out(DEVICE(isa), 0, s->out[1]);
 
     /* timer */
     isa_create_simple(isabus, "mc146818rtc");
@@ -221,10 +221,12 @@ static int pci_i82378_init(PCIDevice *dev)
 
     pci_conf[PCI_INTERRUPT_PIN] = 1; /* interrupt pin 0 */
 
-    memory_region_init_io(&s->io, &i82378_io_ops, s, "i82378-io", 0x00010000);
+    memory_region_init_io(&s->io, OBJECT(pci), &i82378_io_ops, s,
+                          "i82378-io", 0x00010000);
     pci_register_bar(dev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->io);
 
-    memory_region_init_io(&s->mem, &i82378_mem_ops, s, "i82378-mem", 0x01000000);
+    memory_region_init_io(&s->mem, OBJECT(pci), &i82378_mem_ops, s,
+                          "i82378-mem", 0x01000000);
     pci_register_bar(dev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->mem);
 
     /* Make I/O address read only */
@@ -259,6 +261,7 @@ static void pci_i82378_class_init(ObjectClass *klass, void *data)
     k->subsystem_vendor_id = 0x0;
     k->subsystem_id = 0x0;
     dc->vmsd = &vmstate_pci_i82378;
+    set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
     dc->props = i82378_properties;
 }
 

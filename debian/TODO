@@ -1,6 +1,6 @@
 General packaging items:
 
-* fix other binaries (sgabios, s390-zipl, ppc_rom)
+* fix other binaries (s390-zipl, ppc_rom)
 
 * figure out what to do with kvm initscripts and udev rules.
   Currently we ship kvm udev rules in qemu-system-common, even

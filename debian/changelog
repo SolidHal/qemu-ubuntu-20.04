@@ -1,3 +1,19 @@
+qemu (1.6.0~rc0+dfsg-1exp) experimental; urgency=low
+
+  * uploading to experimental (rc0)
+  * new upstream release (release candidate) (Closes: #718016)
+  * removed patches:
+   - qemu-1.5.1.diff
+   - sparc-linux-user-fix-missing-symbols-in-.rel-.rela.plt-sections.patch
+  * refreshed use-fixed-data-path.patch
+  * ship new qemu_logo_no_text.svg
+  * stop shipping sgabios symlink, it is moved to sgabios package
+  * bump version of libseccomp build dependency to 2.1 (minimum
+    required to build) and disable libseccomp for now (because it
+    isn't available in debian yet)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 31 Jul 2013 10:49:30 +0400
+
 qemu (1.5.0+dfsg-5) unstable; urgency=low
 
   * new upstream 1.5.1 stable/bugfix release (as qemu-1.5.1.diff)

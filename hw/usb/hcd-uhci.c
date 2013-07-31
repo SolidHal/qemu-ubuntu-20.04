@@ -1259,7 +1259,9 @@ static int usb_uhci_common_initfn(PCIDevice *dev)
 
     qemu_register_reset(uhci_reset, s);
 
-    memory_region_init_io(&s->io_bar, &uhci_ioport_ops, s, "uhci", 0x20);
+    memory_region_init_io(&s->io_bar, OBJECT(s), &uhci_ioport_ops, s,
+                          "uhci", 0x20);
+
     /* Use region 4 for consistency with real hardware.  BSD guests seem
        to rely on this.  */
     pci_register_bar(&s->dev, 4, PCI_BASE_ADDRESS_SPACE_IO, &s->io_bar);
@@ -1313,6 +1315,7 @@ static void uhci_class_init(ObjectClass *klass, void *data)
     k->no_hotplug = 1;
     dc->vmsd = &vmstate_uhci;
     dc->props = uhci_properties;
+    set_bit(DEVICE_CATEGORY_USB, dc->categories);
     u->info = *info;
 }
 
