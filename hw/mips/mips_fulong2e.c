@@ -43,6 +43,8 @@
 #include "hw/timer/i8254.h"
 #include "sysemu/blockdev.h"
 #include "exec/address-spaces.h"
+#include "sysemu/qtest.h"
+#include "qemu/error-report.h"
 
 #define DEBUG_FULONG2E_INIT
 
@@ -332,8 +334,10 @@ static void mips_fulong2e_init(QEMUMachineInitArgs *args)
             bios_size = -1;
         }
 
-        if ((bios_size < 0 || bios_size > BIOS_SIZE) && !kernel_filename) {
-            fprintf(stderr, "qemu: Warning, could not load MIPS bios '%s'\n", bios_name);
+        if ((bios_size < 0 || bios_size > BIOS_SIZE) &&
+            !kernel_filename && !qtest_enabled()) {
+            error_report("Could not load MIPS bios '%s'", bios_name);
+            exit(1);
         }
     }
 

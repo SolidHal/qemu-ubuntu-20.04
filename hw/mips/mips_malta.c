@@ -48,6 +48,9 @@
 #include "exec/address-spaces.h"
 #include "hw/sysbus.h"             /* SysBusDevice */
 #include "qemu/host-utils.h"
+#include "sysemu/qtest.h"
+#include "qemu/error-report.h"
+#include "hw/empty_slot.h"
 
 //#define DEBUG_BOARD_INIT
 
@@ -906,6 +909,11 @@ void mips_malta_init(QEMUMachineInitArgs *args)
     DeviceState *dev = qdev_create(NULL, TYPE_MIPS_MALTA);
     MaltaState *s = MIPS_MALTA(dev);
 
+    /* The whole address space decoded by the GT-64120A doesn't generate
+       exception when accessing invalid memory. Create an empty slot to
+       emulate this feature. */
+    empty_slot_init(0, 0x20000000);
+
     qdev_init_nofail(dev);
 
     /* Make sure the first 3 serial ports are associated with a device. */
@@ -1005,10 +1013,11 @@ void mips_malta_init(QEMUMachineInitArgs *args)
             } else {
                 bios_size = -1;
             }
-            if ((bios_size < 0 || bios_size > BIOS_SIZE) && !kernel_filename) {
-                fprintf(stderr,
-                        "qemu: Warning, could not load MIPS bios '%s', and no -kernel argument was specified\n",
-                        bios_name);
+            if ((bios_size < 0 || bios_size > BIOS_SIZE) &&
+                !kernel_filename && !qtest_enabled()) {
+                error_report("Could not load MIPS bios '%s', and no "
+                             "-kernel argument was specified", bios_name);
+                exit(1);
             }
         }
         /* In little endian mode the 32bit words in the bios are swapped,

@@ -1,7 +1,20 @@
+qemu (1.6.0+dfsg-1) unstable; urgency=low
+
+  [ Michael Tokarev ]
+  * final upstream v1.6.0 (Closes: #718180, #714273, #605525, #701855)
+  * removed configure-explicitly-disable-virtfs-if-softmmu=no.patch
+  * mention closing of #717724 by 1.6
+  * mention closing of #710971 by 1.5 (which disabled gtk support)
+
+  [ Riku Voipio ]
+  * - set --cross-prefix in debian/rules when cross-compiling
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 02 Sep 2013 15:18:49 +0400
+
 qemu (1.6.0~rc0+dfsg-1exp) experimental; urgency=low
 
   * uploading to experimental (rc0)
-  * new upstream release (release candidate) (Closes: #718016)
+  * new upstream release (release candidate) (Closes: #718016, #717724)
   * removed patches:
    - qemu-1.5.1.diff
    - sparc-linux-user-fix-missing-symbols-in-.rel-.rela.plt-sections.patch
@@ -23,7 +36,7 @@ qemu (1.5.0+dfsg-5) unstable; urgency=low
     (fix FTBFS on s390)
   * disable gtk ui and build dependencies, as it adds almost nothing
     compared with sdl (well, except bugs and limitations), and has
-    lots of additional dependencies
+    lots of additional dependencies (Closes: #710971)
   * remove obsolete /etc/init.d/qemu-kvm (Closes: #712898)
   * fix versions of obsolete qemu-kvm conffiles to be removed
   * provide manpage for obsolete kvm (Closes: #716891, #586973)
