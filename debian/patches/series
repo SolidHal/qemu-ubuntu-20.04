@@ -1,3 +1,4 @@
+1.6.1.patch
 02_kfreebsd.patch
 retry-pxe-after-efi.patch
 use-fixed-data-path.patch

@@ -54,8 +54,8 @@ Build-Depends: debhelper (>= 9),
  libsasl2-dev,
 # --enable-sdl
  libsdl1.2-dev (>> 1.2.1),
-## --enable-seccomp	linux-amd64|linux-i386
-# libseccomp-dev (>> 2.1.0) [linux-amd64 linux-i386],
+# --enable-seccomp	linux-amd64|linux-i386
+ libseccomp-dev (>> 2.1.0) [linux-amd64 linux-i386],
 # --enable-spice	linux-amd64|linux-i386
  libspice-server-dev (>= 0.12.2~) [linux-amd64 linux-i386],
  libspice-protocol-dev (>= 0.12.3~) [linux-amd64 linux-i386],
@@ -148,11 +148,9 @@ Description: QEMU full system emulation binaries
  SPARC and x86-64 emulation. By using dynamic translation it achieves
  reasonable speed while being easy to port on new host CPUs.
  .
- This package provides the full system emulation binaries. In this mode
- QEMU emulates a full system, including a processor and various
- peripherals. It enables easier testing and debugging of system code.
- It can also be used to provide virtual hosting of several virtual
- machines on a single server.
+ This metapackage provides the full system emulation binaries for all supported
+ targets, by depending on all per-architecture system emulation packages which
+ QEMU supports.
 
 Package: qemu-system-common
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
@@ -175,11 +173,8 @@ Description: QEMU full system emulation binaries (common files)
  SPARC and x86-64 emulation. By using dynamic translation it achieves
  reasonable speed while being easy to port on new host CPUs.
  .
- This package provides the full system emulation binaries. In this mode
- QEMU emulates a full system, including a processor and various
- peripherals. It enables easier testing and debugging of system code.
- It can also be used to provide virtual hosting of several virtual
- machines on a single server.
+ This package provides common files needed for target-specific
+ full system emulation (qemu-system-*) packages.
 
 Package: qemu-system-misc
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
@@ -396,7 +391,7 @@ Description: Guest-side qemu-system agent
  .
  This package provides a daemon (agent) to run inside qemu-system
  guests (full system emulation).  It communicates with the host using
- a virtio-serial channel org.qemu.guest_agent.0, and allows to perform
+ a virtio-serial channel org.qemu.guest_agent.0, and allows one to perform
  some functions in the guest from the host, including:
   - querying and setting guest system time
   - performing guest filesystem sync operation

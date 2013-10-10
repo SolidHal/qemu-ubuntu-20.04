@@ -1,3 +1,12 @@
+qemu (1.6.0+dfsg-2) unstable; urgency=low
+
+  * Build-depend in seccomp again once it is in -testing
+  * 1.6.1 upstream bugfix release (Closes: #725944)
+  * fix "allows [one] to" in qemu-ga description
+  * fix descriptions for qemu-system and qemu-system-common packages
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 11 Oct 2013 01:15:48 +0400
+
 qemu (1.6.0+dfsg-1) unstable; urgency=low
 
   [ Michael Tokarev ]
