@@ -1,7 +1,4 @@
 #!/usr/bin/make -f
-#
-# $Id: rules 391 2009-03-07 05:21:19Z aurel32 $
-#
 
 # support parallel build using DEB_BUILD_OPTIONS=parallel=N
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))

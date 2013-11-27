@@ -14,13 +14,19 @@
 case "$1" in
     start|restart|force-reload)
 
+	[ ! -e /dev/kvm ] || exit 0	# nothing to do
+
+	# kernel 3.4+ autoloads modules
+	case "$(uname -r 2>/dev/null)" in
+	    3.[4-9]* | 3.[1-9][0-9]* | [4-9].*) exit 0 ;;
+	esac
+
 	# check if we're running inside an (lxc) container
 	# (we may copy or move this to the postinst script too, to skip installing it)
 	grep -zqs ^container= /proc/1/environ && exit 0
 
 	. /lib/lsb/init-functions
 
-	[ ! -e /dev/kvm ] || exit 0	# nothing to do
 	if grep -q '^flags.*\<vmx\>' /proc/cpuinfo; then
 	    module=kvm_intel
 	elif grep -q '^flags.*\<svm\>' /proc/cpuinfo; then

@@ -1,23 +1,11 @@
-Subject: use fixed data path and use it as path not directory
+Subject: use fixed data dir instead of determining it at runtime
 From: Michael Tokarev <mjt@tls.msk.ru>
 Debian-specific: yes
 
-Instead of using data_dir determined at runtime from executable
-filename, use fixed data_path and treat it as path (series of
-directories determined by colons (:), the same as $PATH environment
-variable).
-
-This way, we can give a set of directories -- like
-/usr/share/seabios:/usr/share/gpxe etc -- as CONFIG_QEMU_DATAPATH
-#define at compile time, instead of using (dangling) symlinks.  We
-also may use alternative implementations of various components,
-and stop hard-depending on other packages.
-
-Note we may also use $QEMU_DATA_PATH (or just $QEMU_PATH) variable
-at runtime, but this probably needs to be discussed with upstream.
-
-While at it, also increase max number of data path elements
-from 16 to 32.
+Since we install to a fixed location, use fixed data directory
+instead of deriving it at runtime from executable path.
+This way it is possible to move qemu binary to another directory
+and it will still work.
 
 diff --git a/os-posix.c b/os-posix.c
 index d39261d..ab6b9fd 100644
@@ -40,22 +28,10 @@ index d39261d..ab6b9fd 100644
  void os_set_proc_name(const char *s)
  {
 diff --git a/vl.c b/vl.c
-index 25b8f2f..1b14f39 100644
+index f422a1c..77bca6b 100644
 --- a/vl.c
 +++ b/vl.c
-@@ -179,7 +179,10 @@ int main(int argc, char **argv)
- #define MAX_VIRTIO_CONSOLES 1
- #define MAX_SCLP_CONSOLES 1
- 
--static const char *data_dir[16];
-+#ifdef CONFIG_QEMU_DATAPATH
-+static char data_path[] = CONFIG_QEMU_DATAPATH;
-+#endif
-+static const char *data_dir[32];
- static int data_dir_idx;
- const char *bios_name = NULL;
- enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
-@@ -3939,18 +3942,19 @@ int main(int argc, char **argv, char **envp)
+@@ -3939,14 +3939,6 @@ int main(int argc, char **argv, char **envp)
          exit(1);
      }
  
@@ -66,20 +42,7 @@ index 25b8f2f..1b14f39 100644
 -        if (data_dir[data_dir_idx] != NULL) {
 -            data_dir_idx++;
 -        }
-+    /* Fill in the rest of config-specific dirs for bios paths */
-+#ifdef CONFIG_QEMU_DATAPATH
-+    for (optarg = strtok(data_path, ":");
-+         optarg && data_dir_idx < ARRAY_SIZE(data_dir);
-+         optarg = strtok(NULL, ":"))
-+    {
-+        data_dir[data_dir_idx++] = optarg;
-     }
--    /* If all else fails use the install path specified when building. */
-+#else
+-    }
+     /* If all else fails use the install path specified when building. */
      if (data_dir_idx < ARRAY_SIZE(data_dir)) {
          data_dir[data_dir_idx++] = CONFIG_QEMU_DATADIR;
-     }
-+#endif
- 
-     smp_parse(qemu_opts_find(qemu_find_opts("smp-opts"), NULL));
- 

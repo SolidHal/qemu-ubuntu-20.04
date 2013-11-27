@@ -1,7 +1,19 @@
+qemu (1.7.0+dfsg-1) unstable; urgency=low
+
+  * new upstream release (Closes: #724758)
+  * tweak kvm loading script to not load module for 3.4+ kernel
+    (kernel autoloads kvm modules since 3.4) (Closes: #717811)
+  * mention closing of #721713, #710971, #674201
+  * refresh use-fixed-data-path.patch to contain just the min. changes
+  * fix pxe-eepro100.rom link (never worked in qemu due to wrong name)
+  * remove old $Id$ line from debian/rules
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 28 Nov 2013 03:14:21 +0400
+
 qemu (1.6.0+dfsg-2) unstable; urgency=low
 
   * Build-depend in seccomp again once it is in -testing
-  * 1.6.1 upstream bugfix release (Closes: #725944)
+  * 1.6.1 upstream bugfix release (Closes: #725944, #721713, #710971)
   * fix "allows [one] to" in qemu-ga description
   * fix descriptions for qemu-system and qemu-system-common packages
 
@@ -10,7 +22,7 @@ qemu (1.6.0+dfsg-2) unstable; urgency=low
 qemu (1.6.0+dfsg-1) unstable; urgency=low
 
   [ Michael Tokarev ]
-  * final upstream v1.6.0 (Closes: #718180, #714273, #605525, #701855)
+  * final upstream v1.6.0 (Closes: #718180, #714273, #605525, #701855, #674201)
   * removed configure-explicitly-disable-virtfs-if-softmmu=no.patch
   * mention closing of #717724 by 1.6
   * mention closing of #710971 by 1.5 (which disabled gtk support)

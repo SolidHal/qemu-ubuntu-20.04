@@ -15,4 +15,4 @@ usr/lib/ipxe/e1000_82540.rom usr/share/qemu/pxe-e1000.rom
 usr/lib/ipxe/virtio-net.rom usr/share/qemu/pxe-virtio.rom
 usr/lib/ipxe/pcnet32.rom usr/share/qemu/pxe-pcnet.rom
 usr/lib/ipxe/ns8390.rom usr/share/qemu/pxe-ne2k_pci.rom
-usr/lib/ipxe/eepro100.rom usr/share/qemu/eepro100.rom
+usr/lib/ipxe/eepro100.rom usr/share/qemu/pxe-eepro100.rom
