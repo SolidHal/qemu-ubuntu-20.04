@@ -1,6 +1,23 @@
+qemu (1.7.0+dfsg-2) unstable; urgency=low
+
+  * switch from vgabios to seavgabios
+  * rework update-alternatives handling for qemu-system (Closes: #722914)
+  * mention closing of #326886, #390444, #706237 and CVE-2013-4375 for 1.7.0
+  * rearrange libvte-dev build-dependency to come together with gtk, and
+    comment it out (since gtk frontend isn't being built)
+  * re-introduce qemu-kvm package with just a wrapper (/usr/bin/kvm)
+    and make this wrapper to force kvm mode (Closes: #727762)
+  * use less strict dependency on qemu-keymaps
+  * added fix-smb-security-share.patch by Michael Büsch (Closes: #727756)
+  * added move-ncalrpc-dir-to-tmp.patch by Michael Büsch (Closes: #728876)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 29 Nov 2013 00:16:44 +0400
+
 qemu (1.7.0+dfsg-1) unstable; urgency=low
 
-  * new upstream release (Closes: #724758)
+  * new upstream release (Closes: #724758, #326886, #390444, #706237)
+    Also fixes CVE-2013-4375 (xen-specific qemu disk backend (qdisk)
+    resource leak)
   * tweak kvm loading script to not load module for 3.4+ kernel
     (kernel autoloads kvm modules since 3.4) (Closes: #717811)
   * mention closing of #721713, #710971, #674201
@@ -21,7 +38,6 @@ qemu (1.6.0+dfsg-2) unstable; urgency=low
 
 qemu (1.6.0+dfsg-1) unstable; urgency=low
 
-  [ Michael Tokarev ]
   * final upstream v1.6.0 (Closes: #718180, #714273, #605525, #701855, #674201)
   * removed configure-explicitly-disable-virtfs-if-softmmu=no.patch
   * mention closing of #717724 by 1.6

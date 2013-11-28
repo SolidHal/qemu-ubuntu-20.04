@@ -41,7 +41,7 @@ Build-Depends: debhelper (>= 9),
 # gtk ui is almost the same as sdl but adds bloat
 # --disable-gtk
 ## --with-gtkabi=2.0
-# libgtk2.0-dev,
+# libgtk2.0-dev, libvte-dev (>> 0.18.0~),
 # --enable-libiscsi
  libiscsi-dev,
 # --enable-curses
@@ -67,8 +67,6 @@ Build-Depends: debhelper (>= 9),
  libssh2-1-dev,
 # --enable-vde
  libvdeplug-dev,
-# for gtk2, revisit for gtk3
- libvte-dev (>> 0.18.0~),
 # needed for sdl
  libx11-dev,
 # --enable-xen	linux-amd64|linux-i386
@@ -180,7 +178,7 @@ Package: qemu-system-misc
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
- qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
+ qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Upstream-Version}),
 Provides: ${sysprovides:misc}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
 Replaces: qemu-system (<< 1.3.0+dfsg-5)
@@ -206,7 +204,7 @@ Package: qemu-system-arm
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
- qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
+ qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Upstream-Version}),
 Provides: ${sysprovides:arm}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
 Replaces: qemu-system (<< 1.3.0+dfsg-5)
@@ -229,7 +227,7 @@ Package: qemu-system-mips
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
- qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
+ qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Upstream-Version}),
 Provides: ${sysprovides:mips}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
 Replaces: qemu-system (<< 1.3.0+dfsg-5)
@@ -252,7 +250,7 @@ Package: qemu-system-ppc
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
- qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
+ qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Upstream-Version}),
  openbios-ppc (>= 1.1), openhackware, qemu-slof
 Provides: ${sysprovides:ppc}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
@@ -276,7 +274,7 @@ Package: qemu-system-sparc
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
- qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
+ qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Upstream-Version}),
  openbios-sparc (>= 1.1)
 Provides: ${sysprovides:sparc}
 Breaks: qemu-system (<< 1.3.0+dfsg-5)
@@ -300,20 +298,15 @@ Package: qemu-system-x86
 Architecture: amd64 arm armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends},
- qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Version}),
- vgabios (>= 0.6c-3~), seabios (>= 1.7.2-2~), ipxe-qemu
-Provides: ${sysprovides:x86}, qemu-kvm, kvm
-Conflicts: kvm
+ qemu-system-common (>= ${source:Version}), qemu-keymaps (>= ${source:Upstream-Version}),
+ seabios (>= 1.7.2-2~), ipxe-qemu
+Provides: ${sysprovides:x86}
 Breaks:
   qemu-system (<< 1.3.0+dfsg-5),
-  qemu-kvm (<< 1.2.0.dfsg-1),
-  kvm,
 # older libvirt (eg 0.10.2.x) is known broken with qemu >= 1.3
   libvirt0 (<< 1.0)
 Replaces:
   qemu-system (<< 1.3.0+dfsg-5),
-  qemu-kvm (<< 1.2.0.dfsg-1),
-  kvm
 Recommends: qemu-utils
 Suggests: samba, vde2, kmod, sgabios
 Description: QEMU full system emulation binaries (x86)
@@ -407,11 +400,13 @@ Package: qemu-kvm
 Architecture: i386 amd64
 Multi-Arch: foreign
 Depends: ${misc:Depends}, qemu-system-x86 (>= ${source:Version})
-Section: oldlibs
-Priority: extra
+Provides: kvm
+Conflicts: kvm
+Breaks: qemu-system-x86 (<< 1.7.0+dfsg-2)
+Replaces: qemu-system-x86 (<< 1.7.0+dfsg-2)
 Description: QEMU Full virtualization on x86 hardware (transitional package)
- QEMU is a fast processor emulator.  This package is a transitional
- package from old qemu-kvm to qemu-system-x86.  It is safe to remove it.
+ QEMU is a fast processor emulator.  This package provides just a wrapper
+ script /usr/bin/kvm which run qemu-system-x86 in kvm mode.
  .
  Please note that old qemu-kvm configuration files (in /etc/kvm/) are
  no longer used.

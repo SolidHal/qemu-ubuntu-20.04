@@ -1,6 +1,6 @@
-.TH kvm 1 2013-07 "1.5" Debian
+.TH kvm 1 2013-11 "1.7" Debian
 .SH NAME
-kvm \- obsolete wrapper for qemu-system-x86_64
+kvm \- kvm-enabling wrapper for qemu-system-x86_64
 .SH DESCRIPTION
 The
 .B kvm
@@ -8,21 +8,19 @@ wrapper script is used to provide compatibility with old
 qemu\-kvm package which has been merged into qemu as of
 version 1.3.
 .P
-The script prints a warning on stderr and executes
-.RS
-.B qemu\-system\-x86_64 -machine accel:kvm,tcg
-.RE
-passing all other command-line arguments to qemu binary.
-This means more or less the same thing as the old kvm
-binary provided: to run qemu in kvm mode if it is available,
-and switch to emulator mode (tcg) if not.
-.P
-For new installs it is advisable to use
+The script executes
 .RS
 .B qemu\-system\-x86_64 \-enable\-kvm
 .RE
-instead, -- this will fail if kvm mode is not available
-instead of falling back to use a very slow emulation mode.
+passing all other command-line arguments to the qemu binary.
+This is not the same as old kvm binary, which was using
+less strict construct, similar to
+.RS
+.B qemu\-system\-x86_64 \-machine accel=kvm:tcg
+.RE
+New wrapper ensures that kvm mode is enabled, or the VM
+will not start, while old code falled back to emulation
+(tcg) mode if kvm isn't available.
 .SH SEE ALSO
 .BR qemu (1).
 .SH AUTHOR

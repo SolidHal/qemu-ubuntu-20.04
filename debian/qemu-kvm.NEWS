@@ -1,3 +1,10 @@
+qemu (1.7.0+dfsg-2) unstable; urgency=low
+
+  qemu-kvm package is back with just a one-line shell wrapper
+  /usr/bin/kvm which runs qemu-system-x86.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 28 Nov 2013 20:42:53 +0400
+
 qemu (1.3.0+dfsg-2exp) experimental; urgency=low
 
   * Since version 1.3 of qemu, all remaining bits of former qemu-kvm
