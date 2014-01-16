@@ -1,4 +1,6 @@
-General packaging items:
+* remove qemu-system-x86 initscript (kvm module loading)
+  past jessie or even for jessie.  Modern kernels (3.4+)
+  loads these modules automatically.
 
 * fix other binaries (s390-zipl, ppc_rom)
 

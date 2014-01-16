@@ -3,9 +3,6 @@
 # Set up /usr/bin/qemu alternative to be one the qemu-system emulators.
 # See #722914 for details about how it is done
 
-# we don't do anything if update-alternatives is not available
-if [ -x /usr/sbin/update-alternatives ]; then
-
 arches="@ARCH@" # our architectures
 
 case "$DPKG_MAINTSCRIPT_NAME:$1" in
@@ -19,13 +16,11 @@ case "$DPKG_MAINTSCRIPT_NAME:$1" in
               /usr/bin/qemu-system-$arch $prio
     done;;
 
-  prerm:remove | postrm:remove | postrm:disappear )
+  prerm:remove | postrm:disappear )
     for arch in $arches ; do
       update-alternatives --remove qemu /usr/bin/qemu-system-$arch
     done;;
 
 esac
-
-fi # /usr/sbin/update-alternatives
 
 # == end update-alternatives maintscript fragment ==

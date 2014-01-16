@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+VENDOR := debian
+
 # support parallel build using DEB_BUILD_OPTIONS=parallel=N
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
   MAKEFLAGS += -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
@@ -149,7 +151,7 @@ ifeq ($(enable_linux_user),enable)
 endif
 	touch $@
 
-clean:
+clean:	debian/control
 	dh_testdir
 	rm -rf *-build/
 	rm -f *-stamp
@@ -259,6 +261,7 @@ ifeq (${enable_system},enable)
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 # we load kvm module only on x86 (modern kernels don't need even that),
 # and we don't want to fail installation if module can't be loaded
+# remoe past jessie (and maybe for jessie too)
 	dh_installinit -pqemu-system-x86 --no-restart-on-upgrade --error-handler=: -- start 20 S .
 endif
 endif
@@ -273,6 +276,14 @@ endif
 	dh_gencontrol ${ai}
 	dh_md5sums ${ai}
 	dh_builddeb ${ai}
+
+ifneq (,$(wildcard debian/control-in))
+# only include rules for debian/control if debian/control-in is present
+debian/control: debian/control-in debian/rules
+	sed -e 's/^:${VENDOR}://' -e '/^:[a-z]*:/D' \
+		$< > $@.tmp
+	mv -f $@.tmp $@
+endif
 
 .PHONY: build clean binary-indep binary-arch binary install
 

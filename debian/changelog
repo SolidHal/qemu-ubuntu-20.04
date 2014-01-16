@@ -1,3 +1,28 @@
+qemu (1.7.0+dfsg-3) unstable; urgency=low
+
+  * qemu-kvm: fix versions for Breaks/Replaces/Depends on qemu-system-x86
+  * qemu-system-ppc: depend on openbios-ppc >= 1.1+svn1229 to fix boot issues
+  * qemu-system-sparc: depend on openbios-sparc >= 1.1+svn1229 too
+  * remove unused lintian overrides for qemu-user from qemu (meta)package
+  * qemu-system-*: depend on unversioned qemu-keymaps and qemu-system-common
+    packages (no particular version of any is hard-required)
+  * remove debian/README.source (was from quilt)
+  * add myself to debian/copyright
+  * reorder d/control to have Recommends:/Suggests: closer to Depends.
+  * rename d/control to d/control-in and add a d/rules rule to build it
+    based on ${VENDOR}
+  * allow different content in d/control for debian/ubuntu
+  * added debian/README-components-versions
+  * fixed qemu-armeb binfmt (Closes: #735078)
+  * added powerpcspe host arch (Closes: #734696)
+  * do not check for presence of update-alternatives which is part of dpkg
+    (Closes: #733222)
+  * do not call update-alternative --remove from postrm:remove
+    (lintian complains about this)
+  * add efi netrom links.  This requires new ipxe-qemu.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 16 Jan 2014 15:17:46 +0400
+
 qemu (1.7.0+dfsg-2) unstable; urgency=low
 
   * switch from vgabios to seavgabios
