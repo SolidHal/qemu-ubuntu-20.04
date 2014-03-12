@@ -1,3 +1,31 @@
+qemu (1.7.0+dfsg-4) unstable; urgency=medium
+
+  [ Michael Tokarev ]
+  * 1.7.1 stable upstream release (Closes: #719633)
+  * implement-posix-timers.diff from upstream (Closes: #732258)
+  * address_space_translate-do-not-cross-page-boundaries.diff -
+    upstream bugfix for xen
+  * break libvirt << 1.2, not just 1.0, we need 1.2+ after qemu-1.6.
+  * add linux-user-fixed-s390x-clone-argument-order.patch (Closes: #739800)
+  * re-enable cepth (rbd) support (Closes: #729961, #689239)
+
+  [ Steve Langasek ]
+  * (from Ubuntu) add symlink for OVMF.fd, which is now available in Debian
+    non-free.
+  * libusbredir is enabled in Ubuntu too, so sync debian/control.
+  * Enable building for ppc64el (in both Debian and Ubuntu): Debian does not
+    have a ppc64el port yet, but qemu builds out of the box there so it's
+    safe/appropriate to enable.
+  * Merge in Ubuntu-specific (and Ubuntu-tagged) debian/control changes.
+  * Enable building for arm64; the arm64 target is not yet merged, but the
+    package doesn't need arm64 target support to build for an arm64 host.
+
+  [ Riku Voipio ]
+  * control: build-depend on python:any (change originally made
+    in Aug-2013 but reverted by mjt later)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 12 Mar 2014 18:34:03 +0400
+
 qemu (1.7.0+dfsg-3) unstable; urgency=low
 
   * qemu-kvm: fix versions for Breaks/Replaces/Depends on qemu-system-x86

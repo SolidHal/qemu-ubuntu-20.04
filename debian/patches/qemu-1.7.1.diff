@@ -1,0 +1,4491 @@
+/iff --git a/VERSION b/VERSION
+index bd8bf88..943f9cb 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-1.7.0
++1.7.1
+diff --git a/block/curl.c b/block/curl.c
+index 5a46f97..1c04dcc 100644
+--- a/block/curl.c
++++ b/block/curl.c
+@@ -34,6 +34,11 @@
+ #define DPRINTF(fmt, ...) do { } while (0)
+ #endif
+ 
++#if LIBCURL_VERSION_NUM >= 0x071000
++/* The multi interface timer callback was introduced in 7.16.0 */
++#define NEED_CURL_TIMER_CALLBACK
++#endif
++
+ #define PROTOCOLS (CURLPROTO_HTTP | CURLPROTO_HTTPS | \
+                    CURLPROTO_FTP | CURLPROTO_FTPS | \
+                    CURLPROTO_TFTP)
+@@ -77,6 +82,7 @@ typedef struct CURLState
+ 
+ typedef struct BDRVCURLState {
+     CURLM *multi;
++    QEMUTimer timer;
+     size_t len;
+     CURLState states[CURL_NUM_STATES];
+     char *url;
+@@ -87,6 +93,23 @@ typedef struct BDRVCURLState {
+ static void curl_clean_state(CURLState *s);
+ static void curl_multi_do(void *arg);
+ 
++#ifdef NEED_CURL_TIMER_CALLBACK
++static int curl_timer_cb(CURLM *multi, long timeout_ms, void *opaque)
++{
++    BDRVCURLState *s = opaque;
++
++    DPRINTF("CURL: timer callback timeout_ms %ld\n", timeout_ms);
++    if (timeout_ms == -1) {
++        timer_del(&s->timer);
++    } else {
++        int64_t timeout_ns = (int64_t)timeout_ms * 1000 * 1000;
++        timer_mod(&s->timer,
++                  qemu_clock_get_ns(QEMU_CLOCK_REALTIME) + timeout_ns);
++    }
++    return 0;
++}
++#endif
++
+ static int curl_sock_cb(CURL *curl, curl_socket_t fd, int action,
+                         void *s, void *sp)
+ {
+@@ -209,20 +232,10 @@ static int curl_find_buf(BDRVCURLState *s, size_t start, size_t len,
+     return FIND_RET_NONE;
+ }
+ 
+-static void curl_multi_do(void *arg)
++static void curl_multi_read(BDRVCURLState *s)
+ {
+-    BDRVCURLState *s = (BDRVCURLState *)arg;
+-    int running;
+-    int r;
+     int msgs_in_queue;
+ 
+-    if (!s->multi)
+-        return;
+-
+-    do {
+-        r = curl_multi_socket_all(s->multi, &running);
+-    } while(r == CURLM_CALL_MULTI_PERFORM);
+-
+     /* Try to find done transfers, so we can free the easy
+      * handle again. */
+     do {
+@@ -266,6 +279,41 @@ static void curl_multi_do(void *arg)
+     } while(msgs_in_queue);
+ }
+ 
++static void curl_multi_do(void *arg)
++{
++    BDRVCURLState *s = (BDRVCURLState *)arg;
++    int running;
++    int r;
++
++    if (!s->multi) {
++        return;
++    }
++
++    do {
++        r = curl_multi_socket_all(s->multi, &running);
++    } while(r == CURLM_CALL_MULTI_PERFORM);
++
++    curl_multi_read(s);
++}
++
++static void curl_multi_timeout_do(void *arg)
++{
++#ifdef NEED_CURL_TIMER_CALLBACK
++    BDRVCURLState *s = (BDRVCURLState *)arg;
++    int running;
++
++    if (!s->multi) {
++        return;
++    }
++
++    curl_multi_socket_action(s->multi, CURL_SOCKET_TIMEOUT, 0, &running);
++
++    curl_multi_read(s);
++#else
++    abort();
++#endif
++}
++
+ static CURLState *curl_init_state(BDRVCURLState *s)
+ {
+     CURLState *state = NULL;
+@@ -473,12 +521,20 @@ static int curl_open(BlockDriverState *bs, QDict *options, int flags,
+     curl_easy_cleanup(state->curl);
+     state->curl = NULL;
+ 
++    aio_timer_init(bdrv_get_aio_context(bs), &s->timer,
++                   QEMU_CLOCK_REALTIME, SCALE_NS,
++                   curl_multi_timeout_do, s);
++
+     // Now we know the file exists and its size, so let's
+     // initialize the multi interface!
+ 
+     s->multi = curl_multi_init();
+     curl_multi_setopt(s->multi, CURLMOPT_SOCKETDATA, s);
+     curl_multi_setopt(s->multi, CURLMOPT_SOCKETFUNCTION, curl_sock_cb);
++#ifdef NEED_CURL_TIMER_CALLBACK
++    curl_multi_setopt(s->multi, CURLMOPT_TIMERDATA, s);
++    curl_multi_setopt(s->multi, CURLMOPT_TIMERFUNCTION, curl_timer_cb);
++#endif
+     curl_multi_do(s);
+ 
+     qemu_opts_del(opts);
+@@ -597,6 +653,9 @@ static void curl_close(BlockDriverState *bs)
+     }
+     if (s->multi)
+         curl_multi_cleanup(s->multi);
++
++    timer_del(&s->timer);
++
+     g_free(s->url);
+ }
+ 
+diff --git a/block/iscsi.c b/block/iscsi.c
+index a2d578c..a410a28 100644
+--- a/block/iscsi.c
++++ b/block/iscsi.c
+@@ -65,6 +65,7 @@ typedef struct IscsiTask {
+     int do_retry;
+     struct scsi_task *task;
+     Coroutine *co;
++    QEMUBH *bh;
+ } IscsiTask;
+ 
+ typedef struct IscsiAIOCB {
+@@ -121,6 +122,13 @@ iscsi_schedule_bh(IscsiAIOCB *acb)
+     qemu_bh_schedule(acb->bh);
+ }
+ 
++static void iscsi_co_generic_bh_cb(void *opaque)
++{
++    struct IscsiTask *iTask = opaque;
++    qemu_bh_delete(iTask->bh);
++    qemu_coroutine_enter(iTask->co, NULL);
++}
++
+ static void
+ iscsi_co_generic_cb(struct iscsi_context *iscsi, int status,
+                         void *command_data, void *opaque)
+@@ -145,7 +153,8 @@ iscsi_co_generic_cb(struct iscsi_context *iscsi, int status,
+ 
+ out:
+     if (iTask->co) {
+-        qemu_coroutine_enter(iTask->co, NULL);
++        iTask->bh = qemu_bh_new(iscsi_co_generic_bh_cb, iTask);
++        qemu_bh_schedule(iTask->bh);
+     }
+ }
+ 
+diff --git a/configure b/configure
+index 0666228..3cbcea1 100755
+--- a/configure
++++ b/configure
+@@ -1357,6 +1357,11 @@ EOF
+       pie="no"
+     fi
+   fi
++
++  if compile_prog "-fno-pie" "-nopie"; then
++    CFLAGS_NOPIE="-fno-pie"
++    LDFLAGS_NOPIE="-nopie"
++  fi
+ fi
+ 
+ ##########################################
+@@ -4288,6 +4293,7 @@ echo "LD=$ld" >> $config_host_mak
+ echo "WINDRES=$windres" >> $config_host_mak
+ echo "LIBTOOL=$libtool" >> $config_host_mak
+ echo "CFLAGS=$CFLAGS" >> $config_host_mak
++echo "CFLAGS_NOPIE=$CFLAGS_NOPIE" >> $config_host_mak
+ echo "QEMU_CFLAGS=$QEMU_CFLAGS" >> $config_host_mak
+ echo "QEMU_INCLUDES=$QEMU_INCLUDES" >> $config_host_mak
+ if test "$sparse" = "yes" ; then
+@@ -4301,6 +4307,7 @@ else
+   echo "AUTOCONF_HOST := "                             >> $config_host_mak
+ fi
+ echo "LDFLAGS=$LDFLAGS" >> $config_host_mak
++echo "LDFLAGS_NOPIE=$LDFLAGS_NOPIE" >> $config_host_mak
+ echo "LIBTOOLFLAGS=$LIBTOOLFLAGS" >> $config_host_mak
+ echo "LIBS+=$LIBS" >> $config_host_mak
+ echo "LIBS_TOOLS+=$libs_tools" >> $config_host_mak
+diff --git a/exec.c b/exec.c
+index 95c4356..b324fcc 100644
+--- a/exec.c
++++ b/exec.c
+@@ -83,20 +83,37 @@ int use_icount;
+ typedef struct PhysPageEntry PhysPageEntry;
+ 
+ struct PhysPageEntry {
+-    uint16_t is_leaf : 1;
+-     /* index into phys_sections (is_leaf) or phys_map_nodes (!is_leaf) */
++    /* How many bits skip to next level (in units of L2_SIZE). 0 for a leaf. */
++    uint16_t skip : 1;
++     /* index into phys_sections (!skip) or phys_map_nodes (skip) */
+     uint16_t ptr : 15;
+ };
+ 
+-typedef PhysPageEntry Node[L2_SIZE];
++/* Size of the L2 (and L3, etc) page tables.  */
++#define ADDR_SPACE_BITS TARGET_PHYS_ADDR_SPACE_BITS
++
++#define P_L2_BITS 10
++#define P_L2_SIZE (1 << P_L2_BITS)
++
++#define P_L2_LEVELS (((ADDR_SPACE_BITS - TARGET_PAGE_BITS - 1) / P_L2_BITS) + 1)
++
++typedef PhysPageEntry Node[P_L2_SIZE];
++
++typedef struct PhysPageMap {
++    unsigned sections_nb;
++    unsigned sections_nb_alloc;
++    unsigned nodes_nb;
++    unsigned nodes_nb_alloc;
++    Node *nodes;
++    MemoryRegionSection *sections;
++} PhysPageMap;
+ 
+ struct AddressSpaceDispatch {
+     /* This is a multi-level map on the physical address space.
+      * The bottom level has pointers to MemoryRegionSections.
+      */
+     PhysPageEntry phys_map;
+-    Node *nodes;
+-    MemoryRegionSection *sections;
++    PhysPageMap map;
+     AddressSpace *as;
+ };
+ 
+@@ -113,18 +130,6 @@ typedef struct subpage_t {
+ #define PHYS_SECTION_ROM 2
+ #define PHYS_SECTION_WATCH 3
+ 
+-typedef struct PhysPageMap {
+-    unsigned sections_nb;
+-    unsigned sections_nb_alloc;
+-    unsigned nodes_nb;
+-    unsigned nodes_nb_alloc;
+-    Node *nodes;
+-    MemoryRegionSection *sections;
+-} PhysPageMap;
+-
+-static PhysPageMap *prev_map;
+-static PhysPageMap next_map;
+-
+ #define PHYS_MAP_NODE_NIL (((uint16_t)~0) >> 1)
+ 
+ static void io_mem_init(void);
+@@ -135,63 +140,60 @@ static MemoryRegion io_mem_watch;
+ 
+ #if !defined(CONFIG_USER_ONLY)
+ 
+-static void phys_map_node_reserve(unsigned nodes)
++static void phys_map_node_reserve(PhysPageMap *map, unsigned nodes)
+ {
+-    if (next_map.nodes_nb + nodes > next_map.nodes_nb_alloc) {
+-        next_map.nodes_nb_alloc = MAX(next_map.nodes_nb_alloc * 2,
+-                                            16);
+-        next_map.nodes_nb_alloc = MAX(next_map.nodes_nb_alloc,
+-                                      next_map.nodes_nb + nodes);
+-        next_map.nodes = g_renew(Node, next_map.nodes,
+-                                 next_map.nodes_nb_alloc);
++    if (map->nodes_nb + nodes > map->nodes_nb_alloc) {
++        map->nodes_nb_alloc = MAX(map->nodes_nb_alloc * 2, 16);
++        map->nodes_nb_alloc = MAX(map->nodes_nb_alloc, map->nodes_nb + nodes);
++        map->nodes = g_renew(Node, map->nodes, map->nodes_nb_alloc);
+     }
+ }
+ 
+-static uint16_t phys_map_node_alloc(void)
++static uint16_t phys_map_node_alloc(PhysPageMap *map)
+ {
+     unsigned i;
+     uint16_t ret;
+ 
+-    ret = next_map.nodes_nb++;
++    ret = map->nodes_nb++;
+     assert(ret != PHYS_MAP_NODE_NIL);
+-    assert(ret != next_map.nodes_nb_alloc);
+-    for (i = 0; i < L2_SIZE; ++i) {
+-        next_map.nodes[ret][i].is_leaf = 0;
+-        next_map.nodes[ret][i].ptr = PHYS_MAP_NODE_NIL;
++    assert(ret != map->nodes_nb_alloc);
++    for (i = 0; i < P_L2_SIZE; ++i) {
++        map->nodes[ret][i].skip = 1;
++        map->nodes[ret][i].ptr = PHYS_MAP_NODE_NIL;
+     }
+     return ret;
+ }
+ 
+-static void phys_page_set_level(PhysPageEntry *lp, hwaddr *index,
+-                                hwaddr *nb, uint16_t leaf,
++static void phys_page_set_level(PhysPageMap *map, PhysPageEntry *lp,
++                                hwaddr *index, hwaddr *nb, uint16_t leaf,
+                                 int level)
+ {
+     PhysPageEntry *p;
+     int i;
+-    hwaddr step = (hwaddr)1 << (level * L2_BITS);
++    hwaddr step = (hwaddr)1 << (level * P_L2_BITS);
+ 
+-    if (!lp->is_leaf && lp->ptr == PHYS_MAP_NODE_NIL) {
+-        lp->ptr = phys_map_node_alloc();
+-        p = next_map.nodes[lp->ptr];
++    if (lp->skip && lp->ptr == PHYS_MAP_NODE_NIL) {
++        lp->ptr = phys_map_node_alloc(map);
++        p = map->nodes[lp->ptr];
+         if (level == 0) {
+-            for (i = 0; i < L2_SIZE; i++) {
+-                p[i].is_leaf = 1;
++            for (i = 0; i < P_L2_SIZE; i++) {
++                p[i].skip = 0;
+                 p[i].ptr = PHYS_SECTION_UNASSIGNED;
+             }
+         }
+     } else {
+-        p = next_map.nodes[lp->ptr];
++        p = map->nodes[lp->ptr];
+     }
+-    lp = &p[(*index >> (level * L2_BITS)) & (L2_SIZE - 1)];
++    lp = &p[(*index >> (level * P_L2_BITS)) & (P_L2_SIZE - 1)];
+ 
+-    while (*nb && lp < &p[L2_SIZE]) {
++    while (*nb && lp < &p[P_L2_SIZE]) {
+         if ((*index & (step - 1)) == 0 && *nb >= step) {
+-            lp->is_leaf = true;
++            lp->skip = 0;
+             lp->ptr = leaf;
+             *index += step;
+             *nb -= step;
+         } else {
+-            phys_page_set_level(lp, index, nb, leaf, level - 1);
++            phys_page_set_level(map, lp, index, nb, leaf, level - 1);
+         }
+         ++lp;
+     }
+@@ -202,23 +204,24 @@ static void phys_page_set(AddressSpaceDispatch *d,
+                           uint16_t leaf)
+ {
+     /* Wildly overreserve - it doesn't matter much. */
+-    phys_map_node_reserve(3 * P_L2_LEVELS);
++    phys_map_node_reserve(&d->map, 3 * P_L2_LEVELS);
+ 
+-    phys_page_set_level(&d->phys_map, &index, &nb, leaf, P_L2_LEVELS - 1);
++    phys_page_set_level(&d->map, &d->phys_map, &index, &nb, leaf, P_L2_LEVELS - 1);
+ }
+ 
+-static MemoryRegionSection *phys_page_find(PhysPageEntry lp, hwaddr index,
++static MemoryRegionSection *phys_page_find(PhysPageEntry lp, hwaddr addr,
+                                            Node *nodes, MemoryRegionSection *sections)
+ {
+     PhysPageEntry *p;
++    hwaddr index = addr >> TARGET_PAGE_BITS;
+     int i;
+ 
+-    for (i = P_L2_LEVELS - 1; i >= 0 && !lp.is_leaf; i--) {
++    for (i = P_L2_LEVELS; lp.skip && (i -= lp.skip) >= 0;) {
+         if (lp.ptr == PHYS_MAP_NODE_NIL) {
+             return &sections[PHYS_SECTION_UNASSIGNED];
+         }
+         p = nodes[lp.ptr];
+-        lp = p[(index >> (i * L2_BITS)) & (L2_SIZE - 1)];
++        lp = p[(index >> (i * P_L2_BITS)) & (P_L2_SIZE - 1)];
+     }
+     return &sections[lp.ptr];
+ }
+@@ -236,11 +239,10 @@ static MemoryRegionSection *address_space_lookup_region(AddressSpaceDispatch *d,
+     MemoryRegionSection *section;
+     subpage_t *subpage;
+ 
+-    section = phys_page_find(d->phys_map, addr >> TARGET_PAGE_BITS,
+-                             d->nodes, d->sections);
++    section = phys_page_find(d->phys_map, addr, d->map.nodes, d->map.sections);
+     if (resolve_subpage && section->mr->subpage) {
+         subpage = container_of(section->mr, subpage_t, iomem);
+-        section = &d->sections[subpage->sub_section[SUBPAGE_IDX(addr)]];
++        section = &d->map.sections[subpage->sub_section[SUBPAGE_IDX(addr)]];
+     }
+     return section;
+ }
+@@ -264,6 +266,18 @@ address_space_translate_internal(AddressSpaceDispatch *d, hwaddr addr, hwaddr *x
+     return section;
+ }
+ 
++static inline bool memory_access_is_direct(MemoryRegion *mr, bool is_write)
++{
++    if (memory_region_is_ram(mr)) {
++        return !(is_write && mr->readonly);
++    }
++    if (memory_region_is_romd(mr)) {
++        return !is_write;
++    }
++
++    return false;
++}
++
+ MemoryRegion *address_space_translate(AddressSpace *as, hwaddr addr,
+                                       hwaddr *xlat, hwaddr *plen,
+                                       bool is_write)
+@@ -293,6 +307,11 @@ MemoryRegion *address_space_translate(AddressSpace *as, hwaddr addr,
+         as = iotlb.target_as;
+     }
+ 
++    if (memory_access_is_direct(mr, is_write)) {
++        hwaddr page = ((addr & TARGET_PAGE_MASK) + TARGET_PAGE_SIZE) - addr;
++        len = MIN(page, len);
++    }
++
+     *plen = len;
+     *xlat = addr;
+     return mr;
+@@ -708,7 +727,7 @@ hwaddr memory_region_section_get_iotlb(CPUArchState *env,
+             iotlb |= PHYS_SECTION_ROM;
+         }
+     } else {
+-        iotlb = section - address_space_memory.dispatch->sections;
++        iotlb = section - address_space_memory.dispatch->map.sections;
+         iotlb += xlat;
+     }
+ 
+@@ -747,23 +766,23 @@ void phys_mem_set_alloc(void *(*alloc)(size_t))
+     phys_mem_alloc = alloc;
+ }
+ 
+-static uint16_t phys_section_add(MemoryRegionSection *section)
++static uint16_t phys_section_add(PhysPageMap *map,
++                                 MemoryRegionSection *section)
+ {
+     /* The physical section number is ORed with a page-aligned
+      * pointer to produce the iotlb entries.  Thus it should
+      * never overflow into the page-aligned value.
+      */
+-    assert(next_map.sections_nb < TARGET_PAGE_SIZE);
++    assert(map->sections_nb < TARGET_PAGE_SIZE);
+ 
+-    if (next_map.sections_nb == next_map.sections_nb_alloc) {
+-        next_map.sections_nb_alloc = MAX(next_map.sections_nb_alloc * 2,
+-                                         16);
+-        next_map.sections = g_renew(MemoryRegionSection, next_map.sections,
+-                                    next_map.sections_nb_alloc);
++    if (map->sections_nb == map->sections_nb_alloc) {
++        map->sections_nb_alloc = MAX(map->sections_nb_alloc * 2, 16);
++        map->sections = g_renew(MemoryRegionSection, map->sections,
++                                map->sections_nb_alloc);
+     }
+-    next_map.sections[next_map.sections_nb] = *section;
++    map->sections[map->sections_nb] = *section;
+     memory_region_ref(section->mr);
+-    return next_map.sections_nb++;
++    return map->sections_nb++;
+ }
+ 
+ static void phys_section_destroy(MemoryRegion *mr)
+@@ -785,7 +804,6 @@ static void phys_sections_free(PhysPageMap *map)
+     }
+     g_free(map->sections);
+     g_free(map->nodes);
+-    g_free(map);
+ }
+ 
+ static void register_subpage(AddressSpaceDispatch *d, MemoryRegionSection *section)
+@@ -793,8 +811,8 @@ static void register_subpage(AddressSpaceDispatch *d, MemoryRegionSection *secti
+     subpage_t *subpage;
+     hwaddr base = section->offset_within_address_space
+         & TARGET_PAGE_MASK;
+-    MemoryRegionSection *existing = phys_page_find(d->phys_map, base >> TARGET_PAGE_BITS,
+-                                                   next_map.nodes, next_map.sections);
++    MemoryRegionSection *existing = phys_page_find(d->phys_map, base,
++                                                   d->map.nodes, d->map.sections);
+     MemoryRegionSection subsection = {
+         .offset_within_address_space = base,
+         .size = int128_make64(TARGET_PAGE_SIZE),
+@@ -807,13 +825,14 @@ static void register_subpage(AddressSpaceDispatch *d, MemoryRegionSection *secti
+         subpage = subpage_init(d->as, base);
+         subsection.mr = &subpage->iomem;
+         phys_page_set(d, base >> TARGET_PAGE_BITS, 1,
+-                      phys_section_add(&subsection));
++                      phys_section_add(&d->map, &subsection));
+     } else {
+         subpage = container_of(existing->mr, subpage_t, iomem);
+     }
+     start = section->offset_within_address_space & ~TARGET_PAGE_MASK;
+     end = start + int128_get64(section->size) - 1;
+-    subpage_register(subpage, start, end, phys_section_add(section));
++    subpage_register(subpage, start, end,
++                     phys_section_add(&d->map, section));
+ }
+ 
+ 
+@@ -821,7 +840,7 @@ static void register_multipage(AddressSpaceDispatch *d,
+                                MemoryRegionSection *section)
+ {
+     hwaddr start_addr = section->offset_within_address_space;
+-    uint16_t section_index = phys_section_add(section);
++    uint16_t section_index = phys_section_add(&d->map, section);
+     uint64_t num_pages = int128_get64(int128_rshift(section->size,
+                                                     TARGET_PAGE_BITS));
+ 
+@@ -1605,7 +1624,7 @@ static subpage_t *subpage_init(AddressSpace *as, hwaddr base)
+     return mmio;
+ }
+ 
+-static uint16_t dummy_section(MemoryRegion *mr)
++static uint16_t dummy_section(PhysPageMap *map, MemoryRegion *mr)
+ {
+     MemoryRegionSection section = {
+         .mr = mr,
+@@ -1614,12 +1633,13 @@ static uint16_t dummy_section(MemoryRegion *mr)
+         .size = int128_2_64(),
+     };
+ 
+-    return phys_section_add(&section);
++    return phys_section_add(map, &section);
+ }
+ 
+ MemoryRegion *iotlb_to_region(hwaddr index)
+ {
+-    return address_space_memory.dispatch->sections[index & ~TARGET_PAGE_MASK].mr;
++    return address_space_memory.dispatch->map.sections[
++           index & ~TARGET_PAGE_MASK].mr;
+ }
+ 
+ static void io_mem_init(void)
+@@ -1636,9 +1656,19 @@ static void io_mem_init(void)
+ static void mem_begin(MemoryListener *listener)
+ {
+     AddressSpace *as = container_of(listener, AddressSpace, dispatch_listener);
+-    AddressSpaceDispatch *d = g_new(AddressSpaceDispatch, 1);
++    AddressSpaceDispatch *d = g_new0(AddressSpaceDispatch, 1);
++    uint16_t n;
+ 
+-    d->phys_map  = (PhysPageEntry) { .ptr = PHYS_MAP_NODE_NIL, .is_leaf = 0 };
++    n = dummy_section(&d->map, &io_mem_unassigned);
++    assert(n == PHYS_SECTION_UNASSIGNED);
++    n = dummy_section(&d->map, &io_mem_notdirty);
++    assert(n == PHYS_SECTION_NOTDIRTY);
++    n = dummy_section(&d->map, &io_mem_rom);
++    assert(n == PHYS_SECTION_ROM);
++    n = dummy_section(&d->map, &io_mem_watch);
++    assert(n == PHYS_SECTION_WATCH);
++
++    d->phys_map  = (PhysPageEntry) { .ptr = PHYS_MAP_NODE_NIL, .skip = 1 };
+     d->as = as;
+     as->next_dispatch = d;
+ }
+@@ -1649,37 +1679,12 @@ static void mem_commit(MemoryListener *listener)
+     AddressSpaceDispatch *cur = as->dispatch;
+     AddressSpaceDispatch *next = as->next_dispatch;
+ 
+-    next->nodes = next_map.nodes;
+-    next->sections = next_map.sections;
+-
+     as->dispatch = next;
+-    g_free(cur);
+-}
+-
+-static void core_begin(MemoryListener *listener)
+-{
+-    uint16_t n;
+-
+-    prev_map = g_new(PhysPageMap, 1);
+-    *prev_map = next_map;
+-
+-    memset(&next_map, 0, sizeof(next_map));
+-    n = dummy_section(&io_mem_unassigned);
+-    assert(n == PHYS_SECTION_UNASSIGNED);
+-    n = dummy_section(&io_mem_notdirty);
+-    assert(n == PHYS_SECTION_NOTDIRTY);
+-    n = dummy_section(&io_mem_rom);
+-    assert(n == PHYS_SECTION_ROM);
+-    n = dummy_section(&io_mem_watch);
+-    assert(n == PHYS_SECTION_WATCH);
+-}
+ 
+-/* This listener's commit run after the other AddressSpaceDispatch listeners'.
+- * All AddressSpaceDispatch instances have switched to the next map.
+- */
+-static void core_commit(MemoryListener *listener)
+-{
+-    phys_sections_free(prev_map);
++    if (cur) {
++        phys_sections_free(&cur->map);
++        g_free(cur);
++    }
+ }
+ 
+ static void tcg_commit(MemoryListener *listener)
+@@ -1707,8 +1712,6 @@ static void core_log_global_stop(MemoryListener *listener)
+ }
+ 
+ static MemoryListener core_memory_listener = {
+-    .begin = core_begin,
+-    .commit = core_commit,
+     .log_global_start = core_log_global_start,
+     .log_global_stop = core_log_global_stop,
+     .priority = 1,
+@@ -1743,7 +1746,12 @@ void address_space_destroy_dispatch(AddressSpace *as)
+ static void memory_map_init(void)
+ {
+     system_memory = g_malloc(sizeof(*system_memory));
+-    memory_region_init(system_memory, NULL, "system", INT64_MAX);
++
++    assert(ADDR_SPACE_BITS <= 64);
++
++    memory_region_init(system_memory, NULL, "system",
++                       ADDR_SPACE_BITS == 64 ?
++                       UINT64_MAX : (0x1ULL << ADDR_SPACE_BITS));
+     address_space_init(&address_space_memory, system_memory, "memory");
+ 
+     system_io = g_malloc(sizeof(*system_io));
+@@ -1824,18 +1832,6 @@ static void invalidate_and_set_dirty(hwaddr addr,
+     xen_modified_memory(addr, length);
+ }
+ 
+-static inline bool memory_access_is_direct(MemoryRegion *mr, bool is_write)
+-{
+-    if (memory_region_is_ram(mr)) {
+-        return !(is_write && mr->readonly);
+-    }
+-    if (memory_region_is_romd(mr)) {
+-        return !is_write;
+-    }
+-
+-    return false;
+-}
+-
+ static int memory_access_size(MemoryRegion *mr, unsigned l, hwaddr addr)
+ {
+     unsigned access_size_max = mr->ops->valid.max_access_size;
+diff --git a/hw/arm/mainstone.c b/hw/arm/mainstone.c
+index 9402c84..ffbf4bd 100644
+--- a/hw/arm/mainstone.c
++++ b/hw/arm/mainstone.c
+@@ -75,9 +75,18 @@ static struct keymap map[0xE0] = {
+     [0x2c] = {4,3}, /* z */
+     [0xc7] = {5,0}, /* Home */
+     [0x2a] = {5,1}, /* shift */
+-    [0x39] = {5,2}, /* space */
++    /*
++     * There are two matrix positions which map to space,
++     * but QEMU can only use one of them for the reverse
++     * mapping, so simply use the second one.
++     */
++    /* [0x39] = {5,2}, space */
+     [0x39] = {5,3}, /* space */
+-    [0x1c] = {5,5}, /*  enter */
++    /*
++     * Matrix position {5,4} and other keys are missing here.
++     * TODO: Compare with Linux code and test real hardware.
++     */
++    [0x1c] = {5,5}, /* enter (TODO: might be wrong) */
+     [0xc8] = {6,0}, /* up */
+     [0xd0] = {6,1}, /* down */
+     [0xcb] = {6,2}, /* left */
+diff --git a/hw/arm/musicpal.c b/hw/arm/musicpal.c
+index 023e875..a8d0086 100644
+--- a/hw/arm/musicpal.c
++++ b/hw/arm/musicpal.c
+@@ -92,8 +92,6 @@
+ #define MP_ETH_CRDP3            0x4AC
+ #define MP_ETH_CTDP0            0x4E0
+ #define MP_ETH_CTDP1            0x4E4
+-#define MP_ETH_CTDP2            0x4E8
+-#define MP_ETH_CTDP3            0x4EC
+ 
+ /* MII PHY access */
+ #define MP_ETH_SMIR_DATA        0x0000FFFF
+@@ -308,7 +306,7 @@ static uint64_t mv88w8618_eth_read(void *opaque, hwaddr offset,
+     case MP_ETH_CRDP0 ... MP_ETH_CRDP3:
+         return s->rx_queue[(offset - MP_ETH_CRDP0)/4];
+ 
+-    case MP_ETH_CTDP0 ... MP_ETH_CTDP3:
++    case MP_ETH_CTDP0 ... MP_ETH_CTDP1:
+         return s->tx_queue[(offset - MP_ETH_CTDP0)/4];
+ 
+     default:
+@@ -362,7 +360,7 @@ static void mv88w8618_eth_write(void *opaque, hwaddr offset,
+             s->cur_rx[(offset - MP_ETH_CRDP0)/4] = value;
+         break;
+ 
+-    case MP_ETH_CTDP0 ... MP_ETH_CTDP3:
++    case MP_ETH_CTDP0 ... MP_ETH_CTDP1:
+         s->tx_queue[(offset - MP_ETH_CTDP0)/4] = value;
+         break;
+     }
+diff --git a/hw/audio/adlib.c b/hw/audio/adlib.c
+index bd8e9d9..e88d2dd 100644
+--- a/hw/audio/adlib.c
++++ b/hw/audio/adlib.c
+@@ -347,8 +347,8 @@ static void adlib_realizefn (DeviceState *dev, Error **errp)
+     s->samples = AUD_get_buffer_size_out (s->voice) >> SHIFT;
+     s->mixbuf = g_malloc0 (s->samples << SHIFT);
+ 
+-    adlib_portio_list[1].offset = s->port;
+-    adlib_portio_list[2].offset = s->port + 8;
++    adlib_portio_list[0].offset = s->port;
++    adlib_portio_list[1].offset = s->port + 8;
+     portio_list_init (port_list, OBJECT(s), adlib_portio_list, s, "adlib");
+     portio_list_add (port_list, isa_address_space_io(&s->parent_obj), 0);
+ }
+diff --git a/hw/audio/intel-hda.c b/hw/audio/intel-hda.c
+index 4327264..6ab8c24 100644
+--- a/hw/audio/intel-hda.c
++++ b/hw/audio/intel-hda.c
+@@ -444,6 +444,7 @@ static bool intel_hda_xfer(HDACodecDevice *dev, uint32_t stnr, bool output,
+         }
+     }
+     if (d->dp_lbase & 0x01) {
++        s = st - d->st;
+         addr = intel_hda_addr(d->dp_lbase & ~0x01, d->dp_ubase);
+         stl_le_pci_dma(&d->pci, addr + 8*s, st->lpib);
+     }
+diff --git a/hw/block/virtio-blk.c b/hw/block/virtio-blk.c
+index 13f6d82..7f0440f 100644
+--- a/hw/block/virtio-blk.c
++++ b/hw/block/virtio-blk.c
+@@ -728,20 +728,18 @@ static int virtio_blk_device_init(VirtIODevice *vdev)
+     return 0;
+ }
+ 
+-static int virtio_blk_device_exit(DeviceState *dev)
++static void virtio_blk_device_exit(VirtIODevice *vdev)
+ {
+-    VirtIODevice *vdev = VIRTIO_DEVICE(dev);
+-    VirtIOBlock *s = VIRTIO_BLK(dev);
++    VirtIOBlock *s = VIRTIO_BLK(vdev);
+ #ifdef CONFIG_VIRTIO_BLK_DATA_PLANE
+     remove_migration_state_change_notifier(&s->migration_state_notifier);
+     virtio_blk_data_plane_destroy(s->dataplane);
+     s->dataplane = NULL;
+ #endif
+     qemu_del_vm_change_state_handler(s->change);
+-    unregister_savevm(dev, "virtio-blk", s);
++    unregister_savevm(DEVICE(vdev), "virtio-blk", s);
+     blockdev_mark_auto_del(s->bs);
+     virtio_cleanup(vdev);
+-    return 0;
+ }
+ 
+ static Property virtio_blk_properties[] = {
+@@ -753,10 +751,10 @@ static void virtio_blk_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = virtio_blk_device_exit;
+     dc->props = virtio_blk_properties;
+     set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
+     vdc->init = virtio_blk_device_init;
++    vdc->exit = virtio_blk_device_exit;
+     vdc->get_config = virtio_blk_update_config;
+     vdc->set_config = virtio_blk_set_config;
+     vdc->get_features = virtio_blk_get_features;
+diff --git a/hw/char/virtio-serial-bus.c b/hw/char/virtio-serial-bus.c
+index 703f026..a7ede90 100644
+--- a/hw/char/virtio-serial-bus.c
++++ b/hw/char/virtio-serial-bus.c
+@@ -987,12 +987,11 @@ static const TypeInfo virtio_serial_port_type_info = {
+     .class_init = virtio_serial_port_class_init,
+ };
+ 
+-static int virtio_serial_device_exit(DeviceState *dev)
++static void virtio_serial_device_exit(VirtIODevice *vdev)
+ {
+-    VirtIOSerial *vser = VIRTIO_SERIAL(dev);
+-    VirtIODevice *vdev = VIRTIO_DEVICE(dev);
++    VirtIOSerial *vser = VIRTIO_SERIAL(vdev);
+ 
+-    unregister_savevm(dev, "virtio-console", vser);
++    unregister_savevm(DEVICE(vdev), "virtio-console", vser);
+ 
+     g_free(vser->ivqs);
+     g_free(vser->ovqs);
+@@ -1004,7 +1003,6 @@ static int virtio_serial_device_exit(DeviceState *dev)
+         g_free(vser->post_load);
+     }
+     virtio_cleanup(vdev);
+-    return 0;
+ }
+ 
+ static Property virtio_serial_properties[] = {
+@@ -1016,10 +1014,10 @@ static void virtio_serial_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = virtio_serial_device_exit;
+     dc->props = virtio_serial_properties;
+     set_bit(DEVICE_CATEGORY_INPUT, dc->categories);
+     vdc->init = virtio_serial_device_init;
++    vdc->exit = virtio_serial_device_exit;
+     vdc->get_features = get_features;
+     vdc->get_config = get_config;
+     vdc->set_config = set_config;
+diff --git a/hw/i386/bios-linker-loader.c b/hw/i386/bios-linker-loader.c
+index fd23611..aa56184 100644
+--- a/hw/i386/bios-linker-loader.c
++++ b/hw/i386/bios-linker-loader.c
+@@ -18,11 +18,10 @@
+  * with this program; if not, see <http://www.gnu.org/licenses/>.
+  */
+ 
++#include "qemu-common.h"
+ #include "bios-linker-loader.h"
+ #include "hw/nvram/fw_cfg.h"
+ 
+-#include <string.h>
+-#include <assert.h>
+ #include "qemu/bswap.h"
+ 
+ #define BIOS_LINKER_LOADER_FILESZ FW_CFG_MAX_FILE_PATH
+diff --git a/hw/i386/pc.c b/hw/i386/pc.c
+index 12c436e..6c82ada 100644
+--- a/hw/i386/pc.c
++++ b/hw/i386/pc.c
+@@ -1093,21 +1093,13 @@ PcGuestInfo *pc_guest_info_init(ram_addr_t below_4g_mem_size,
+     return guest_info;
+ }
+ 
+-void pc_init_pci64_hole(PcPciInfo *pci_info, uint64_t pci_hole64_start,
+-                        uint64_t pci_hole64_size)
++/* setup pci memory address space mapping into system address space */
++void pc_pci_as_mapping_init(Object *owner, MemoryRegion *system_memory,
++                            MemoryRegion *pci_address_space)
+ {
+-    if ((sizeof(hwaddr) == 4) || (!pci_hole64_size)) {
+-        return;
+-    }
+-    /*
+-     * BIOS does not set MTRR entries for the 64 bit window, so no need to
+-     * align address to power of two.  Align address at 1G, this makes sure
+-     * it can be exactly covered with a PAT entry even when using huge
+-     * pages.
+-     */
+-    pci_info->w64.begin = ROUND_UP(pci_hole64_start, 0x1ULL << 30);
+-    pci_info->w64.end = pci_info->w64.begin + pci_hole64_size;
+-    assert(pci_info->w64.begin <= pci_info->w64.end);
++    /* Set to lower priority than RAM */
++    memory_region_add_subregion_overlap(system_memory, 0x0,
++                                        pci_address_space, -1);
+ }
+ 
+ void pc_acpi_init(const char *default_dsdt)
+diff --git a/hw/i386/pc_piix.c b/hw/i386/pc_piix.c
+index 2111f01..cc9b273 100644
+--- a/hw/i386/pc_piix.c
++++ b/hw/i386/pc_piix.c
+@@ -150,7 +150,6 @@ static void pc_init1(QEMUMachineInitArgs *args,
+         pci_bus = i440fx_init(&i440fx_state, &piix3_devfn, &isa_bus, gsi,
+                               system_memory, system_io, args->ram_size,
+                               below_4g_mem_size,
+-                              0x100000000ULL - below_4g_mem_size,
+                               above_4g_mem_size,
+                               pci_memory, ram_memory);
+     } else {
+diff --git a/hw/intc/exynos4210_combiner.c b/hw/intc/exynos4210_combiner.c
+index ef5e8eb..3287479 100644
+--- a/hw/intc/exynos4210_combiner.c
++++ b/hw/intc/exynos4210_combiner.c
+@@ -418,7 +418,7 @@ static int exynos4210_combiner_init(SysBusDevice *sbd)
+     qdev_init_gpio_in(dev, exynos4210_combiner_handler, IIC_NIRQ);
+ 
+     /* Connect SysBusDev irqs to device specific irqs */
+-    for (i = 0; i < IIC_NIRQ; i++) {
++    for (i = 0; i < IIC_NGRP; i++) {
+         sysbus_init_irq(sbd, &s->output_irq[i]);
+     }
+ 
+diff --git a/hw/intc/gic_internal.h b/hw/intc/gic_internal.h
+index 3989fd1..25107ce 100644
+--- a/hw/intc/gic_internal.h
++++ b/hw/intc/gic_internal.h
+@@ -41,7 +41,7 @@
+ #define GIC_SET_MODEL(irq) s->irq_state[irq].model = true
+ #define GIC_CLEAR_MODEL(irq) s->irq_state[irq].model = false
+ #define GIC_TEST_MODEL(irq) s->irq_state[irq].model
+-#define GIC_SET_LEVEL(irq, cm) s->irq_state[irq].level = (cm)
++#define GIC_SET_LEVEL(irq, cm) s->irq_state[irq].level |= (cm)
+ #define GIC_CLEAR_LEVEL(irq, cm) s->irq_state[irq].level &= ~(cm)
+ #define GIC_TEST_LEVEL(irq, cm) ((s->irq_state[irq].level & (cm)) != 0)
+ #define GIC_SET_TRIGGER(irq) s->irq_state[irq].trigger = true
+diff --git a/hw/misc/arm_sysctl.c b/hw/misc/arm_sysctl.c
+index 0fc26d2..3fad6f8 100644
+--- a/hw/misc/arm_sysctl.c
++++ b/hw/misc/arm_sysctl.c
+@@ -276,7 +276,7 @@ static bool vexpress_cfgctrl_read(arm_sysctl_state *s, unsigned int dcc,
+         }
+         break;
+     case SYS_CFG_OSC:
+-        if (site == SYS_CFG_SITE_MB && device < sizeof(s->mb_clock)) {
++        if (site == SYS_CFG_SITE_MB && device < ARRAY_SIZE(s->mb_clock)) {
+             /* motherboard clock */
+             *val = s->mb_clock[device];
+             return true;
+@@ -324,7 +324,7 @@ static bool vexpress_cfgctrl_write(arm_sysctl_state *s, unsigned int dcc,
+ 
+     switch (function) {
+     case SYS_CFG_OSC:
+-        if (site == SYS_CFG_SITE_MB && device < sizeof(s->mb_clock)) {
++        if (site == SYS_CFG_SITE_MB && device < ARRAY_SIZE(s->mb_clock)) {
+             /* motherboard clock */
+             s->mb_clock[device] = val;
+             return true;
+diff --git a/hw/misc/vfio.c b/hw/misc/vfio.c
+index f7f8a19..355b018 100644
+--- a/hw/misc/vfio.c
++++ b/hw/misc/vfio.c
+@@ -878,8 +878,20 @@ static void vfio_disable_msi_common(VFIODevice *vdev)
+ 
+ static void vfio_disable_msix(VFIODevice *vdev)
+ {
++    int i;
++
+     msix_unset_vector_notifiers(&vdev->pdev);
+ 
++    /*
++     * MSI-X will only release vectors if MSI-X is still enabled on the
++     * device, check through the rest and release it ourselves if necessary.
++     */
++    for (i = 0; i < vdev->nr_vectors; i++) {
++        if (vdev->msi_vectors[i].use) {
++            vfio_msix_vector_release(&vdev->pdev, i);
++        }
++    }
++
+     if (vdev->nr_vectors) {
+         vfio_disable_irqindex(vdev, VFIO_PCI_MSIX_IRQ_INDEX);
+     }
+diff --git a/hw/net/virtio-net.c b/hw/net/virtio-net.c
+index b75c753..93a81eb 100644
+--- a/hw/net/virtio-net.c
++++ b/hw/net/virtio-net.c
+@@ -1570,16 +1570,15 @@ static int virtio_net_device_init(VirtIODevice *vdev)
+     return 0;
+ }
+ 
+-static int virtio_net_device_exit(DeviceState *qdev)
++static void virtio_net_device_exit(VirtIODevice *vdev)
+ {
+-    VirtIONet *n = VIRTIO_NET(qdev);
+-    VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
++    VirtIONet *n = VIRTIO_NET(vdev);
+     int i;
+ 
+     /* This will stop vhost backend if appropriate. */
+     virtio_net_set_status(vdev, 0);
+ 
+-    unregister_savevm(qdev, "virtio-net", n);
++    unregister_savevm(DEVICE(vdev), "virtio-net", n);
+ 
+     if (n->netclient_name) {
+         g_free(n->netclient_name);
+@@ -1610,8 +1609,6 @@ static int virtio_net_device_exit(DeviceState *qdev)
+     g_free(n->vqs);
+     qemu_del_nic(n->nic);
+     virtio_cleanup(vdev);
+-
+-    return 0;
+ }
+ 
+ static void virtio_net_instance_init(Object *obj)
+@@ -1638,10 +1635,10 @@ static void virtio_net_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = virtio_net_device_exit;
+     dc->props = virtio_net_properties;
+     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
+     vdc->init = virtio_net_device_init;
++    vdc->exit = virtio_net_device_exit;
+     vdc->get_config = virtio_net_get_config;
+     vdc->set_config = virtio_net_set_config;
+     vdc->get_features = virtio_net_get_features;
+diff --git a/hw/pci-host/piix.c b/hw/pci-host/piix.c
+index edc974e..4229d09 100644
+--- a/hw/pci-host/piix.c
++++ b/hw/pci-host/piix.c
+@@ -103,8 +103,6 @@ struct PCII440FXState {
+     MemoryRegion *system_memory;
+     MemoryRegion *pci_address_space;
+     MemoryRegion *ram_memory;
+-    MemoryRegion pci_hole;
+-    MemoryRegion pci_hole_64bit;
+     PAMMemoryRegion pam_regions[13];
+     MemoryRegion smram_region;
+     uint8_t smm_enabled;
+@@ -313,8 +311,7 @@ PCIBus *i440fx_init(PCII440FXState **pi440fx_state,
+                     MemoryRegion *address_space_mem,
+                     MemoryRegion *address_space_io,
+                     ram_addr_t ram_size,
+-                    hwaddr pci_hole_start,
+-                    hwaddr pci_hole_size,
++                    ram_addr_t below_4g_mem_size,
+                     ram_addr_t above_4g_mem_size,
+                     MemoryRegion *pci_address_space,
+                     MemoryRegion *ram_memory)
+@@ -327,7 +324,6 @@ PCIBus *i440fx_init(PCII440FXState **pi440fx_state,
+     PCII440FXState *f;
+     unsigned i;
+     I440FXState *i440fx;
+-    uint64_t pci_hole64_size;
+ 
+     dev = qdev_create(NULL, TYPE_I440FX_PCI_HOST_BRIDGE);
+     s = PCI_HOST_BRIDGE(dev);
+@@ -345,33 +341,12 @@ PCIBus *i440fx_init(PCII440FXState **pi440fx_state,
+     f->ram_memory = ram_memory;
+ 
+     i440fx = I440FX_PCI_HOST_BRIDGE(dev);
+-    /* Set PCI window size the way seabios has always done it. */
+-    /* Power of 2 so bios can cover it with a single MTRR */
+-    if (ram_size <= 0x80000000) {
+-        i440fx->pci_info.w32.begin = 0x80000000;
+-    } else if (ram_size <= 0xc0000000) {
+-        i440fx->pci_info.w32.begin = 0xc0000000;
+-    } else {
+-        i440fx->pci_info.w32.begin = 0xe0000000;
+-    }
++    i440fx->pci_info.w32.begin = below_4g_mem_size;
++
++    /* setup pci memory mapping */
++    pc_pci_as_mapping_init(OBJECT(f), f->system_memory,
++                           f->pci_address_space);
+ 
+-    memory_region_init_alias(&f->pci_hole, OBJECT(d), "pci-hole", f->pci_address_space,
+-                             pci_hole_start, pci_hole_size);
+-    memory_region_add_subregion(f->system_memory, pci_hole_start, &f->pci_hole);
+-
+-    pci_hole64_size = pci_host_get_hole64_size(i440fx->pci_hole64_size);
+-
+-    pc_init_pci64_hole(&i440fx->pci_info, 0x100000000ULL + above_4g_mem_size,
+-                       pci_hole64_size);
+-    memory_region_init_alias(&f->pci_hole_64bit, OBJECT(d), "pci-hole64",
+-                             f->pci_address_space,
+-                             i440fx->pci_info.w64.begin,
+-                             pci_hole64_size);
+-    if (pci_hole64_size) {
+-        memory_region_add_subregion(f->system_memory,
+-                                    i440fx->pci_info.w64.begin,
+-                                    &f->pci_hole_64bit);
+-    }
+     memory_region_init_alias(&f->smram_region, OBJECT(d), "smram-region",
+                              f->pci_address_space, 0xa0000, 0x20000);
+     memory_region_add_subregion_overlap(f->system_memory, 0xa0000,
+diff --git a/hw/pci-host/q35.c b/hw/pci-host/q35.c
+index c043998..81c8240 100644
+--- a/hw/pci-host/q35.c
++++ b/hw/pci-host/q35.c
+@@ -356,28 +356,11 @@ static int mch_init(PCIDevice *d)
+ {
+     int i;
+     MCHPCIState *mch = MCH_PCI_DEVICE(d);
+-    uint64_t pci_hole64_size;
+-
+-    /* setup pci memory regions */
+-    memory_region_init_alias(&mch->pci_hole, OBJECT(mch), "pci-hole",
+-                             mch->pci_address_space,
+-                             mch->below_4g_mem_size,
+-                             0x100000000ULL - mch->below_4g_mem_size);
+-    memory_region_add_subregion(mch->system_memory, mch->below_4g_mem_size,
+-                                &mch->pci_hole);
+-
+-    pci_hole64_size = pci_host_get_hole64_size(mch->pci_hole64_size);
+-    pc_init_pci64_hole(&mch->pci_info, 0x100000000ULL + mch->above_4g_mem_size,
+-                       pci_hole64_size);
+-    memory_region_init_alias(&mch->pci_hole_64bit, OBJECT(mch), "pci-hole64",
+-                             mch->pci_address_space,
+-                             mch->pci_info.w64.begin,
+-                             pci_hole64_size);
+-    if (pci_hole64_size) {
+-        memory_region_add_subregion(mch->system_memory,
+-                                    mch->pci_info.w64.begin,
+-                                    &mch->pci_hole_64bit);
+-    }
++
++    /* setup pci memory mapping */
++    pc_pci_as_mapping_init(OBJECT(mch), mch->system_memory,
++                           mch->pci_address_space);
++
+     /* smram */
+     cpu_smm_register(&mch_set_smm, mch);
+     memory_region_init_alias(&mch->smram_region, OBJECT(mch), "smram-region",
+diff --git a/hw/s390x/virtio-ccw.c b/hw/s390x/virtio-ccw.c
+index f93a81c..ecc80ec 100644
+--- a/hw/s390x/virtio-ccw.c
++++ b/hw/s390x/virtio-ccw.c
+@@ -57,9 +57,10 @@ static const TypeInfo virtual_css_bus_info = {
+ VirtIODevice *virtio_ccw_get_vdev(SubchDev *sch)
+ {
+     VirtIODevice *vdev = NULL;
++    VirtioCcwDevice *dev = sch->driver_data;
+ 
+-    if (sch->driver_data) {
+-        vdev = ((VirtioCcwDevice *)sch->driver_data)->vdev;
++    if (dev) {
++        vdev = virtio_bus_get_device(&dev->bus);
+     }
+     return vdev;
+ }
+@@ -67,7 +68,8 @@ VirtIODevice *virtio_ccw_get_vdev(SubchDev *sch)
+ static int virtio_ccw_set_guest2host_notifier(VirtioCcwDevice *dev, int n,
+                                               bool assign, bool set_handler)
+ {
+-    VirtQueue *vq = virtio_get_queue(dev->vdev, n);
++    VirtIODevice *vdev = virtio_bus_get_device(&dev->bus);
++    VirtQueue *vq = virtio_get_queue(vdev, n);
+     EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+     int r = 0;
+     SubchDev *sch = dev->sch;
+@@ -97,6 +99,7 @@ static int virtio_ccw_set_guest2host_notifier(VirtioCcwDevice *dev, int n,
+ 
+ static void virtio_ccw_start_ioeventfd(VirtioCcwDevice *dev)
+ {
++    VirtIODevice *vdev;
+     int n, r;
+ 
+     if (!(dev->flags & VIRTIO_CCW_FLAG_USE_IOEVENTFD) ||
+@@ -104,8 +107,9 @@ static void virtio_ccw_start_ioeventfd(VirtioCcwDevice *dev)
+         dev->ioeventfd_started) {
+         return;
+     }
++    vdev = virtio_bus_get_device(&dev->bus);
+     for (n = 0; n < VIRTIO_PCI_QUEUE_MAX; n++) {
+-        if (!virtio_queue_get_num(dev->vdev, n)) {
++        if (!virtio_queue_get_num(vdev, n)) {
+             continue;
+         }
+         r = virtio_ccw_set_guest2host_notifier(dev, n, true, true);
+@@ -118,7 +122,7 @@ static void virtio_ccw_start_ioeventfd(VirtioCcwDevice *dev)
+ 
+   assign_error:
+     while (--n >= 0) {
+-        if (!virtio_queue_get_num(dev->vdev, n)) {
++        if (!virtio_queue_get_num(vdev, n)) {
+             continue;
+         }
+         r = virtio_ccw_set_guest2host_notifier(dev, n, false, false);
+@@ -132,13 +136,15 @@ static void virtio_ccw_start_ioeventfd(VirtioCcwDevice *dev)
+ 
+ static void virtio_ccw_stop_ioeventfd(VirtioCcwDevice *dev)
+ {
++    VirtIODevice *vdev;
+     int n, r;
+ 
+     if (!dev->ioeventfd_started) {
+         return;
+     }
++    vdev = virtio_bus_get_device(&dev->bus);
+     for (n = 0; n < VIRTIO_PCI_QUEUE_MAX; n++) {
+-        if (!virtio_queue_get_num(dev->vdev, n)) {
++        if (!virtio_queue_get_num(vdev, n)) {
+             continue;
+         }
+         r = virtio_ccw_set_guest2host_notifier(dev, n, false, false);
+@@ -189,7 +195,7 @@ typedef struct VirtioFeatDesc {
+ static int virtio_ccw_set_vqs(SubchDev *sch, uint64_t addr, uint32_t align,
+                               uint16_t index, uint16_t num)
+ {
+-    VirtioCcwDevice *dev = sch->driver_data;
++    VirtIODevice *vdev = virtio_ccw_get_vdev(sch);
+ 
+     if (index > VIRTIO_PCI_QUEUE_MAX) {
+         return -EINVAL;
+@@ -200,23 +206,23 @@ static int virtio_ccw_set_vqs(SubchDev *sch, uint64_t addr, uint32_t align,
+         return -EINVAL;
+     }
+ 
+-    if (!dev) {
++    if (!vdev) {
+         return -EINVAL;
+     }
+ 
+-    virtio_queue_set_addr(dev->vdev, index, addr);
++    virtio_queue_set_addr(vdev, index, addr);
+     if (!addr) {
+-        virtio_queue_set_vector(dev->vdev, index, 0);
++        virtio_queue_set_vector(vdev, index, 0);
+     } else {
+         /* Fail if we don't have a big enough queue. */
+         /* TODO: Add interface to handle vring.num changing */
+-        if (virtio_queue_get_num(dev->vdev, index) > num) {
++        if (virtio_queue_get_num(vdev, index) > num) {
+             return -EINVAL;
+         }
+-        virtio_queue_set_vector(dev->vdev, index, index);
++        virtio_queue_set_vector(vdev, index, index);
+     }
+     /* tell notify handler in case of config change */
+-    dev->vdev->config_vector = VIRTIO_PCI_QUEUE_MAX;
++    vdev->config_vector = VIRTIO_PCI_QUEUE_MAX;
+     return 0;
+ }
+ 
+@@ -230,6 +236,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+     hwaddr indicators;
+     VqConfigBlock vq_config;
+     VirtioCcwDevice *dev = sch->driver_data;
++    VirtIODevice *vdev = virtio_ccw_get_vdev(sch);
+     bool check_len;
+     int len;
+     hwaddr hw_len;
+@@ -272,7 +279,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+         break;
+     case CCW_CMD_VDEV_RESET:
+         virtio_ccw_stop_ioeventfd(dev);
+-        virtio_reset(dev->vdev);
++        virtio_reset(vdev);
+         ret = 0;
+         break;
+     case CCW_CMD_READ_FEAT:
+@@ -319,7 +326,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+             features.features = ldl_le_phys(ccw.cda);
+             if (features.index < ARRAY_SIZE(dev->host_features)) {
+                 virtio_bus_set_vdev_features(&dev->bus, features.features);
+-                dev->vdev->guest_features = features.features;
++                vdev->guest_features = features.features;
+             } else {
+                 /*
+                  * If the guest supports more feature bits, assert that it
+@@ -337,30 +344,30 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+         break;
+     case CCW_CMD_READ_CONF:
+         if (check_len) {
+-            if (ccw.count > dev->vdev->config_len) {
++            if (ccw.count > vdev->config_len) {
+                 ret = -EINVAL;
+                 break;
+             }
+         }
+-        len = MIN(ccw.count, dev->vdev->config_len);
++        len = MIN(ccw.count, vdev->config_len);
+         if (!ccw.cda) {
+             ret = -EFAULT;
+         } else {
+-            virtio_bus_get_vdev_config(&dev->bus, dev->vdev->config);
++            virtio_bus_get_vdev_config(&dev->bus, vdev->config);
+             /* XXX config space endianness */
+-            cpu_physical_memory_write(ccw.cda, dev->vdev->config, len);
++            cpu_physical_memory_write(ccw.cda, vdev->config, len);
+             sch->curr_status.scsw.count = ccw.count - len;
+             ret = 0;
+         }
+         break;
+     case CCW_CMD_WRITE_CONF:
+         if (check_len) {
+-            if (ccw.count > dev->vdev->config_len) {
++            if (ccw.count > vdev->config_len) {
+                 ret = -EINVAL;
+                 break;
+             }
+         }
+-        len = MIN(ccw.count, dev->vdev->config_len);
++        len = MIN(ccw.count, vdev->config_len);
+         hw_len = len;
+         if (!ccw.cda) {
+             ret = -EFAULT;
+@@ -371,9 +378,9 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+             } else {
+                 len = hw_len;
+                 /* XXX config space endianness */
+-                memcpy(dev->vdev->config, config, len);
++                memcpy(vdev->config, config, len);
+                 cpu_physical_memory_unmap(config, hw_len, 0, hw_len);
+-                virtio_bus_set_vdev_config(&dev->bus, dev->vdev->config);
++                virtio_bus_set_vdev_config(&dev->bus, vdev->config);
+                 sch->curr_status.scsw.count = ccw.count - len;
+                 ret = 0;
+             }
+@@ -397,9 +404,9 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+             if (!(status & VIRTIO_CONFIG_S_DRIVER_OK)) {
+                 virtio_ccw_stop_ioeventfd(dev);
+             }
+-            virtio_set_status(dev->vdev, status);
+-            if (dev->vdev->status == 0) {
+-                virtio_reset(dev->vdev);
++            virtio_set_status(vdev, status);
++            if (vdev->status == 0) {
++                virtio_reset(vdev);
+             }
+             if (status & VIRTIO_CONFIG_S_DRIVER_OK) {
+                 virtio_ccw_start_ioeventfd(dev);
+@@ -463,7 +470,7 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
+             ret = -EFAULT;
+         } else {
+             vq_config.index = lduw_phys(ccw.cda);
+-            vq_config.num_max = virtio_queue_get_num(dev->vdev,
++            vq_config.num_max = virtio_queue_get_num(vdev,
+                                                      vq_config.index);
+             stw_phys(ccw.cda + sizeof(vq_config.index), vq_config.num_max);
+             sch->curr_status.scsw.count = ccw.count - sizeof(vq_config);
+@@ -495,7 +502,6 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
+     sch->driver_data = dev;
+     dev->sch = sch;
+ 
+-    dev->vdev = vdev;
+     dev->indicators = 0;
+ 
+     /* Initialize subchannel structure. */
+@@ -608,7 +614,7 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
+     memset(&sch->id, 0, sizeof(SenseId));
+     sch->id.reserved = 0xff;
+     sch->id.cu_type = VIRTIO_CCW_CU_TYPE;
+-    sch->id.cu_model = dev->vdev->device_id;
++    sch->id.cu_model = vdev->device_id;
+ 
+     /* Only the first 32 feature bits are used. */
+     dev->host_features[0] = virtio_bus_get_vdev_features(&dev->bus,
+@@ -631,7 +637,6 @@ static int virtio_ccw_exit(VirtioCcwDevice *dev)
+ {
+     SubchDev *sch = dev->sch;
+ 
+-    virtio_ccw_stop_ioeventfd(dev);
+     if (sch) {
+         css_subch_assign(sch->cssid, sch->ssid, sch->schid, sch->devno, NULL);
+         g_free(sch);
+@@ -892,9 +897,10 @@ static unsigned virtio_ccw_get_features(DeviceState *d)
+ static void virtio_ccw_reset(DeviceState *d)
+ {
+     VirtioCcwDevice *dev = VIRTIO_CCW_DEVICE(d);
++    VirtIODevice *vdev = virtio_bus_get_device(&dev->bus);
+ 
+     virtio_ccw_stop_ioeventfd(dev);
+-    virtio_reset(dev->vdev);
++    virtio_reset(vdev);
+     css_reset_sch(dev->sch);
+     dev->indicators = 0;
+     dev->indicators2 = 0;
+@@ -934,9 +940,10 @@ static int virtio_ccw_set_host_notifier(DeviceState *d, int n, bool assign)
+ static int virtio_ccw_set_guest_notifier(VirtioCcwDevice *dev, int n,
+                                          bool assign, bool with_irqfd)
+ {
+-    VirtQueue *vq = virtio_get_queue(dev->vdev, n);
++    VirtIODevice *vdev = virtio_bus_get_device(&dev->bus);
++    VirtQueue *vq = virtio_get_queue(vdev, n);
+     EventNotifier *notifier = virtio_queue_get_guest_notifier(vq);
+-    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(dev->vdev);
++    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
+ 
+     if (assign) {
+         int r = event_notifier_init(notifier, 0);
+@@ -952,16 +959,16 @@ static int virtio_ccw_set_guest_notifier(VirtioCcwDevice *dev, int n,
+          * land in qemu (and only the irq fd) in this code.
+          */
+         if (k->guest_notifier_mask) {
+-            k->guest_notifier_mask(dev->vdev, n, false);
++            k->guest_notifier_mask(vdev, n, false);
+         }
+         /* get lost events and re-inject */
+         if (k->guest_notifier_pending &&
+-            k->guest_notifier_pending(dev->vdev, n)) {
++            k->guest_notifier_pending(vdev, n)) {
+             event_notifier_set(notifier);
+         }
+     } else {
+         if (k->guest_notifier_mask) {
+-            k->guest_notifier_mask(dev->vdev, n, true);
++            k->guest_notifier_mask(vdev, n, true);
+         }
+         virtio_queue_set_guest_notifier_fd_handler(vq, false, with_irqfd);
+         event_notifier_cleanup(notifier);
+@@ -973,7 +980,7 @@ static int virtio_ccw_set_guest_notifiers(DeviceState *d, int nvqs,
+                                           bool assigned)
+ {
+     VirtioCcwDevice *dev = VIRTIO_CCW_DEVICE(d);
+-    VirtIODevice *vdev = dev->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&dev->bus);
+     int r, n;
+ 
+     for (n = 0; n < nvqs; n++) {
+@@ -1228,6 +1235,8 @@ static int virtio_ccw_busdev_unplug(DeviceState *dev)
+     VirtioCcwDevice *_dev = (VirtioCcwDevice *)dev;
+     SubchDev *sch = _dev->sch;
+ 
++    virtio_ccw_stop_ioeventfd(_dev);
++
+     /*
+      * We should arrive here only for device_del, since we don't support
+      * direct hot(un)plug of channels, but only through virtio.
+diff --git a/hw/s390x/virtio-ccw.h b/hw/s390x/virtio-ccw.h
+index 96d6f5d..00932c7 100644
+--- a/hw/s390x/virtio-ccw.h
++++ b/hw/s390x/virtio-ccw.h
+@@ -77,7 +77,6 @@ typedef struct VirtIOCCWDeviceClass {
+ struct VirtioCcwDevice {
+     DeviceState parent_obj;
+     SubchDev *sch;
+-    VirtIODevice *vdev;
+     char *bus_id;
+     uint32_t host_features[VIRTIO_CCW_FEATURE_SIZE];
+     VirtioBusState bus;
+diff --git a/hw/scsi/scsi-bus.c b/hw/scsi/scsi-bus.c
+index ea916d1..b04438b 100644
+--- a/hw/scsi/scsi-bus.c
++++ b/hw/scsi/scsi-bus.c
+@@ -469,6 +469,8 @@ static int32_t scsi_target_send_command(SCSIRequest *req, uint8_t *buf)
+             r->req.dev->sense_is_ua = false;
+         }
+         break;
++    case TEST_UNIT_READY:
++        break;
+     default:
+         scsi_req_build_sense(req, SENSE_CODE(LUN_NOT_SUPPORTED));
+         scsi_req_complete(req, CHECK_CONDITION);
+@@ -886,7 +888,6 @@ static int scsi_req_length(SCSICommand *cmd, SCSIDevice *dev, uint8_t *buf)
+     case RELEASE:
+     case ERASE:
+     case ALLOW_MEDIUM_REMOVAL:
+-    case VERIFY_10:
+     case SEEK_10:
+     case SYNCHRONIZE_CACHE:
+     case SYNCHRONIZE_CACHE_16:
+@@ -903,6 +904,16 @@ static int scsi_req_length(SCSICommand *cmd, SCSIDevice *dev, uint8_t *buf)
+     case ALLOW_OVERWRITE:
+         cmd->xfer = 0;
+         break;
++    case VERIFY_10:
++    case VERIFY_12:
++    case VERIFY_16:
++        if ((buf[1] & 2) == 0) {
++            cmd->xfer = 0;
++        } else if ((buf[1] & 4) == 1) {
++            cmd->xfer = 1;
++        }
++        cmd->xfer *= dev->blocksize;
++        break;
+     case MODE_SENSE:
+         break;
+     case WRITE_SAME_10:
+@@ -1100,6 +1111,9 @@ static void scsi_cmd_xfer_mode(SCSICommand *cmd)
+     case WRITE_VERIFY_12:
+     case WRITE_16:
+     case WRITE_VERIFY_16:
++    case VERIFY_10:
++    case VERIFY_12:
++    case VERIFY_16:
+     case COPY:
+     case COPY_VERIFY:
+     case COMPARE:
+diff --git a/hw/scsi/scsi-disk.c b/hw/scsi/scsi-disk.c
+index 74e6a14..ade5d4a 100644
+--- a/hw/scsi/scsi-disk.c
++++ b/hw/scsi/scsi-disk.c
+@@ -1597,6 +1597,14 @@ static void scsi_disk_emulate_write_data(SCSIRequest *req)
+         scsi_disk_emulate_unmap(r, r->iov.iov_base);
+         break;
+ 
++    case VERIFY_10:
++    case VERIFY_12:
++    case VERIFY_16:
++        if (r->req.status == -1) {
++            scsi_check_condition(r, SENSE_CODE(INVALID_FIELD));
++        }
++        break;
++
+     default:
+         abort();
+     }
+@@ -1837,6 +1845,14 @@ static int32_t scsi_disk_emulate_command(SCSIRequest *req, uint8_t *buf)
+     case UNMAP:
+         DPRINTF("Unmap (len %lu)\n", (long)r->req.cmd.xfer);
+         break;
++    case VERIFY_10:
++    case VERIFY_12:
++    case VERIFY_16:
++        DPRINTF("Verify (bytchk %lu)\n", (r->req.buf[1] >> 1) & 3);
++        if (req->cmd.buf[1] & 6) {
++            goto illegal_request;
++        }
++        break;
+     case WRITE_SAME_10:
+     case WRITE_SAME_16:
+         nb_sectors = scsi_data_cdb_length(r->req.cmd.buf);
+@@ -1936,10 +1952,6 @@ static int32_t scsi_disk_dma_command(SCSIRequest *req, uint8_t *buf)
+             scsi_check_condition(r, SENSE_CODE(WRITE_PROTECTED));
+             return 0;
+         }
+-        /* fallthrough */
+-    case VERIFY_10:
+-    case VERIFY_12:
+-    case VERIFY_16:
+         DPRINTF("Write %s(sector %" PRId64 ", count %u)\n",
+                 (command & 0xe) == 0xe ? "And Verify " : "",
+                 r->req.cmd.lba, len);
+@@ -2169,6 +2181,7 @@ static const SCSIReqOps scsi_disk_emulate_reqops = {
+     .send_command = scsi_disk_emulate_command,
+     .read_data    = scsi_disk_emulate_read_data,
+     .write_data   = scsi_disk_emulate_write_data,
++    .cancel_io    = scsi_cancel_io,
+     .get_buf      = scsi_get_buf,
+ };
+ 
+@@ -2207,14 +2220,14 @@ static const SCSIReqOps *const scsi_disk_reqops_dispatch[256] = {
+     [UNMAP]                           = &scsi_disk_emulate_reqops,
+     [WRITE_SAME_10]                   = &scsi_disk_emulate_reqops,
+     [WRITE_SAME_16]                   = &scsi_disk_emulate_reqops,
++    [VERIFY_10]                       = &scsi_disk_emulate_reqops,
++    [VERIFY_12]                       = &scsi_disk_emulate_reqops,
++    [VERIFY_16]                       = &scsi_disk_emulate_reqops,
+ 
+     [READ_6]                          = &scsi_disk_dma_reqops,
+     [READ_10]                         = &scsi_disk_dma_reqops,
+     [READ_12]                         = &scsi_disk_dma_reqops,
+     [READ_16]                         = &scsi_disk_dma_reqops,
+-    [VERIFY_10]                       = &scsi_disk_dma_reqops,
+-    [VERIFY_12]                       = &scsi_disk_dma_reqops,
+-    [VERIFY_16]                       = &scsi_disk_dma_reqops,
+     [WRITE_6]                         = &scsi_disk_dma_reqops,
+     [WRITE_10]                        = &scsi_disk_dma_reqops,
+     [WRITE_12]                        = &scsi_disk_dma_reqops,
+diff --git a/hw/scsi/vhost-scsi.c b/hw/scsi/vhost-scsi.c
+index 9e770fb..5e3cc61 100644
+--- a/hw/scsi/vhost-scsi.c
++++ b/hw/scsi/vhost-scsi.c
+@@ -240,11 +240,10 @@ static int vhost_scsi_init(VirtIODevice *vdev)
+     return 0;
+ }
+ 
+-static int vhost_scsi_exit(DeviceState *qdev)
++static void vhost_scsi_exit(VirtIODevice *vdev)
+ {
+-    VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
+-    VHostSCSI *s = VHOST_SCSI(qdev);
+-    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(qdev);
++    VHostSCSI *s = VHOST_SCSI(vdev);
++    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(vdev);
+ 
+     migrate_del_blocker(s->migration_blocker);
+     error_free(s->migration_blocker);
+@@ -253,7 +252,7 @@ static int vhost_scsi_exit(DeviceState *qdev)
+     vhost_scsi_set_status(vdev, 0);
+ 
+     g_free(s->dev.vqs);
+-    return virtio_scsi_common_exit(vs);
++    virtio_scsi_common_exit(vs);
+ }
+ 
+ static Property vhost_scsi_properties[] = {
+@@ -265,10 +264,10 @@ static void vhost_scsi_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = vhost_scsi_exit;
+     dc->props = vhost_scsi_properties;
+     set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
+     vdc->init = vhost_scsi_init;
++    vdc->exit = vhost_scsi_exit;
+     vdc->get_features = vhost_scsi_get_features;
+     vdc->set_config = vhost_scsi_set_config;
+     vdc->set_status = vhost_scsi_set_status;
+diff --git a/hw/scsi/virtio-scsi.c b/hw/scsi/virtio-scsi.c
+index 26d95a1..3fa6d07 100644
+--- a/hw/scsi/virtio-scsi.c
++++ b/hw/scsi/virtio-scsi.c
+@@ -306,6 +306,10 @@ static void virtio_scsi_command_complete(SCSIRequest *r, uint32_t status,
+     VirtIOSCSIReq *req = r->hba_private;
+     uint32_t sense_len;
+ 
++    if (r->io_canceled) {
++        return;
++    }
++
+     req->resp.cmd->response = VIRTIO_SCSI_S_OK;
+     req->resp.cmd->status = status;
+     if (req->resp.cmd->status == GOOD) {
+@@ -516,7 +520,7 @@ static void virtio_scsi_push_event(VirtIOSCSI *s, SCSIDevice *dev,
+     evt->event = event;
+     evt->reason = reason;
+     if (!dev) {
+-        assert(event == VIRTIO_SCSI_T_NO_EVENT);
++        assert(event == VIRTIO_SCSI_T_EVENTS_MISSED);
+     } else {
+         evt->lun[0] = 1;
+         evt->lun[1] = dev->id;
+@@ -644,22 +648,21 @@ static int virtio_scsi_device_init(VirtIODevice *vdev)
+     return 0;
+ }
+ 
+-int virtio_scsi_common_exit(VirtIOSCSICommon *vs)
++void virtio_scsi_common_exit(VirtIOSCSICommon *vs)
+ {
+     VirtIODevice *vdev = VIRTIO_DEVICE(vs);
+ 
+     g_free(vs->cmd_vqs);
+     virtio_cleanup(vdev);
+-    return 0;
+ }
+ 
+-static int virtio_scsi_device_exit(DeviceState *qdev)
++static void virtio_scsi_device_exit(VirtIODevice *vdev)
+ {
+-    VirtIOSCSI *s = VIRTIO_SCSI(qdev);
+-    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(qdev);
++    VirtIOSCSI *s = VIRTIO_SCSI(vdev);
++    VirtIOSCSICommon *vs = VIRTIO_SCSI_COMMON(vdev);
+ 
+-    unregister_savevm(qdev, "virtio-scsi", s);
+-    return virtio_scsi_common_exit(vs);
++    unregister_savevm(DEVICE(vdev), "virtio-scsi", s);
++    virtio_scsi_common_exit(vs);
+ }
+ 
+ static Property virtio_scsi_properties[] = {
+@@ -680,10 +683,10 @@ static void virtio_scsi_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = virtio_scsi_device_exit;
+     dc->props = virtio_scsi_properties;
+     set_bit(DEVICE_CATEGORY_STORAGE, dc->categories);
+     vdc->init = virtio_scsi_device_init;
++    vdc->exit = virtio_scsi_device_exit;
+     vdc->set_config = virtio_scsi_set_config;
+     vdc->get_features = virtio_scsi_get_features;
+     vdc->reset = virtio_scsi_reset;
+diff --git a/hw/timer/arm_timer.c b/hw/timer/arm_timer.c
+index a47afde..fb0a45c 100644
+--- a/hw/timer/arm_timer.c
++++ b/hw/timer/arm_timer.c
+@@ -320,6 +320,7 @@ static uint64_t icp_pit_read(void *opaque, hwaddr offset,
+     n = offset >> 8;
+     if (n > 2) {
+         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad timer %d\n", __func__, n);
++        return 0;
+     }
+ 
+     return arm_timer_read(s->timer[n], offset & 0xff);
+@@ -334,6 +335,7 @@ static void icp_pit_write(void *opaque, hwaddr offset,
+     n = offset >> 8;
+     if (n > 2) {
+         qemu_log_mask(LOG_GUEST_ERROR, "%s: Bad timer %d\n", __func__, n);
++        return;
+     }
+ 
+     arm_timer_write(s->timer[n], offset & 0xff, value);
+diff --git a/hw/timer/hpet.c b/hw/timer/hpet.c
+index 2eb75ea..c6c2803 100644
+--- a/hw/timer/hpet.c
++++ b/hw/timer/hpet.c
+@@ -42,7 +42,6 @@
+ 
+ #define HPET_MSI_SUPPORT        0
+ 
+-#define TYPE_HPET "hpet"
+ #define HPET(obj) OBJECT_CHECK(HPETState, (obj), TYPE_HPET)
+ 
+ struct HPETState;
+@@ -757,11 +756,6 @@ static void hpet_device_class_init(ObjectClass *klass, void *data)
+     dc->props = hpet_device_properties;
+ }
+ 
+-bool hpet_find(void)
+-{
+-    return object_resolve_path_type("", TYPE_HPET, NULL);
+-}
+-
+ static const TypeInfo hpet_device_info = {
+     .name          = TYPE_HPET,
+     .parent        = TYPE_SYS_BUS_DEVICE,
+diff --git a/hw/virtio/virtio-balloon.c b/hw/virtio/virtio-balloon.c
+index 9504877..d7a392d 100644
+--- a/hw/virtio/virtio-balloon.c
++++ b/hw/virtio/virtio-balloon.c
+@@ -370,16 +370,14 @@ static int virtio_balloon_device_init(VirtIODevice *vdev)
+     return 0;
+ }
+ 
+-static int virtio_balloon_device_exit(DeviceState *qdev)
++static void virtio_balloon_device_exit(VirtIODevice *vdev)
+ {
+-    VirtIOBalloon *s = VIRTIO_BALLOON(qdev);
+-    VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
++    VirtIOBalloon *s = VIRTIO_BALLOON(vdev);
+ 
+     balloon_stats_destroy_timer(s);
+     qemu_remove_balloon_handler(s);
+-    unregister_savevm(qdev, "virtio-balloon", s);
++    unregister_savevm(DEVICE(vdev), "virtio-balloon", s);
+     virtio_cleanup(vdev);
+-    return 0;
+ }
+ 
+ static Property virtio_balloon_properties[] = {
+@@ -390,10 +388,10 @@ static void virtio_balloon_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = virtio_balloon_device_exit;
+     dc->props = virtio_balloon_properties;
+     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+     vdc->init = virtio_balloon_device_init;
++    vdc->exit = virtio_balloon_device_exit;
+     vdc->get_config = virtio_balloon_get_config;
+     vdc->set_config = virtio_balloon_set_config;
+     vdc->get_features = virtio_balloon_get_features;
+diff --git a/hw/virtio/virtio-bus.c b/hw/virtio/virtio-bus.c
+index e6b103c..eb77019 100644
+--- a/hw/virtio/virtio-bus.c
++++ b/hw/virtio/virtio-bus.c
+@@ -37,8 +37,8 @@ do { printf("virtio_bus: " fmt , ## __VA_ARGS__); } while (0)
+ #define DPRINTF(fmt, ...) do { } while (0)
+ #endif
+ 
+-/* Plug the VirtIODevice */
+-int virtio_bus_plug_device(VirtIODevice *vdev)
++/* A VirtIODevice is being plugged */
++int virtio_bus_device_plugged(VirtIODevice *vdev)
+ {
+     DeviceState *qdev = DEVICE(vdev);
+     BusState *qbus = BUS(qdev_get_parent_bus(qdev));
+@@ -46,8 +46,6 @@ int virtio_bus_plug_device(VirtIODevice *vdev)
+     VirtioBusClass *klass = VIRTIO_BUS_GET_CLASS(bus);
+     DPRINTF("%s: plug device.\n", qbus->name);
+ 
+-    bus->vdev = vdev;
+-
+     if (klass->device_plugged != NULL) {
+         klass->device_plugged(qbus->parent);
+     }
+@@ -58,73 +56,83 @@ int virtio_bus_plug_device(VirtIODevice *vdev)
+ /* Reset the virtio_bus */
+ void virtio_bus_reset(VirtioBusState *bus)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
++
+     DPRINTF("%s: reset device.\n", qbus->name);
+-    if (bus->vdev != NULL) {
+-        virtio_reset(bus->vdev);
++    if (vdev != NULL) {
++        virtio_reset(vdev);
+     }
+ }
+ 
+-/* Destroy the VirtIODevice */
+-void virtio_bus_destroy_device(VirtioBusState *bus)
++/* A VirtIODevice is being unplugged */
++void virtio_bus_device_unplugged(VirtIODevice *vdev)
+ {
+-    BusState *qbus = BUS(bus);
+-    VirtioBusClass *klass = VIRTIO_BUS_GET_CLASS(bus);
++    DeviceState *qdev = DEVICE(vdev);
++    BusState *qbus = BUS(qdev_get_parent_bus(qdev));
++    VirtioBusClass *klass = VIRTIO_BUS_GET_CLASS(qbus);
++
+     DPRINTF("%s: remove device.\n", qbus->name);
+ 
+-    if (bus->vdev != NULL) {
+-        if (klass->device_unplug != NULL) {
+-            klass->device_unplug(qbus->parent);
++    if (vdev != NULL) {
++        if (klass->device_unplugged != NULL) {
++            klass->device_unplugged(qbus->parent);
+         }
+-        object_unparent(OBJECT(bus->vdev));
+-        bus->vdev = NULL;
+     }
+ }
+ 
+ /* Get the device id of the plugged device. */
+ uint16_t virtio_bus_get_vdev_id(VirtioBusState *bus)
+ {
+-    assert(bus->vdev != NULL);
+-    return bus->vdev->device_id;
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
++    assert(vdev != NULL);
++    return vdev->device_id;
+ }
+ 
+ /* Get the config_len field of the plugged device. */
+ size_t virtio_bus_get_vdev_config_len(VirtioBusState *bus)
+ {
+-    assert(bus->vdev != NULL);
+-    return bus->vdev->config_len;
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
++    assert(vdev != NULL);
++    return vdev->config_len;
+ }
+ 
+ /* Get the features of the plugged device. */
+ uint32_t virtio_bus_get_vdev_features(VirtioBusState *bus,
+                                     uint32_t requested_features)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
+     VirtioDeviceClass *k;
+-    assert(bus->vdev != NULL);
+-    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
++
++    assert(vdev != NULL);
++    k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     assert(k->get_features != NULL);
+-    return k->get_features(bus->vdev, requested_features);
++    return k->get_features(vdev, requested_features);
+ }
+ 
+ /* Set the features of the plugged device. */
+ void virtio_bus_set_vdev_features(VirtioBusState *bus,
+                                       uint32_t requested_features)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
+     VirtioDeviceClass *k;
+-    assert(bus->vdev != NULL);
+-    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
++
++    assert(vdev != NULL);
++    k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     if (k->set_features != NULL) {
+-        k->set_features(bus->vdev, requested_features);
++        k->set_features(vdev, requested_features);
+     }
+ }
+ 
+ /* Get bad features of the plugged device. */
+ uint32_t virtio_bus_get_vdev_bad_features(VirtioBusState *bus)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
+     VirtioDeviceClass *k;
+-    assert(bus->vdev != NULL);
+-    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
++
++    assert(vdev != NULL);
++    k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     if (k->bad_features != NULL) {
+-        return k->bad_features(bus->vdev);
++        return k->bad_features(vdev);
+     } else {
+         return 0;
+     }
+@@ -133,22 +141,26 @@ uint32_t virtio_bus_get_vdev_bad_features(VirtioBusState *bus)
+ /* Get config of the plugged device. */
+ void virtio_bus_get_vdev_config(VirtioBusState *bus, uint8_t *config)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
+     VirtioDeviceClass *k;
+-    assert(bus->vdev != NULL);
+-    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
++
++    assert(vdev != NULL);
++    k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     if (k->get_config != NULL) {
+-        k->get_config(bus->vdev, config);
++        k->get_config(vdev, config);
+     }
+ }
+ 
+ /* Set config of the plugged device. */
+ void virtio_bus_set_vdev_config(VirtioBusState *bus, uint8_t *config)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(bus);
+     VirtioDeviceClass *k;
+-    assert(bus->vdev != NULL);
+-    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
++
++    assert(vdev != NULL);
++    k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     if (k->set_config != NULL) {
+-        k->set_config(bus->vdev, config);
++        k->set_config(vdev, config);
+     }
+ }
+ 
+diff --git a/hw/virtio/virtio-mmio.c b/hw/virtio/virtio-mmio.c
+index 29cf284..8829eb0 100644
+--- a/hw/virtio/virtio-mmio.c
++++ b/hw/virtio/virtio-mmio.c
+@@ -95,7 +95,7 @@ static void virtio_mmio_bus_new(VirtioBusState *bus, size_t bus_size,
+ static uint64_t virtio_mmio_read(void *opaque, hwaddr offset, unsigned size)
+ {
+     VirtIOMMIOProxy *proxy = (VirtIOMMIOProxy *)opaque;
+-    VirtIODevice *vdev = proxy->bus.vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+ 
+     DPRINTF("virtio_mmio_read offset 0x%x\n", (int)offset);
+ 
+@@ -185,7 +185,7 @@ static void virtio_mmio_write(void *opaque, hwaddr offset, uint64_t value,
+                               unsigned size)
+ {
+     VirtIOMMIOProxy *proxy = (VirtIOMMIOProxy *)opaque;
+-    VirtIODevice *vdev = proxy->bus.vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+ 
+     DPRINTF("virtio_mmio_write offset 0x%x value 0x%" PRIx64 "\n",
+             (int)offset, value);
+@@ -298,12 +298,13 @@ static const MemoryRegionOps virtio_mem_ops = {
+ static void virtio_mmio_update_irq(DeviceState *opaque, uint16_t vector)
+ {
+     VirtIOMMIOProxy *proxy = VIRTIO_MMIO(opaque);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     int level;
+ 
+-    if (!proxy->bus.vdev) {
++    if (!vdev) {
+         return;
+     }
+-    level = (proxy->bus.vdev->isr != 0);
++    level = (vdev->isr != 0);
+     DPRINTF("virtio_mmio setting IRQ %d\n", level);
+     qemu_set_irq(proxy->irq, level);
+ }
+diff --git a/hw/virtio/virtio-pci.c b/hw/virtio/virtio-pci.c
+index 7647be8..30c9f2b 100644
+--- a/hw/virtio/virtio-pci.c
++++ b/hw/virtio/virtio-pci.c
+@@ -113,31 +113,40 @@ static inline VirtIOPCIProxy *to_virtio_pci_proxy_fast(DeviceState *d)
+ static void virtio_pci_notify(DeviceState *d, uint16_t vector)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy_fast(d);
++
+     if (msix_enabled(&proxy->pci_dev))
+         msix_notify(&proxy->pci_dev, vector);
+-    else
+-        pci_set_irq(&proxy->pci_dev, proxy->vdev->isr & 1);
++    else {
++        VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++        pci_set_irq(&proxy->pci_dev, vdev->isr & 1);
++    }
+ }
+ 
+ static void virtio_pci_save_config(DeviceState *d, QEMUFile *f)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++
+     pci_device_save(&proxy->pci_dev, f);
+     msix_save(&proxy->pci_dev, f);
+     if (msix_present(&proxy->pci_dev))
+-        qemu_put_be16(f, proxy->vdev->config_vector);
++        qemu_put_be16(f, vdev->config_vector);
+ }
+ 
+ static void virtio_pci_save_queue(DeviceState *d, int n, QEMUFile *f)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++
+     if (msix_present(&proxy->pci_dev))
+-        qemu_put_be16(f, virtio_queue_vector(proxy->vdev, n));
++        qemu_put_be16(f, virtio_queue_vector(vdev, n));
+ }
+ 
+ static int virtio_pci_load_config(DeviceState *d, QEMUFile *f)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++
+     int ret;
+     ret = pci_device_load(&proxy->pci_dev, f);
+     if (ret) {
+@@ -146,12 +155,12 @@ static int virtio_pci_load_config(DeviceState *d, QEMUFile *f)
+     msix_unuse_all_vectors(&proxy->pci_dev);
+     msix_load(&proxy->pci_dev, f);
+     if (msix_present(&proxy->pci_dev)) {
+-        qemu_get_be16s(f, &proxy->vdev->config_vector);
++        qemu_get_be16s(f, &vdev->config_vector);
+     } else {
+-        proxy->vdev->config_vector = VIRTIO_NO_VECTOR;
++        vdev->config_vector = VIRTIO_NO_VECTOR;
+     }
+-    if (proxy->vdev->config_vector != VIRTIO_NO_VECTOR) {
+-        return msix_vector_use(&proxy->pci_dev, proxy->vdev->config_vector);
++    if (vdev->config_vector != VIRTIO_NO_VECTOR) {
++        return msix_vector_use(&proxy->pci_dev, vdev->config_vector);
+     }
+     return 0;
+ }
+@@ -159,13 +168,15 @@ static int virtio_pci_load_config(DeviceState *d, QEMUFile *f)
+ static int virtio_pci_load_queue(DeviceState *d, int n, QEMUFile *f)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++
+     uint16_t vector;
+     if (msix_present(&proxy->pci_dev)) {
+         qemu_get_be16s(f, &vector);
+     } else {
+         vector = VIRTIO_NO_VECTOR;
+     }
+-    virtio_queue_set_vector(proxy->vdev, n, vector);
++    virtio_queue_set_vector(vdev, n, vector);
+     if (vector != VIRTIO_NO_VECTOR) {
+         return msix_vector_use(&proxy->pci_dev, vector);
+     }
+@@ -175,7 +186,8 @@ static int virtio_pci_load_queue(DeviceState *d, int n, QEMUFile *f)
+ static int virtio_pci_set_host_notifier_internal(VirtIOPCIProxy *proxy,
+                                                  int n, bool assign, bool set_handler)
+ {
+-    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++    VirtQueue *vq = virtio_get_queue(vdev, n);
+     EventNotifier *notifier = virtio_queue_get_host_notifier(vq);
+     int r = 0;
+ 
+@@ -200,6 +212,7 @@ static int virtio_pci_set_host_notifier_internal(VirtIOPCIProxy *proxy,
+ 
+ static void virtio_pci_start_ioeventfd(VirtIOPCIProxy *proxy)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     int n, r;
+ 
+     if (!(proxy->flags & VIRTIO_PCI_FLAG_USE_IOEVENTFD) ||
+@@ -209,7 +222,7 @@ static void virtio_pci_start_ioeventfd(VirtIOPCIProxy *proxy)
+     }
+ 
+     for (n = 0; n < VIRTIO_PCI_QUEUE_MAX; n++) {
+-        if (!virtio_queue_get_num(proxy->vdev, n)) {
++        if (!virtio_queue_get_num(vdev, n)) {
+             continue;
+         }
+ 
+@@ -223,7 +236,7 @@ static void virtio_pci_start_ioeventfd(VirtIOPCIProxy *proxy)
+ 
+ assign_error:
+     while (--n >= 0) {
+-        if (!virtio_queue_get_num(proxy->vdev, n)) {
++        if (!virtio_queue_get_num(vdev, n)) {
+             continue;
+         }
+ 
+@@ -236,6 +249,7 @@ assign_error:
+ 
+ static void virtio_pci_stop_ioeventfd(VirtIOPCIProxy *proxy)
+ {
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     int r;
+     int n;
+ 
+@@ -244,7 +258,7 @@ static void virtio_pci_stop_ioeventfd(VirtIOPCIProxy *proxy)
+     }
+ 
+     for (n = 0; n < VIRTIO_PCI_QUEUE_MAX; n++) {
+-        if (!virtio_queue_get_num(proxy->vdev, n)) {
++        if (!virtio_queue_get_num(vdev, n)) {
+             continue;
+         }
+ 
+@@ -257,7 +271,7 @@ static void virtio_pci_stop_ioeventfd(VirtIOPCIProxy *proxy)
+ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+ {
+     VirtIOPCIProxy *proxy = opaque;
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     hwaddr pa;
+ 
+     switch (addr) {
+@@ -272,7 +286,7 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+         pa = (hwaddr)val << VIRTIO_PCI_QUEUE_ADDR_SHIFT;
+         if (pa == 0) {
+             virtio_pci_stop_ioeventfd(proxy);
+-            virtio_reset(proxy->vdev);
++            virtio_reset(vdev);
+             msix_unuse_all_vectors(&proxy->pci_dev);
+         }
+         else
+@@ -299,7 +313,7 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+         }
+ 
+         if (vdev->status == 0) {
+-            virtio_reset(proxy->vdev);
++            virtio_reset(vdev);
+             msix_unuse_all_vectors(&proxy->pci_dev);
+         }
+ 
+@@ -335,7 +349,7 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
+ 
+ static uint32_t virtio_ioport_read(VirtIOPCIProxy *proxy, uint32_t addr)
+ {
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     uint32_t ret = 0xFFFFFFFF;
+ 
+     switch (addr) {
+@@ -381,6 +395,7 @@ static uint64_t virtio_pci_config_read(void *opaque, hwaddr addr,
+                                        unsigned size)
+ {
+     VirtIOPCIProxy *proxy = opaque;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
+     uint64_t val = 0;
+     if (addr < config) {
+@@ -390,16 +405,16 @@ static uint64_t virtio_pci_config_read(void *opaque, hwaddr addr,
+ 
+     switch (size) {
+     case 1:
+-        val = virtio_config_readb(proxy->vdev, addr);
++        val = virtio_config_readb(vdev, addr);
+         break;
+     case 2:
+-        val = virtio_config_readw(proxy->vdev, addr);
++        val = virtio_config_readw(vdev, addr);
+         if (virtio_is_big_endian()) {
+             val = bswap16(val);
+         }
+         break;
+     case 4:
+-        val = virtio_config_readl(proxy->vdev, addr);
++        val = virtio_config_readl(vdev, addr);
+         if (virtio_is_big_endian()) {
+             val = bswap32(val);
+         }
+@@ -413,6 +428,7 @@ static void virtio_pci_config_write(void *opaque, hwaddr addr,
+ {
+     VirtIOPCIProxy *proxy = opaque;
+     uint32_t config = VIRTIO_PCI_CONFIG(&proxy->pci_dev);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     if (addr < config) {
+         virtio_ioport_write(proxy, addr, val);
+         return;
+@@ -424,19 +440,19 @@ static void virtio_pci_config_write(void *opaque, hwaddr addr,
+      */
+     switch (size) {
+     case 1:
+-        virtio_config_writeb(proxy->vdev, addr, val);
++        virtio_config_writeb(vdev, addr, val);
+         break;
+     case 2:
+         if (virtio_is_big_endian()) {
+             val = bswap16(val);
+         }
+-        virtio_config_writew(proxy->vdev, addr, val);
++        virtio_config_writew(vdev, addr, val);
+         break;
+     case 4:
+         if (virtio_is_big_endian()) {
+             val = bswap32(val);
+         }
+-        virtio_config_writel(proxy->vdev, addr, val);
++        virtio_config_writel(vdev, addr, val);
+         break;
+     }
+ }
+@@ -455,6 +471,7 @@ static void virtio_write_config(PCIDevice *pci_dev, uint32_t address,
+                                 uint32_t val, int len)
+ {
+     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+ 
+     pci_default_write_config(pci_dev, address, val, len);
+ 
+@@ -462,8 +479,7 @@ static void virtio_write_config(PCIDevice *pci_dev, uint32_t address,
+         !(pci_dev->config[PCI_COMMAND] & PCI_COMMAND_MASTER) &&
+         !(proxy->flags & VIRTIO_PCI_FLAG_BUS_MASTER_BUG)) {
+         virtio_pci_stop_ioeventfd(proxy);
+-        virtio_set_status(proxy->vdev,
+-                          proxy->vdev->status & ~VIRTIO_CONFIG_S_DRIVER_OK);
++        virtio_set_status(vdev, vdev->status & ~VIRTIO_CONFIG_S_DRIVER_OK);
+     }
+ }
+ 
+@@ -506,7 +522,8 @@ static int kvm_virtio_pci_irqfd_use(VirtIOPCIProxy *proxy,
+                                  unsigned int vector)
+ {
+     VirtIOIRQFD *irqfd = &proxy->vector_irqfd[vector];
+-    VirtQueue *vq = virtio_get_queue(proxy->vdev, queue_no);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++    VirtQueue *vq = virtio_get_queue(vdev, queue_no);
+     EventNotifier *n = virtio_queue_get_guest_notifier(vq);
+     int ret;
+     ret = kvm_irqchip_add_irqfd_notifier(kvm_state, n, NULL, irqfd->virq);
+@@ -517,7 +534,8 @@ static void kvm_virtio_pci_irqfd_release(VirtIOPCIProxy *proxy,
+                                       unsigned int queue_no,
+                                       unsigned int vector)
+ {
+-    VirtQueue *vq = virtio_get_queue(proxy->vdev, queue_no);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++    VirtQueue *vq = virtio_get_queue(vdev, queue_no);
+     EventNotifier *n = virtio_queue_get_guest_notifier(vq);
+     VirtIOIRQFD *irqfd = &proxy->vector_irqfd[vector];
+     int ret;
+@@ -529,7 +547,7 @@ static void kvm_virtio_pci_irqfd_release(VirtIOPCIProxy *proxy,
+ static int kvm_virtio_pci_vector_use(VirtIOPCIProxy *proxy, int nvqs)
+ {
+     PCIDevice *dev = &proxy->pci_dev;
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     unsigned int vector;
+     int ret, queue_no;
+@@ -578,7 +596,7 @@ undo:
+ static void kvm_virtio_pci_vector_release(VirtIOPCIProxy *proxy, int nvqs)
+ {
+     PCIDevice *dev = &proxy->pci_dev;
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     unsigned int vector;
+     int queue_no;
+     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
+@@ -606,8 +624,9 @@ static int virtio_pci_vq_vector_unmask(VirtIOPCIProxy *proxy,
+                                        unsigned int vector,
+                                        MSIMessage msg)
+ {
+-    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(proxy->vdev);
+-    VirtQueue *vq = virtio_get_queue(proxy->vdev, queue_no);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
++    VirtQueue *vq = virtio_get_queue(vdev, queue_no);
+     EventNotifier *n = virtio_queue_get_guest_notifier(vq);
+     VirtIOIRQFD *irqfd;
+     int ret = 0;
+@@ -626,10 +645,10 @@ static int virtio_pci_vq_vector_unmask(VirtIOPCIProxy *proxy,
+      * Otherwise, set it up now.
+      */
+     if (k->guest_notifier_mask) {
+-        k->guest_notifier_mask(proxy->vdev, queue_no, false);
++        k->guest_notifier_mask(vdev, queue_no, false);
+         /* Test after unmasking to avoid losing events. */
+         if (k->guest_notifier_pending &&
+-            k->guest_notifier_pending(proxy->vdev, queue_no)) {
++            k->guest_notifier_pending(vdev, queue_no)) {
+             event_notifier_set(n);
+         }
+     } else {
+@@ -642,13 +661,14 @@ static void virtio_pci_vq_vector_mask(VirtIOPCIProxy *proxy,
+                                              unsigned int queue_no,
+                                              unsigned int vector)
+ {
+-    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(proxy->vdev);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
+ 
+     /* If guest supports masking, keep irqfd but mask it.
+      * Otherwise, clean it up now.
+      */ 
+     if (k->guest_notifier_mask) {
+-        k->guest_notifier_mask(proxy->vdev, queue_no, true);
++        k->guest_notifier_mask(vdev, queue_no, true);
+     } else {
+         kvm_virtio_pci_irqfd_release(proxy, queue_no, vector);
+     }
+@@ -658,7 +678,7 @@ static int virtio_pci_vector_unmask(PCIDevice *dev, unsigned vector,
+                                     MSIMessage msg)
+ {
+     VirtIOPCIProxy *proxy = container_of(dev, VirtIOPCIProxy, pci_dev);
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     int ret, queue_no;
+ 
+     for (queue_no = 0; queue_no < proxy->nvqs_with_notifiers; queue_no++) {
+@@ -688,7 +708,7 @@ undo:
+ static void virtio_pci_vector_mask(PCIDevice *dev, unsigned vector)
+ {
+     VirtIOPCIProxy *proxy = container_of(dev, VirtIOPCIProxy, pci_dev);
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     int queue_no;
+ 
+     for (queue_no = 0; queue_no < proxy->nvqs_with_notifiers; queue_no++) {
+@@ -707,7 +727,7 @@ static void virtio_pci_vector_poll(PCIDevice *dev,
+                                    unsigned int vector_end)
+ {
+     VirtIOPCIProxy *proxy = container_of(dev, VirtIOPCIProxy, pci_dev);
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     int queue_no;
+     unsigned int vector;
+@@ -739,8 +759,9 @@ static int virtio_pci_set_guest_notifier(DeviceState *d, int n, bool assign,
+                                          bool with_irqfd)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
+-    VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(proxy->vdev);
+-    VirtQueue *vq = virtio_get_queue(proxy->vdev, n);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
++    VirtioDeviceClass *vdc = VIRTIO_DEVICE_GET_CLASS(vdev);
++    VirtQueue *vq = virtio_get_queue(vdev, n);
+     EventNotifier *notifier = virtio_queue_get_guest_notifier(vq);
+ 
+     if (assign) {
+@@ -755,7 +776,7 @@ static int virtio_pci_set_guest_notifier(DeviceState *d, int n, bool assign,
+     }
+ 
+     if (!msix_enabled(&proxy->pci_dev) && vdc->guest_notifier_mask) {
+-        vdc->guest_notifier_mask(proxy->vdev, n, !assign);
++        vdc->guest_notifier_mask(vdev, n, !assign);
+     }
+ 
+     return 0;
+@@ -770,7 +791,7 @@ static bool virtio_pci_query_guest_notifiers(DeviceState *d)
+ static int virtio_pci_set_guest_notifiers(DeviceState *d, int nvqs, bool assign)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
+-    VirtIODevice *vdev = proxy->vdev;
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+     VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(vdev);
+     int r, n;
+     bool with_irqfd = msix_enabled(&proxy->pci_dev) &&
+@@ -864,11 +885,12 @@ static int virtio_pci_set_host_notifier(DeviceState *d, int n, bool assign)
+ static void virtio_pci_vmstate_change(DeviceState *d, bool running)
+ {
+     VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
++    VirtIODevice *vdev = virtio_bus_get_device(&proxy->bus);
+ 
+     if (running) {
+         /* Try to find out if the guest has bus master disabled, but is
+            in ready state. Then we have a buggy guest OS. */
+-        if ((proxy->vdev->status & VIRTIO_CONFIG_S_DRIVER_OK) &&
++        if ((vdev->status & VIRTIO_CONFIG_S_DRIVER_OK) &&
+             !(proxy->pci_dev.config[PCI_COMMAND] & PCI_COMMAND_MASTER)) {
+             proxy->flags |= VIRTIO_PCI_FLAG_BUS_MASTER_BUG;
+         }
+@@ -943,8 +965,6 @@ static void virtio_pci_device_plugged(DeviceState *d)
+     uint8_t *config;
+     uint32_t size;
+ 
+-    proxy->vdev = bus->vdev;
+-
+     config = proxy->pci_dev.config;
+     if (proxy->class_code) {
+         pci_config_set_class(config, proxy->class_code);
+@@ -982,6 +1002,15 @@ static void virtio_pci_device_plugged(DeviceState *d)
+                                                       proxy->host_features);
+ }
+ 
++static void virtio_pci_device_unplugged(DeviceState *d)
++{
++    PCIDevice *pci_dev = PCI_DEVICE(d);
++    VirtIOPCIProxy *proxy = VIRTIO_PCI(d);
++
++    virtio_pci_stop_ioeventfd(proxy);
++    msix_uninit_exclusive_bar(pci_dev);
++}
++
+ static int virtio_pci_init(PCIDevice *pci_dev)
+ {
+     VirtIOPCIProxy *dev = VIRTIO_PCI(pci_dev);
+@@ -996,9 +1025,7 @@ static int virtio_pci_init(PCIDevice *pci_dev)
+ static void virtio_pci_exit(PCIDevice *pci_dev)
+ {
+     VirtIOPCIProxy *proxy = VIRTIO_PCI(pci_dev);
+-    virtio_pci_stop_ioeventfd(proxy);
+     memory_region_destroy(&proxy->bar);
+-    msix_uninit_exclusive_bar(pci_dev);
+ }
+ 
+ static void virtio_pci_reset(DeviceState *qdev)
+@@ -1533,6 +1560,7 @@ static void virtio_pci_bus_class_init(ObjectClass *klass, void *data)
+     k->set_guest_notifiers = virtio_pci_set_guest_notifiers;
+     k->vmstate_change = virtio_pci_vmstate_change;
+     k->device_plugged = virtio_pci_device_plugged;
++    k->device_unplugged = virtio_pci_device_unplugged;
+ }
+ 
+ static const TypeInfo virtio_pci_bus_info = {
+diff --git a/hw/virtio/virtio-pci.h b/hw/virtio/virtio-pci.h
+index 917bcc5..dc332ae 100644
+--- a/hw/virtio/virtio-pci.h
++++ b/hw/virtio/virtio-pci.h
+@@ -82,7 +82,6 @@ typedef struct VirtioPCIClass {
+ 
+ struct VirtIOPCIProxy {
+     PCIDevice pci_dev;
+-    VirtIODevice *vdev;
+     MemoryRegion bar;
+     uint32_t flags;
+     uint32_t class_code;
+diff --git a/hw/virtio/virtio-rng.c b/hw/virtio/virtio-rng.c
+index b22ccf1..42ca568 100644
+--- a/hw/virtio/virtio-rng.c
++++ b/hw/virtio/virtio-rng.c
+@@ -190,16 +190,14 @@ static int virtio_rng_device_init(VirtIODevice *vdev)
+     return 0;
+ }
+ 
+-static int virtio_rng_device_exit(DeviceState *qdev)
++static void virtio_rng_device_exit(VirtIODevice *vdev)
+ {
+-    VirtIORNG *vrng = VIRTIO_RNG(qdev);
+-    VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
++    VirtIORNG *vrng = VIRTIO_RNG(vdev);
+ 
+     timer_del(vrng->rate_limit_timer);
+     timer_free(vrng->rate_limit_timer);
+-    unregister_savevm(qdev, "virtio-rng", vrng);
++    unregister_savevm(DEVICE(vdev), "virtio-rng", vrng);
+     virtio_cleanup(vdev);
+-    return 0;
+ }
+ 
+ static Property virtio_rng_properties[] = {
+@@ -211,10 +209,10 @@ static void virtio_rng_class_init(ObjectClass *klass, void *data)
+ {
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+-    dc->exit = virtio_rng_device_exit;
+     dc->props = virtio_rng_properties;
+     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+     vdc->init = virtio_rng_device_init;
++    vdc->exit = virtio_rng_device_exit;
+     vdc->get_features = get_features;
+ }
+ 
+diff --git a/hw/virtio/virtio.c b/hw/virtio/virtio.c
+index 2f1e73b..965b2c0 100644
+--- a/hw/virtio/virtio.c
++++ b/hw/virtio/virtio.c
+@@ -1158,14 +1158,19 @@ static int virtio_device_init(DeviceState *qdev)
+     if (k->init(vdev) < 0) {
+         return -1;
+     }
+-    virtio_bus_plug_device(vdev);
++    virtio_bus_device_plugged(vdev);
+     return 0;
+ }
+ 
+ static int virtio_device_exit(DeviceState *qdev)
+ {
+     VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
++    VirtioDeviceClass *k = VIRTIO_DEVICE_GET_CLASS(qdev);
+ 
++    virtio_bus_device_unplugged(vdev);
++    if (k->exit) {
++        k->exit(vdev);
++    }
+     if (vdev->bus_name) {
+         g_free(vdev->bus_name);
+         vdev->bus_name = NULL;
+diff --git a/include/hw/i386/pc.h b/include/hw/i386/pc.h
+index 09652fb..2a4a094 100644
+--- a/include/hw/i386/pc.h
++++ b/include/hw/i386/pc.h
+@@ -128,17 +128,9 @@ PcGuestInfo *pc_guest_info_init(ram_addr_t below_4g_mem_size,
+ #define PCI_HOST_PROP_PCI_HOLE64_SIZE  "pci-hole64-size"
+ #define DEFAULT_PCI_HOLE64_SIZE (~0x0ULL)
+ 
+-static inline uint64_t pci_host_get_hole64_size(uint64_t pci_hole64_size)
+-{
+-    if (pci_hole64_size == DEFAULT_PCI_HOLE64_SIZE) {
+-        return 1ULL << 62;
+-    } else {
+-        return pci_hole64_size;
+-    }
+-}
+ 
+-void pc_init_pci64_hole(PcPciInfo *pci_info, uint64_t pci_hole64_start,
+-                        uint64_t pci_hole64_size);
++void pc_pci_as_mapping_init(Object *owner, MemoryRegion *system_memory,
++                            MemoryRegion *pci_address_space);
+ 
+ FWCfgState *pc_memory_init(MemoryRegion *system_memory,
+                            const char *kernel_filename,
+@@ -187,8 +179,7 @@ PCIBus *i440fx_init(PCII440FXState **pi440fx_state, int *piix_devfn,
+                     MemoryRegion *address_space_mem,
+                     MemoryRegion *address_space_io,
+                     ram_addr_t ram_size,
+-                    hwaddr pci_hole_start,
+-                    hwaddr pci_hole_size,
++                    ram_addr_t below_4g_mem_size,
+                     ram_addr_t above_4g_mem_size,
+                     MemoryRegion *pci_memory,
+                     MemoryRegion *ram_memory);
+diff --git a/include/hw/pci-host/q35.h b/include/hw/pci-host/q35.h
+index 309065f..d0355b7 100644
+--- a/include/hw/pci-host/q35.h
++++ b/include/hw/pci-host/q35.h
+@@ -53,8 +53,6 @@ typedef struct MCHPCIState {
+     MemoryRegion *address_space_io;
+     PAMMemoryRegion pam_regions[13];
+     MemoryRegion smram_region;
+-    MemoryRegion pci_hole;
+-    MemoryRegion pci_hole_64bit;
+     PcPciInfo pci_info;
+     uint8_t smm_enabled;
+     ram_addr_t below_4g_mem_size;
+diff --git a/include/hw/timer/hpet.h b/include/hw/timer/hpet.h
+index ab44bd3..773953b 100644
+--- a/include/hw/timer/hpet.h
++++ b/include/hw/timer/hpet.h
+@@ -13,6 +13,8 @@
+ #ifndef QEMU_HPET_EMUL_H
+ #define QEMU_HPET_EMUL_H
+ 
++#include "qom/object.h"
++
+ #define HPET_BASE               0xfed00000
+ #define HPET_CLK_PERIOD         10000000ULL /* 10000000 femtoseconds == 10ns*/
+ 
+@@ -72,5 +74,11 @@ struct hpet_fw_config
+ 
+ extern struct hpet_fw_config hpet_cfg;
+ 
+-bool hpet_find(void);
++#define TYPE_HPET "hpet"
++
++static inline bool hpet_find(void)
++{
++    return object_resolve_path_type("", TYPE_HPET, NULL);
++}
++
+ #endif
+diff --git a/include/hw/virtio/virtio-bus.h b/include/hw/virtio/virtio-bus.h
+index 9217f85..0756545 100644
+--- a/include/hw/virtio/virtio-bus.h
++++ b/include/hw/virtio/virtio-bus.h
+@@ -61,7 +61,7 @@ typedef struct VirtioBusClass {
+      * transport independent exit function.
+      * This is called by virtio-bus just before the device is unplugged.
+      */
+-    void (*device_unplug)(DeviceState *d);
++    void (*device_unplugged)(DeviceState *d);
+     /*
+      * Does the transport have variable vring alignment?
+      * (ie can it ever call virtio_queue_set_align()?)
+@@ -72,15 +72,11 @@ typedef struct VirtioBusClass {
+ 
+ struct VirtioBusState {
+     BusState parent_obj;
+-    /*
+-     * Only one VirtIODevice can be plugged on the bus.
+-     */
+-    VirtIODevice *vdev;
+ };
+ 
+-int virtio_bus_plug_device(VirtIODevice *vdev);
++int virtio_bus_device_plugged(VirtIODevice *vdev);
+ void virtio_bus_reset(VirtioBusState *bus);
+-void virtio_bus_destroy_device(VirtioBusState *bus);
++void virtio_bus_device_unplugged(VirtIODevice *bus);
+ /* Get the device id of the plugged device. */
+ uint16_t virtio_bus_get_vdev_id(VirtioBusState *bus);
+ /* Get the config_len field of the plugged device. */
+@@ -98,4 +94,16 @@ void virtio_bus_get_vdev_config(VirtioBusState *bus, uint8_t *config);
+ /* Set config of the plugged device. */
+ void virtio_bus_set_vdev_config(VirtioBusState *bus, uint8_t *config);
+ 
++static inline VirtIODevice *virtio_bus_get_device(VirtioBusState *bus)
++{
++    BusState *qbus = &bus->parent_obj;
++    BusChild *kid = QTAILQ_FIRST(&qbus->children);
++    DeviceState *qdev = kid ? kid->child : NULL;
++
++    /* This is used on the data path, the cast is guaranteed
++     * to succeed by the qdev machinery.
++     */
++    return (VirtIODevice *)qdev;
++}
++
+ #endif /* VIRTIO_BUS_H */
+diff --git a/include/hw/virtio/virtio-scsi.h b/include/hw/virtio/virtio-scsi.h
+index 9a98540..206c61d 100644
+--- a/include/hw/virtio/virtio-scsi.h
++++ b/include/hw/virtio/virtio-scsi.h
+@@ -187,6 +187,6 @@ typedef struct {
+                                             VIRTIO_SCSI_F_CHANGE, true)
+ 
+ int virtio_scsi_common_init(VirtIOSCSICommon *vs);
+-int virtio_scsi_common_exit(VirtIOSCSICommon *vs);
++void virtio_scsi_common_exit(VirtIOSCSICommon *vs);
+ 
+ #endif /* _QEMU_VIRTIO_SCSI_H */
+diff --git a/include/hw/virtio/virtio.h b/include/hw/virtio/virtio.h
+index a90522d..59756c2 100644
+--- a/include/hw/virtio/virtio.h
++++ b/include/hw/virtio/virtio.h
+@@ -127,6 +127,7 @@ typedef struct VirtioDeviceClass {
+     /* This is what a VirtioDevice must implement */
+     DeviceClass parent;
+     int (*init)(VirtIODevice *vdev);
++    void (*exit)(VirtIODevice *vdev);
+     uint32_t (*get_features)(VirtIODevice *vdev, uint32_t requested_features);
+     uint32_t (*bad_features)(VirtIODevice *vdev);
+     void (*set_features)(VirtIODevice *vdev, uint32_t val);
+diff --git a/include/qom/object.h b/include/qom/object.h
+index a275db2..5f78847 100644
+--- a/include/qom/object.h
++++ b/include/qom/object.h
+@@ -358,7 +358,8 @@ struct ObjectClass
+     Type type;
+     GSList *interfaces;
+ 
+-    const char *cast_cache[OBJECT_CLASS_CAST_CACHE];
++    const char *object_cast_cache[OBJECT_CLASS_CAST_CACHE];
++    const char *class_cast_cache[OBJECT_CLASS_CAST_CACHE];
+ 
+     ObjectUnparent *unparent;
+ };
+diff --git a/kvm-all.c b/kvm-all.c
+index 4478969..9f18ea3 100644
+--- a/kvm-all.c
++++ b/kvm-all.c
+@@ -1431,16 +1431,22 @@ int kvm_init(void)
+         nc++;
+     }
+ 
+-    s->vmfd = kvm_ioctl(s, KVM_CREATE_VM, 0);
+-    if (s->vmfd < 0) {
++    do {
++        ret = kvm_ioctl(s, KVM_CREATE_VM, 0);
++    } while (ret == -EINTR);
++
++    if (ret < 0) {
++        fprintf(stderr, "ioctl(KVM_CREATE_VM) failed: %d %s\n", -ret,
++                strerror(-ret));
++
+ #ifdef TARGET_S390X
+         fprintf(stderr, "Please add the 'switch_amode' kernel parameter to "
+                         "your host kernel command line\n");
+ #endif
+-        ret = s->vmfd;
+         goto err;
+     }
+ 
++    s->vmfd = ret;
+     missing_cap = kvm_check_extension_list(s, kvm_required_capabilites);
+     if (!missing_cap) {
+         missing_cap =
+diff --git a/linux-user/aarch64/target_structs.h b/linux-user/aarch64/target_structs.h
+new file mode 100644
+index 0000000..21c1f2c
+--- /dev/null
++++ b/linux-user/aarch64/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * ARM AArch64 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/alpha/target_structs.h b/linux-user/alpha/target_structs.h
+new file mode 100644
+index 0000000..50e7708
+--- /dev/null
++++ b/linux-user/alpha/target_structs.h
+@@ -0,0 +1,48 @@
++/*
++ * Alpha specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_uint mode;                      /* Read/write permission.  */
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad1;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++#endif
+diff --git a/linux-user/arm/target_structs.h b/linux-user/arm/target_structs.h
+new file mode 100644
+index 0000000..f3c85d4
+--- /dev/null
++++ b/linux-user/arm/target_structs.h
+@@ -0,0 +1,52 @@
++/*
++ * ARM specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++    abi_ulong __unused1;
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++    abi_ulong __unused2;
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++    abi_ulong __unused3;
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/cris/target_structs.h b/linux-user/cris/target_structs.h
+new file mode 100644
+index 0000000..e4a1ffb
+--- /dev/null
++++ b/linux-user/cris/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * CRIS specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/i386/target_structs.h b/linux-user/i386/target_structs.h
+new file mode 100644
+index 0000000..65f535e
+--- /dev/null
++++ b/linux-user/i386/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * i386 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/m68k/target_structs.h b/linux-user/m68k/target_structs.h
+new file mode 100644
+index 0000000..de257c9
+--- /dev/null
++++ b/linux-user/m68k/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * m68k specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/microblaze/target_structs.h b/linux-user/microblaze/target_structs.h
+new file mode 100644
+index 0000000..325e2f6
+--- /dev/null
++++ b/linux-user/microblaze/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * MicroBlaze specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/mips/target_structs.h b/linux-user/mips/target_structs.h
+new file mode 100644
+index 0000000..16021e8
+--- /dev/null
++++ b/linux-user/mips/target_structs.h
+@@ -0,0 +1,48 @@
++/*
++ * MIPS specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_uint mode;                      /* Read/write permission.  */
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad1;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++#endif
+diff --git a/linux-user/mips64/target_cpu.h b/linux-user/mips64/target_cpu.h
+index fa36407..f16991b 100644
+--- a/linux-user/mips64/target_cpu.h
++++ b/linux-user/mips64/target_cpu.h
+@@ -1 +1,19 @@
++/*
++ * MIPS64 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
+ #include "../mips/target_cpu.h"
+diff --git a/linux-user/mips64/target_structs.h b/linux-user/mips64/target_structs.h
+new file mode 100644
+index 0000000..a4f619e
+--- /dev/null
++++ b/linux-user/mips64/target_structs.h
+@@ -0,0 +1,2 @@
++#include "../mips/target_structs.h"
++
+diff --git a/linux-user/openrisc/target_structs.h b/linux-user/openrisc/target_structs.h
+new file mode 100644
+index 0000000..f4d560f
+--- /dev/null
++++ b/linux-user/openrisc/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * OpenRISC specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/ppc/target_structs.h b/linux-user/ppc/target_structs.h
+new file mode 100644
+index 0000000..2b87613
+--- /dev/null
++++ b/linux-user/ppc/target_structs.h
+@@ -0,0 +1,60 @@
++/*
++ * PowerPC specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_uint mode;                      /* Read/write permission.  */
++    uint32_t __seq;                     /* Sequence number.  */
++    uint32_t __pad1;
++    uint64_t __unused1;
++    uint64_t __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++#if TARGET_ABI_BITS == 32
++    abi_uint __unused1;
++#endif
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_uint __unused2;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_uint __unused3;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_uint __unused4;
++#endif
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused5;
++    abi_ulong __unused6;
++};
++
++#endif
+diff --git a/linux-user/qemu.h b/linux-user/qemu.h
+index da64e87..e2717e0 100644
+--- a/linux-user/qemu.h
++++ b/linux-user/qemu.h
+@@ -452,5 +452,6 @@ static inline void *lock_user_string(abi_ulong guest_addr)
+  */
+ #include "target_cpu.h"
+ #include "target_signal.h"
++#include "target_structs.h"
+ 
+ #endif /* QEMU_H */
+diff --git a/linux-user/s390x/target_structs.h b/linux-user/s390x/target_structs.h
+new file mode 100644
+index 0000000..6b6f5b5
+--- /dev/null
++++ b/linux-user/s390x/target_structs.h
+@@ -0,0 +1,63 @@
++/*
++ * S/390 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++
++struct target_ipc_perm {
++    abi_int __key;                       /* Key.  */
++    abi_uint uid;                        /* Owner's user ID.  */
++    abi_uint gid;                        /* Owner's group ID.  */
++    abi_uint cuid;                       /* Creator's user ID.  */
++    abi_uint cgid;                       /* Creator's group ID.  */
++#if TARGET_ABI_BITS == 64
++    abi_uint mode;                       /* Read/write permission.  */
++#else
++    abi_ushort mode;                     /* Read/write permission.  */
++    abi_ushort __pad1;
++#endif
++    abi_ushort __seq;                    /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/sh4/target_structs.h b/linux-user/sh4/target_structs.h
+new file mode 100644
+index 0000000..32b235e
+--- /dev/null
++++ b/linux-user/sh4/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * SH4 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/signal.c b/linux-user/signal.c
+index 7751c47..544e77e 100644
+--- a/linux-user/signal.c
++++ b/linux-user/signal.c
+@@ -3653,7 +3653,7 @@ struct target_sigcontext {
+ struct target_signal_frame {
+         struct target_sigcontext sc;
+         uint32_t extramask[TARGET_NSIG_WORDS - 1];
+-        uint8_t retcode[8];       /* Trampoline code. */
++        uint16_t retcode[4];      /* Trampoline code. */
+ };
+ 
+ struct rt_signal_frame {
+@@ -3661,7 +3661,7 @@ struct rt_signal_frame {
+         void *puc;
+         siginfo_t info;
+         struct ucontext uc;
+-        uint8_t retcode[8];       /* Trampoline code. */
++        uint16_t retcode[4];      /* Trampoline code. */
+ };
+ 
+ static void setup_sigcontext(struct target_sigcontext *sc, CPUCRISState *env)
+@@ -3739,8 +3739,8 @@ static void setup_frame(int sig, struct target_sigaction *ka,
+ 	 */
+ 	err |= __put_user(0x9c5f, frame->retcode+0);
+ 	err |= __put_user(TARGET_NR_sigreturn, 
+-			  frame->retcode+2);
+-	err |= __put_user(0xe93d, frame->retcode+4);
++			  frame->retcode + 1);
++	err |= __put_user(0xe93d, frame->retcode + 2);
+ 
+ 	/* Save the mask.  */
+ 	err |= __put_user(set->sig[0], &frame->sc.oldmask);
+diff --git a/linux-user/sparc/target_structs.h b/linux-user/sparc/target_structs.h
+new file mode 100644
+index 0000000..c139e09
+--- /dev/null
++++ b/linux-user/sparc/target_structs.h
+@@ -0,0 +1,63 @@
++/*
++ * SPARC specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++#if TARGET_ABI_BITS == 32
++    abi_ushort __pad1;
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad2;
++#else
++    abi_ushort mode;
++    abi_ushort __pad1;
++#endif
++    abi_ushort __seq;                   /* Sequence number.  */
++    uint64_t __unused1;
++    uint64_t __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++#if TARGET_ABI_BITS == 32
++    abi_uint __pad1;
++#endif
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_uint __pad2;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_uint __pad3;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_cpid;                 /* pid of creator */
++    abi_ulong shm_lpid;                 /* pid of last shmop */
++    abi_long shm_nattch;                /* number of current attaches */
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++#endif
+diff --git a/linux-user/sparc64/target_structs.h b/linux-user/sparc64/target_structs.h
+new file mode 100644
+index 0000000..fc17290
+--- /dev/null
++++ b/linux-user/sparc64/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * SPARC64 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/syscall.c b/linux-user/syscall.c
+index eaaf00d..81f79f9 100644
+--- a/linux-user/syscall.c
++++ b/linux-user/syscall.c
+@@ -2417,21 +2417,6 @@ static struct shm_region {
+     abi_ulong	size;
+ } shm_regions[N_SHM_REGIONS];
+ 
+-struct target_ipc_perm
+-{
+-    abi_long __key;
+-    abi_ulong uid;
+-    abi_ulong gid;
+-    abi_ulong cuid;
+-    abi_ulong cgid;
+-    unsigned short int mode;
+-    unsigned short int __pad1;
+-    unsigned short int __seq;
+-    unsigned short int __pad2;
+-    abi_ulong __unused1;
+-    abi_ulong __unused2;
+-};
+-
+ struct target_semid_ds
+ {
+   struct target_ipc_perm sem_perm;
+@@ -2453,12 +2438,21 @@ static inline abi_long target_to_host_ipc_perm(struct ipc_perm *host_ip,
+     if (!lock_user_struct(VERIFY_READ, target_sd, target_addr, 1))
+         return -TARGET_EFAULT;
+     target_ip = &(target_sd->sem_perm);
+-    host_ip->__key = tswapal(target_ip->__key);
+-    host_ip->uid = tswapal(target_ip->uid);
+-    host_ip->gid = tswapal(target_ip->gid);
+-    host_ip->cuid = tswapal(target_ip->cuid);
+-    host_ip->cgid = tswapal(target_ip->cgid);
++    host_ip->__key = tswap32(target_ip->__key);
++    host_ip->uid = tswap32(target_ip->uid);
++    host_ip->gid = tswap32(target_ip->gid);
++    host_ip->cuid = tswap32(target_ip->cuid);
++    host_ip->cgid = tswap32(target_ip->cgid);
++#if defined(TARGET_ALPHA) || defined(TARGET_MIPS) || defined(TARGET_PPC)
++    host_ip->mode = tswap32(target_ip->mode);
++#else
+     host_ip->mode = tswap16(target_ip->mode);
++#endif
++#if defined(TARGET_PPC)
++    host_ip->__seq = tswap32(target_ip->__seq);
++#else
++    host_ip->__seq = tswap16(target_ip->__seq);
++#endif
+     unlock_user_struct(target_sd, target_addr, 0);
+     return 0;
+ }
+@@ -2472,12 +2466,21 @@ static inline abi_long host_to_target_ipc_perm(abi_ulong target_addr,
+     if (!lock_user_struct(VERIFY_WRITE, target_sd, target_addr, 0))
+         return -TARGET_EFAULT;
+     target_ip = &(target_sd->sem_perm);
+-    target_ip->__key = tswapal(host_ip->__key);
+-    target_ip->uid = tswapal(host_ip->uid);
+-    target_ip->gid = tswapal(host_ip->gid);
+-    target_ip->cuid = tswapal(host_ip->cuid);
+-    target_ip->cgid = tswapal(host_ip->cgid);
++    target_ip->__key = tswap32(host_ip->__key);
++    target_ip->uid = tswap32(host_ip->uid);
++    target_ip->gid = tswap32(host_ip->gid);
++    target_ip->cuid = tswap32(host_ip->cuid);
++    target_ip->cgid = tswap32(host_ip->cgid);
++#if defined(TARGET_ALPHA) || defined(TARGET_MIPS) || defined(TARGET_PPC)
++    target_ip->mode = tswap32(host_ip->mode);
++#else
+     target_ip->mode = tswap16(host_ip->mode);
++#endif
++#if defined(TARGET_PPC)
++    target_ip->__seq = tswap32(host_ip->__seq);
++#else
++    target_ip->__seq = tswap16(host_ip->__seq);
++#endif
+     unlock_user_struct(target_sd, target_addr, 1);
+     return 0;
+ }
+@@ -2908,29 +2911,6 @@ end:
+     return ret;
+ }
+ 
+-struct target_shmid_ds
+-{
+-    struct target_ipc_perm shm_perm;
+-    abi_ulong shm_segsz;
+-    abi_ulong shm_atime;
+-#if TARGET_ABI_BITS == 32
+-    abi_ulong __unused1;
+-#endif
+-    abi_ulong shm_dtime;
+-#if TARGET_ABI_BITS == 32
+-    abi_ulong __unused2;
+-#endif
+-    abi_ulong shm_ctime;
+-#if TARGET_ABI_BITS == 32
+-    abi_ulong __unused3;
+-#endif
+-    int shm_cpid;
+-    int shm_lpid;
+-    abi_ulong shm_nattch;
+-    unsigned long int __unused4;
+-    unsigned long int __unused5;
+-};
+-
+ static inline abi_long target_to_host_shmid_ds(struct shmid_ds *host_sd,
+                                                abi_ulong target_addr)
+ {
+@@ -3216,7 +3196,7 @@ static abi_long do_ipc(unsigned int call, int first,
+ 
+ 	/* IPC_* and SHM_* command values are the same on all linux platforms */
+     case IPCOP_shmctl:
+-        ret = do_shmctl(first, second, third);
++        ret = do_shmctl(first, second, ptr);
+         break;
+     default:
+ 	gemu_log("Unsupported ipc call: %d (version %d)\n", call, version);
+diff --git a/linux-user/unicore32/target_structs.h b/linux-user/unicore32/target_structs.h
+new file mode 100644
+index 0000000..7893695
+--- /dev/null
++++ b/linux-user/unicore32/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * UniCore32 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/linux-user/x86_64/target_structs.h b/linux-user/x86_64/target_structs.h
+new file mode 100644
+index 0000000..d934056
+--- /dev/null
++++ b/linux-user/x86_64/target_structs.h
+@@ -0,0 +1,58 @@
++/*
++ * X86-64 specific structures for linux-user
++ *
++ * Copyright (c) 2013 Fabrice Bellard
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef TARGET_STRUCTS_H
++#define TARGET_STRUCTS_H
++
++struct target_ipc_perm {
++    abi_int __key;                      /* Key.  */
++    abi_uint uid;                       /* Owner's user ID.  */
++    abi_uint gid;                       /* Owner's group ID.  */
++    abi_uint cuid;                      /* Creator's user ID.  */
++    abi_uint cgid;                      /* Creator's group ID.  */
++    abi_ushort mode;                    /* Read/write permission.  */
++    abi_ushort __pad1;
++    abi_ushort __seq;                   /* Sequence number.  */
++    abi_ushort __pad2;
++    abi_ulong __unused1;
++    abi_ulong __unused2;
++};
++
++struct target_shmid_ds {
++    struct target_ipc_perm shm_perm;    /* operation permission struct */
++    abi_long shm_segsz;                 /* size of segment in bytes */
++    abi_ulong shm_atime;                /* time of last shmat() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused1;
++#endif
++    abi_ulong shm_dtime;                /* time of last shmdt() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused2;
++#endif
++    abi_ulong shm_ctime;                /* time of last change by shmctl() */
++#if TARGET_ABI_BITS == 32
++    abi_ulong __unused3;
++#endif
++    abi_int shm_cpid;                   /* pid of creator */
++    abi_int shm_lpid;                   /* pid of last shmop */
++    abi_ulong shm_nattch;               /* number of current attaches */
++    abi_ulong __unused4;
++    abi_ulong __unused5;
++};
++
++#endif
+diff --git a/memory.c b/memory.c
+index 28f6449..7764314 100644
+--- a/memory.c
++++ b/memory.c
+@@ -1596,6 +1596,7 @@ MemoryRegionSection memory_region_find(MemoryRegion *mr,
+     view = address_space_get_flatview(as);
+     fr = flatview_lookup(view, range);
+     if (!fr) {
++        flatview_unref(view);
+         return ret;
+     }
+ 
+diff --git a/migration.c b/migration.c
+index 2b1ab20..79c86c9 100644
+--- a/migration.c
++++ b/migration.c
+@@ -437,6 +437,7 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
+ #endif
+     } else {
+         error_set(errp, QERR_INVALID_PARAMETER_VALUE, "uri", "a valid migration protocol");
++        s->state = MIG_STATE_ERROR;
+         return;
+     }
+ 
+@@ -583,7 +584,7 @@ static void *migration_thread(void *opaque)
+ 
+                 ret = vm_stop_force_state(RUN_STATE_FINISH_MIGRATE);
+                 if (ret >= 0) {
+-                    qemu_file_set_rate_limit(s->file, INT_MAX);
++                    qemu_file_set_rate_limit(s->file, INT64_MAX);
+                     qemu_savevm_state_complete(s->file);
+                 }
+                 qemu_mutex_unlock_iothread();
+diff --git a/pc-bios/QEMU,tcx.bin b/pc-bios/QEMU,tcx.bin
+index a8ddd70..eed108f 100644
+Binary files a/pc-bios/QEMU,tcx.bin and b/pc-bios/QEMU,tcx.bin differ
+diff --git a/pc-bios/README b/pc-bios/README
+index a110125..f190068 100644
+--- a/pc-bios/README
++++ b/pc-bios/README
+@@ -12,7 +12,7 @@
+   1275-1994 (referred to as Open Firmware) compliant firmware.
+   The included images for PowerPC (for 32 and 64 bit PPC CPUs),
+   Sparc32 (including QEMU,tcx.bin) and Sparc64 are built from OpenBIOS SVN
+-  revision 1229.
++  revision 1246.
+ 
+ - SLOF (Slimline Open Firmware) is a free IEEE 1275 Open Firmware
+   implementation for certain IBM POWER hardware.  The sources are at
+diff --git a/pc-bios/openbios-ppc b/pc-bios/openbios-ppc
+index 550273a..f4a3a39 100644
+Binary files a/pc-bios/openbios-ppc and b/pc-bios/openbios-ppc differ
+diff --git a/pc-bios/openbios-sparc32 b/pc-bios/openbios-sparc32
+index 01105fc..bb7cdfb 100644
+Binary files a/pc-bios/openbios-sparc32 and b/pc-bios/openbios-sparc32 differ
+diff --git a/pc-bios/openbios-sparc64 b/pc-bios/openbios-sparc64
+index 62c9e77..46b4fdd 100644
+Binary files a/pc-bios/openbios-sparc64 and b/pc-bios/openbios-sparc64 differ
+diff --git a/pc-bios/optionrom/Makefile b/pc-bios/optionrom/Makefile
+index 57d8bd0..ce4852a 100644
+--- a/pc-bios/optionrom/Makefile
++++ b/pc-bios/optionrom/Makefile
+@@ -12,6 +12,7 @@ $(call set-vpath, $(SRC_PATH)/pc-bios/optionrom)
+ CFLAGS := -Wall -Wstrict-prototypes -Werror -fomit-frame-pointer -fno-builtin
+ CFLAGS += -I$(SRC_PATH)
+ CFLAGS += $(call cc-option, $(CFLAGS), -fno-stack-protector)
++CFLAGS += $(CFLAGS_NOPIE)
+ QEMU_CFLAGS = $(CFLAGS)
+ 
+ build-all: multiboot.bin linuxboot.bin kvmvapic.bin
+@@ -20,7 +21,7 @@ build-all: multiboot.bin linuxboot.bin kvmvapic.bin
+ .SECONDARY:
+ 
+ %.img: %.o
+-	$(call quiet-command,$(LD) -Ttext 0 -e _start -s -o $@ $<,"  Building $(TARGET_DIR)$@")
++	$(call quiet-command,$(LD) $(LDFLAGS_NOPIE) -Ttext 0 -e _start -s -o $@ $<,"  Building $(TARGET_DIR)$@")
+ 
+ %.raw: %.img
+ 	$(call quiet-command,$(OBJCOPY) -O binary -j .text $< $@,"  Building $(TARGET_DIR)$@")
+diff --git a/qdev-monitor.c b/qdev-monitor.c
+index dc37a43..90a0cea 100644
+--- a/qdev-monitor.c
++++ b/qdev-monitor.c
+@@ -477,7 +477,7 @@ DeviceState *qdev_device_add(QemuOpts *opts)
+         }
+     }
+ 
+-    if (!oc) {
++    if (!object_class_dynamic_cast(oc, TYPE_DEVICE)) {
+         qerror_report(QERR_INVALID_PARAMETER_VALUE, "driver", "device type");
+         return NULL;
+     }
+diff --git a/qemu-seccomp.c b/qemu-seccomp.c
+index 69cee44..7c7b474 100644
+--- a/qemu-seccomp.c
++++ b/qemu-seccomp.c
+@@ -230,6 +230,7 @@ int seccomp_start(void)
+ 
+     ctx = seccomp_init(SCMP_ACT_KILL);
+     if (ctx == NULL) {
++        rc = -1;
+         goto seccomp_return;
+     }
+ 
+diff --git a/qga/commands-posix.c b/qga/commands-posix.c
+index 8100bee..8763308 100644
+--- a/qga/commands-posix.c
++++ b/qga/commands-posix.c
+@@ -525,7 +525,7 @@ struct GuestFileSeek *qmp_guest_file_seek(int64_t handle, int64_t offset,
+     if (ret == -1) {
+         error_setg_errno(err, errno, "failed to seek file");
+     } else {
+-        seek_data = g_malloc0(sizeof(GuestFileRead));
++        seek_data = g_new0(GuestFileSeek, 1);
+         seek_data->position = ftell(fh);
+         seek_data->eof = feof(fh);
+     }
+diff --git a/qga/vss-win32/provider.cpp b/qga/vss-win32/provider.cpp
+index bf42b5e..d5129f8 100644
+--- a/qga/vss-win32/provider.cpp
++++ b/qga/vss-win32/provider.cpp
+@@ -278,7 +278,9 @@ STDMETHODIMP CQGAVssProvider::DeleteSnapshots(
+     VSS_ID SourceObjectId, VSS_OBJECT_TYPE eSourceObjectType,
+     BOOL bForceDelete, LONG *plDeletedSnapshots, VSS_ID *pNondeletedSnapshotID)
+ {
+-    return E_NOTIMPL;
++    *plDeletedSnapshots = 0;
++    *pNondeletedSnapshotID = SourceObjectId;
++    return S_OK;
+ }
+ 
+ STDMETHODIMP CQGAVssProvider::BeginPrepareSnapshot(
+@@ -291,8 +293,17 @@ STDMETHODIMP CQGAVssProvider::BeginPrepareSnapshot(
+ STDMETHODIMP CQGAVssProvider::IsVolumeSupported(
+     VSS_PWSZ pwszVolumeName, BOOL *pbSupportedByThisProvider)
+ {
+-    *pbSupportedByThisProvider = TRUE;
++    HANDLE hEventFrozen;
+ 
++    /* Check if a requester is qemu-ga by whether an event is created */
++    hEventFrozen = OpenEvent(EVENT_ALL_ACCESS, FALSE, EVENT_NAME_FROZEN);
++    if (!hEventFrozen) {
++        *pbSupportedByThisProvider = FALSE;
++        return S_OK;
++    }
++    CloseHandle(hEventFrozen);
++
++    *pbSupportedByThisProvider = TRUE;
+     return S_OK;
+ }
+ 
+@@ -342,18 +353,18 @@ STDMETHODIMP CQGAVssProvider::CommitSnapshots(VSS_ID SnapshotSetId)
+     HANDLE hEventFrozen, hEventThaw, hEventTimeout;
+ 
+     hEventFrozen = OpenEvent(EVENT_ALL_ACCESS, FALSE, EVENT_NAME_FROZEN);
+-    if (hEventFrozen == INVALID_HANDLE_VALUE) {
++    if (!hEventFrozen) {
+         return E_FAIL;
+     }
+ 
+     hEventThaw = OpenEvent(EVENT_ALL_ACCESS, FALSE, EVENT_NAME_THAW);
+-    if (hEventThaw == INVALID_HANDLE_VALUE) {
++    if (!hEventThaw) {
+         CloseHandle(hEventFrozen);
+         return E_FAIL;
+     }
+ 
+     hEventTimeout = OpenEvent(EVENT_ALL_ACCESS, FALSE, EVENT_NAME_TIMEOUT);
+-    if (hEventTimeout == INVALID_HANDLE_VALUE) {
++    if (!hEventTimeout) {
+         CloseHandle(hEventFrozen);
+         CloseHandle(hEventThaw);
+         return E_FAIL;
+diff --git a/qga/vss-win32/requester.cpp b/qga/vss-win32/requester.cpp
+index 1e8dd3d..922e74d 100644
+--- a/qga/vss-win32/requester.cpp
++++ b/qga/vss-win32/requester.cpp
+@@ -50,10 +50,6 @@ static struct QGAVSSContext {
+ 
+ STDAPI requester_init(void)
+ {
+-    vss_ctx.hEventFrozen =  INVALID_HANDLE_VALUE;
+-    vss_ctx.hEventThaw = INVALID_HANDLE_VALUE;
+-    vss_ctx.hEventTimeout = INVALID_HANDLE_VALUE;
+-
+     COMInitializer initializer; /* to call CoInitializeSecurity */
+     HRESULT hr = CoInitializeSecurity(
+         NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_PKT_PRIVACY,
+@@ -94,17 +90,17 @@ STDAPI requester_init(void)
+ 
+ static void requester_cleanup(void)
+ {
+-    if (vss_ctx.hEventFrozen != INVALID_HANDLE_VALUE) {
++    if (vss_ctx.hEventFrozen) {
+         CloseHandle(vss_ctx.hEventFrozen);
+-        vss_ctx.hEventFrozen = INVALID_HANDLE_VALUE;
++        vss_ctx.hEventFrozen = NULL;
+     }
+-    if (vss_ctx.hEventThaw != INVALID_HANDLE_VALUE) {
++    if (vss_ctx.hEventThaw) {
+         CloseHandle(vss_ctx.hEventThaw);
+-        vss_ctx.hEventThaw = INVALID_HANDLE_VALUE;
++        vss_ctx.hEventThaw = NULL;
+     }
+-    if (vss_ctx.hEventTimeout != INVALID_HANDLE_VALUE) {
++    if (vss_ctx.hEventTimeout) {
+         CloseHandle(vss_ctx.hEventTimeout);
+-        vss_ctx.hEventTimeout = INVALID_HANDLE_VALUE;
++        vss_ctx.hEventTimeout = NULL;
+     }
+     if (vss_ctx.pAsyncSnapshot) {
+         vss_ctx.pAsyncSnapshot->Release();
+@@ -256,6 +252,32 @@ void requester_freeze(int *num_vols, ErrorSet *errset)
+ 
+     CoInitialize(NULL);
+ 
++    /* Allow unrestricted access to events */
++    InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
++    SetSecurityDescriptorDacl(&sd, TRUE, NULL, FALSE);
++    sa.nLength = sizeof(sa);
++    sa.lpSecurityDescriptor = &sd;
++    sa.bInheritHandle = FALSE;
++
++    vss_ctx.hEventFrozen = CreateEvent(&sa, TRUE, FALSE, EVENT_NAME_FROZEN);
++    if (!vss_ctx.hEventFrozen) {
++        err_set(errset, GetLastError(), "failed to create event %s",
++                EVENT_NAME_FROZEN);
++        goto out;
++    }
++    vss_ctx.hEventThaw = CreateEvent(&sa, TRUE, FALSE, EVENT_NAME_THAW);
++    if (!vss_ctx.hEventThaw) {
++        err_set(errset, GetLastError(), "failed to create event %s",
++                EVENT_NAME_THAW);
++        goto out;
++    }
++    vss_ctx.hEventTimeout = CreateEvent(&sa, TRUE, FALSE, EVENT_NAME_TIMEOUT);
++    if (!vss_ctx.hEventTimeout) {
++        err_set(errset, GetLastError(), "failed to create event %s",
++                EVENT_NAME_TIMEOUT);
++        goto out;
++    }
++
+     assert(pCreateVssBackupComponents != NULL);
+     hr = pCreateVssBackupComponents(&vss_ctx.pVssbc);
+     if (FAILED(hr)) {
+@@ -366,32 +388,6 @@ void requester_freeze(int *num_vols, ErrorSet *errset)
+         goto out;
+     }
+ 
+-    /* Allow unrestricted access to events */
+-    InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
+-    SetSecurityDescriptorDacl(&sd, TRUE, NULL, FALSE);
+-    sa.nLength = sizeof(sa);
+-    sa.lpSecurityDescriptor = &sd;
+-    sa.bInheritHandle = FALSE;
+-
+-    vss_ctx.hEventFrozen = CreateEvent(&sa, TRUE, FALSE, EVENT_NAME_FROZEN);
+-    if (vss_ctx.hEventFrozen == INVALID_HANDLE_VALUE) {
+-        err_set(errset, GetLastError(), "failed to create event %s",
+-                EVENT_NAME_FROZEN);
+-        goto out;
+-    }
+-    vss_ctx.hEventThaw = CreateEvent(&sa, TRUE, FALSE, EVENT_NAME_THAW);
+-    if (vss_ctx.hEventThaw == INVALID_HANDLE_VALUE) {
+-        err_set(errset, GetLastError(), "failed to create event %s",
+-                EVENT_NAME_THAW);
+-        goto out;
+-    }
+-    vss_ctx.hEventTimeout = CreateEvent(&sa, TRUE, FALSE, EVENT_NAME_TIMEOUT);
+-    if (vss_ctx.hEventTimeout == INVALID_HANDLE_VALUE) {
+-        err_set(errset, GetLastError(), "failed to create event %s",
+-                EVENT_NAME_TIMEOUT);
+-        goto out;
+-    }
+-
+     /*
+      * Start VSS quiescing operations.
+      * CQGAVssProvider::CommitSnapshots will kick vss_ctx.hEventFrozen
+@@ -443,7 +439,7 @@ void requester_thaw(int *num_vols, ErrorSet *errset)
+ {
+     COMPointer<IVssAsync> pAsync;
+ 
+-    if (vss_ctx.hEventThaw == INVALID_HANDLE_VALUE) {
++    if (!vss_ctx.hEventThaw) {
+         /*
+          * In this case, DoSnapshotSet is aborted or not started,
+          * and no volumes must be frozen. We return without an error.
+diff --git a/qom/object.c b/qom/object.c
+index fc19cf6..21b5a0b 100644
+--- a/qom/object.c
++++ b/qom/object.c
+@@ -458,7 +458,7 @@ Object *object_dynamic_cast_assert(Object *obj, const char *typename,
+     Object *inst;
+ 
+     for (i = 0; obj && i < OBJECT_CLASS_CAST_CACHE; i++) {
+-        if (obj->class->cast_cache[i] == typename) {
++        if (obj->class->object_cast_cache[i] == typename) {
+             goto out;
+         }
+     }
+@@ -475,9 +475,10 @@ Object *object_dynamic_cast_assert(Object *obj, const char *typename,
+ 
+     if (obj && obj == inst) {
+         for (i = 1; i < OBJECT_CLASS_CAST_CACHE; i++) {
+-            obj->class->cast_cache[i - 1] = obj->class->cast_cache[i];
++            obj->class->object_cast_cache[i - 1] =
++                    obj->class->object_cast_cache[i];
+         }
+-        obj->class->cast_cache[i - 1] = typename;
++        obj->class->object_cast_cache[i - 1] = typename;
+     }
+ 
+ out:
+@@ -547,7 +548,7 @@ ObjectClass *object_class_dynamic_cast_assert(ObjectClass *class,
+     int i;
+ 
+     for (i = 0; class && i < OBJECT_CLASS_CAST_CACHE; i++) {
+-        if (class->cast_cache[i] == typename) {
++        if (class->class_cast_cache[i] == typename) {
+             ret = class;
+             goto out;
+         }
+@@ -568,9 +569,9 @@ ObjectClass *object_class_dynamic_cast_assert(ObjectClass *class,
+ #ifdef CONFIG_QOM_CAST_DEBUG
+     if (class && ret == class) {
+         for (i = 1; i < OBJECT_CLASS_CAST_CACHE; i++) {
+-            class->cast_cache[i - 1] = class->cast_cache[i];
++            class->class_cast_cache[i - 1] = class->class_cast_cache[i];
+         }
+-        class->cast_cache[i - 1] = typename;
++        class->class_cast_cache[i - 1] = typename;
+     }
+ out:
+ #endif
+diff --git a/target-i386/helper.c b/target-i386/helper.c
+index 7c196ff..ed965d6 100644
+--- a/target-i386/helper.c
++++ b/target-i386/helper.c
+@@ -531,6 +531,12 @@ int cpu_x86_handle_mmu_fault(CPUX86State *env, target_ulong addr,
+ 
+     if (!(env->cr[0] & CR0_PG_MASK)) {
+         pte = addr;
++#ifdef TARGET_X86_64
++        if (!(env->hflags & HF_LMA_MASK)) {
++            /* Without long mode we can only address 32bits in real mode */
++            pte = (uint32_t)pte;
++        }
++#endif
+         virt_addr = addr & TARGET_PAGE_MASK;
+         prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
+         page_size = 4096;
+diff --git a/target-mips/translate.c b/target-mips/translate.c
+index 67f326b..e302734 100644
+--- a/target-mips/translate.c
++++ b/target-mips/translate.c
+@@ -15983,10 +15983,13 @@ void cpu_state_reset(CPUMIPSState *env)
+     if (env->CP0_Config3 & (1 << CP0C3_DSPP)) {
+         env->CP0_Status |= (1 << CP0St_MX);
+     }
+-    /* Enable 64-bit FPU if the target cpu supports it.  */
+-    if (env->active_fpu.fcr0 & (1 << FCR0_F64)) {
++# if defined(TARGET_MIPS64)
++    /* For MIPS64, init FR bit to 1 if FPU unit is there and bit is writable. */
++    if ((env->CP0_Config1 & (1 << CP0C1_FP)) &&
++        (env->CP0_Status_rw_bitmask & (1 << CP0St_FR))) {
+         env->CP0_Status |= (1 << CP0St_FR);
+     }
++# endif
+ #else
+     if (env->hflags & MIPS_HFLAG_BMASK) {
+         /* If the exception was raised from a delay slot,
+diff --git a/target-s390x/cpu.h b/target-s390x/cpu.h
+index a2c077b..68b5ab7 100644
+--- a/target-s390x/cpu.h
++++ b/target-s390x/cpu.h
+@@ -352,6 +352,9 @@ static inline hwaddr decode_basedisp_s(CPUS390XState *env, uint32_t ipb)
+     return addr;
+ }
+ 
++/* Base/displacement are at the same locations. */
++#define decode_basedisp_rs decode_basedisp_s
++
+ void s390x_tod_timer(void *opaque);
+ void s390x_cpu_timer(void *opaque);
+ 
+diff --git a/target-s390x/kvm.c b/target-s390x/kvm.c
+index 02ac4ba..b00a661 100644
+--- a/target-s390x/kvm.c
++++ b/target-s390x/kvm.c
+@@ -562,11 +562,19 @@ static void kvm_handle_diag_308(S390CPU *cpu, struct kvm_run *run)
+     handle_diag_308(&cpu->env, r1, r3);
+ }
+ 
+-static int handle_diag(S390CPU *cpu, struct kvm_run *run, int ipb_code)
++#define DIAG_KVM_CODE_MASK 0x000000000000ffff
++
++static int handle_diag(S390CPU *cpu, struct kvm_run *run, uint32_t ipb)
+ {
+     int r = 0;
+-
+-    switch (ipb_code) {
++    uint16_t func_code;
++
++    /*
++     * For any diagnose call we support, bits 48-63 of the resulting
++     * address specify the function code; the remainder is ignored.
++     */
++    func_code = decode_basedisp_rs(&cpu->env, ipb) & DIAG_KVM_CODE_MASK;
++    switch (func_code) {
+     case DIAG_IPL:
+         kvm_handle_diag_308(cpu, run);
+         break;
+@@ -577,7 +585,7 @@ static int handle_diag(S390CPU *cpu, struct kvm_run *run, int ipb_code)
+         sleep(10);
+         break;
+     default:
+-        DPRINTF("KVM: unknown DIAG: 0x%x\n", ipb_code);
++        DPRINTF("KVM: unknown DIAG: 0x%x\n", func_code);
+         r = -1;
+         break;
+     }
+@@ -684,7 +692,6 @@ static void handle_instruction(S390CPU *cpu, struct kvm_run *run)
+ {
+     unsigned int ipa0 = (run->s390_sieic.ipa & 0xff00);
+     uint8_t ipa1 = run->s390_sieic.ipa & 0x00ff;
+-    int ipb_code = (run->s390_sieic.ipb & 0x0fff0000) >> 16;
+     int r = -1;
+ 
+     DPRINTF("handle_instruction 0x%x 0x%x\n",
+@@ -696,7 +703,7 @@ static void handle_instruction(S390CPU *cpu, struct kvm_run *run)
+         r = handle_priv(cpu, run, ipa0 >> 8, ipa1);
+         break;
+     case IPA0_DIAG:
+-        r = handle_diag(cpu, run, ipb_code);
++        r = handle_diag(cpu, run, run->s390_sieic.ipb);
+         break;
+     case IPA0_SIGP:
+         r = handle_sigp(cpu, run, ipa1);
+diff --git a/tcg/arm/tcg-target.c b/tcg/arm/tcg-target.c
+index e93a4a2..5d4bbe7 100644
+--- a/tcg/arm/tcg-target.c
++++ b/tcg/arm/tcg-target.c
+@@ -1868,7 +1868,7 @@ static inline void tcg_out_op(TCGContext *s, TCGOpcode opc,
+                             SHIFT_IMM_ROR((0x20 - args[2]) & 0x1f) :
+                             SHIFT_IMM_LSL(0));
+         } else {
+-            tcg_out_dat_imm(s, COND_AL, ARITH_RSB, TCG_REG_TMP, args[1], 0x20);
++            tcg_out_dat_imm(s, COND_AL, ARITH_RSB, TCG_REG_TMP, args[2], 0x20);
+             tcg_out_dat_reg(s, COND_AL, ARITH_MOV, args[0], 0, args[1],
+                             SHIFT_REG_ROR(TCG_REG_TMP));
+         }
+diff --git a/tcg/optimize.c b/tcg/optimize.c
+index 89e2d6a..c5cdde2 100644
+--- a/tcg/optimize.c
++++ b/tcg/optimize.c
+@@ -726,16 +726,25 @@ static TCGArg *tcg_constant_folding(TCGContext *s, uint16_t *tcg_opc_ptr,
+             mask = temps[args[1]].mask & mask;
+             break;
+ 
+-        CASE_OP_32_64(sar):
++        case INDEX_op_sar_i32:
++            if (temps[args[2]].state == TCG_TEMP_CONST) {
++                mask = (int32_t)temps[args[1]].mask >> temps[args[2]].val;
++            }
++            break;
++        case INDEX_op_sar_i64:
+             if (temps[args[2]].state == TCG_TEMP_CONST) {
+-                mask = ((tcg_target_long)temps[args[1]].mask
+-                        >> temps[args[2]].val);
++                mask = (int64_t)temps[args[1]].mask >> temps[args[2]].val;
+             }
+             break;
+ 
+-        CASE_OP_32_64(shr):
++        case INDEX_op_shr_i32:
++            if (temps[args[2]].state == TCG_TEMP_CONST) {
++                mask = (uint32_t)temps[args[1]].mask >> temps[args[2]].val;
++            }
++            break;
++        case INDEX_op_shr_i64:
+             if (temps[args[2]].state == TCG_TEMP_CONST) {
+-                mask = temps[args[1]].mask >> temps[args[2]].val;
++                mask = (uint64_t)temps[args[1]].mask >> temps[args[2]].val;
+             }
+             break;
+ 
+diff --git a/translate-all.c b/translate-all.c
+index aeda54d..1c63d78 100644
+--- a/translate-all.c
++++ b/translate-all.c
+@@ -96,12 +96,16 @@ typedef struct PageDesc {
+ # define L1_MAP_ADDR_SPACE_BITS  TARGET_VIRT_ADDR_SPACE_BITS
+ #endif
+ 
++/* Size of the L2 (and L3, etc) page tables.  */
++#define V_L2_BITS 10
++#define V_L2_SIZE (1 << V_L2_BITS)
++
+ /* The bits remaining after N lower levels of page tables.  */
+ #define V_L1_BITS_REM \
+-    ((L1_MAP_ADDR_SPACE_BITS - TARGET_PAGE_BITS) % L2_BITS)
++    ((L1_MAP_ADDR_SPACE_BITS - TARGET_PAGE_BITS) % V_L2_BITS)
+ 
+ #if V_L1_BITS_REM < 4
+-#define V_L1_BITS  (V_L1_BITS_REM + L2_BITS)
++#define V_L1_BITS  (V_L1_BITS_REM + V_L2_BITS)
+ #else
+ #define V_L1_BITS  V_L1_BITS_REM
+ #endif
+@@ -395,18 +399,18 @@ static PageDesc *page_find_alloc(tb_page_addr_t index, int alloc)
+     lp = l1_map + ((index >> V_L1_SHIFT) & (V_L1_SIZE - 1));
+ 
+     /* Level 2..N-1.  */
+-    for (i = V_L1_SHIFT / L2_BITS - 1; i > 0; i--) {
++    for (i = V_L1_SHIFT / V_L2_BITS - 1; i > 0; i--) {
+         void **p = *lp;
+ 
+         if (p == NULL) {
+             if (!alloc) {
+                 return NULL;
+             }
+-            ALLOC(p, sizeof(void *) * L2_SIZE);
++            ALLOC(p, sizeof(void *) * V_L2_SIZE);
+             *lp = p;
+         }
+ 
+-        lp = p + ((index >> (i * L2_BITS)) & (L2_SIZE - 1));
++        lp = p + ((index >> (i * V_L2_BITS)) & (V_L2_SIZE - 1));
+     }
+ 
+     pd = *lp;
+@@ -414,13 +418,13 @@ static PageDesc *page_find_alloc(tb_page_addr_t index, int alloc)
+         if (!alloc) {
+             return NULL;
+         }
+-        ALLOC(pd, sizeof(PageDesc) * L2_SIZE);
++        ALLOC(pd, sizeof(PageDesc) * V_L2_SIZE);
+         *lp = pd;
+     }
+ 
+ #undef ALLOC
+ 
+-    return pd + (index & (L2_SIZE - 1));
++    return pd + (index & (V_L2_SIZE - 1));
+ }
+ 
+ static inline PageDesc *page_find(tb_page_addr_t index)
+@@ -655,14 +659,14 @@ static void page_flush_tb_1(int level, void **lp)
+     if (level == 0) {
+         PageDesc *pd = *lp;
+ 
+-        for (i = 0; i < L2_SIZE; ++i) {
++        for (i = 0; i < V_L2_SIZE; ++i) {
+             pd[i].first_tb = NULL;
+             invalidate_page_bitmap(pd + i);
+         }
+     } else {
+         void **pp = *lp;
+ 
+-        for (i = 0; i < L2_SIZE; ++i) {
++        for (i = 0; i < V_L2_SIZE; ++i) {
+             page_flush_tb_1(level - 1, pp + i);
+         }
+     }
+@@ -673,7 +677,7 @@ static void page_flush_tb(void)
+     int i;
+ 
+     for (i = 0; i < V_L1_SIZE; i++) {
+-        page_flush_tb_1(V_L1_SHIFT / L2_BITS - 1, l1_map + i);
++        page_flush_tb_1(V_L1_SHIFT / V_L2_BITS - 1, l1_map + i);
+     }
+ }
+ 
+@@ -1600,7 +1604,7 @@ static int walk_memory_regions_1(struct walk_memory_regions_data *data,
+     if (level == 0) {
+         PageDesc *pd = *lp;
+ 
+-        for (i = 0; i < L2_SIZE; ++i) {
++        for (i = 0; i < V_L2_SIZE; ++i) {
+             int prot = pd[i].flags;
+ 
+             pa = base | (i << TARGET_PAGE_BITS);
+@@ -1614,9 +1618,9 @@ static int walk_memory_regions_1(struct walk_memory_regions_data *data,
+     } else {
+         void **pp = *lp;
+ 
+-        for (i = 0; i < L2_SIZE; ++i) {
++        for (i = 0; i < V_L2_SIZE; ++i) {
+             pa = base | ((abi_ulong)i <<
+-                (TARGET_PAGE_BITS + L2_BITS * level));
++                (TARGET_PAGE_BITS + V_L2_BITS * level));
+             rc = walk_memory_regions_1(data, pa, level - 1, pp + i);
+             if (rc != 0) {
+                 return rc;
+@@ -1639,7 +1643,7 @@ int walk_memory_regions(void *priv, walk_memory_regions_fn fn)
+ 
+     for (i = 0; i < V_L1_SIZE; i++) {
+         int rc = walk_memory_regions_1(&data, (abi_ulong)i << V_L1_SHIFT,
+-                                       V_L1_SHIFT / L2_BITS - 1, l1_map + i);
++                                       V_L1_SHIFT / V_L2_BITS - 1, l1_map + i);
+ 
+         if (rc != 0) {
+             return rc;
+diff --git a/translate-all.h b/translate-all.h
+index 5c38819..f7e5932 100644
+--- a/translate-all.h
++++ b/translate-all.h
+@@ -19,13 +19,6 @@
+ #ifndef TRANSLATE_ALL_H
+ #define TRANSLATE_ALL_H
+ 
+-/* Size of the L2 (and L3, etc) page tables.  */
+-#define L2_BITS 10
+-#define L2_SIZE (1 << L2_BITS)
+-
+-#define P_L2_LEVELS \
+-    (((TARGET_PHYS_ADDR_SPACE_BITS - TARGET_PAGE_BITS - 1) / L2_BITS) + 1)
+-
+ /* translate-all.c */
+ void tb_invalidate_phys_page_fast(tb_page_addr_t start, int len);
+ void cpu_unlink_tb(CPUState *cpu);
+diff --git a/vl.c b/vl.c
+index 8d5d874..30b5076 100644
+--- a/vl.c
++++ b/vl.c
+@@ -589,6 +589,7 @@ typedef struct {
+ static const RunStateTransition runstate_transitions_def[] = {
+     /*     from      ->     to      */
+     { RUN_STATE_DEBUG, RUN_STATE_RUNNING },
++    { RUN_STATE_DEBUG, RUN_STATE_FINISH_MIGRATE },
+ 
+     { RUN_STATE_INMIGRATE, RUN_STATE_RUNNING },
+     { RUN_STATE_INMIGRATE, RUN_STATE_PAUSED },
+@@ -3488,11 +3489,16 @@ int main(int argc, char **argv, char **envp)
+             }
+             case QEMU_OPTION_acpitable:
+                 opts = qemu_opts_parse(qemu_find_opts("acpi"), optarg, 1);
+-                g_assert(opts != NULL);
++                if (!opts) {
++                    exit(1);
++                }
+                 do_acpitable_option(opts);
+                 break;
+             case QEMU_OPTION_smbios:
+                 opts = qemu_opts_parse(qemu_find_opts("smbios"), optarg, 0);
++                if (!opts) {
++                    exit(1);
++                }
+                 do_smbios_option(opts);
+                 break;
+             case QEMU_OPTION_enable_kvm:

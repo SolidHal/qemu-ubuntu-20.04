@@ -1,0 +1,24 @@
+Commit: 19a894ba777fa45c6f89ae007570311384204a69
+Author: Pavel Zbitskiy <pavel.zbitskiy@gmail.com>
+Date: Sat Jan 11 13:34:09 2014 +0400
+Subject: linux-user: fixed s390x clone() argument order
+Bugs-Debian: http://bugs.debian.org/739800
+    
+It was broken by 4ce6243dc6216e35b5b691078ffa856463bfa8db,
+where TARGET_CLONE_BACKWARDS was specified instead of
+TARGET_CLONE_BACKWARDS2.
+    
+Signed-off-by: Pavel Zbitskiy <pavel.zbitskiy@gmail.com>
+Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+
+diff --git a/linux-user/s390x/syscall.h b/linux-user/s390x/syscall.h
+index ea8c304..e5ce30b 100644
+--- a/linux-user/s390x/syscall.h
++++ b/linux-user/s390x/syscall.h
+@@ -22,4 +22,4 @@ struct target_pt_regs {
+ 
+ #define UNAME_MACHINE "s390x"
+ 
+-#define TARGET_CLONE_BACKWARDS
++#define TARGET_CLONE_BACKWARDS2
