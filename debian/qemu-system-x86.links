@@ -26,4 +26,3 @@ usr/lib/ipxe/qemu/efi-ne2k_pci.rom usr/share/qemu/efi-ne2k_pci.rom
 usr/lib/ipxe/qemu/efi-pcnet.rom usr/share/qemu/efi-pcnet.rom
 usr/lib/ipxe/qemu/efi-rtl8139.rom usr/share/qemu/efi-rtl8139.rom
 usr/lib/ipxe/qemu/efi-virtio.rom usr/share/qemu/efi-virtio.rom
-usr/share/ovmf/OVMF.fd usr/share/qemu/OVMF.fd

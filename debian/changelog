@@ -1,3 +1,11 @@
+qemu (1.7.0+dfsg-5) unstable; urgency=medium
+
+  * remove OVMF.fd symlink added in -4, it belongs to ovmf (Closes: #741494)
+  * qemu-debootstrap: add support for arm64 architecture (Closes: #740112)
+  * mention closing of #725176 by 1.7.0
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 13 Mar 2014 06:21:01 +0400
+
 qemu (1.7.0+dfsg-4) unstable; urgency=medium
 
   [ Michael Tokarev ]
@@ -68,7 +76,7 @@ qemu (1.7.0+dfsg-2) unstable; urgency=low
 
 qemu (1.7.0+dfsg-1) unstable; urgency=low
 
-  * new upstream release (Closes: #724758, #326886, #390444, #706237)
+  * new upstream release (Closes: #724758, #326886, #390444, #706237, #725176)
     Also fixes CVE-2013-4375 (xen-specific qemu disk backend (qdisk)
     resource leak)
   * tweak kvm loading script to not load module for 3.4+ kernel

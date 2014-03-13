@@ -140,6 +140,9 @@ case "$deb_arch" in
   armel|armhf)
     qemu_arch="arm"
   ;;
+  arm64)
+    qemu_arch="aarch64"
+  ;;
   lpia)
     qemu_arch="i386"
   ;;
