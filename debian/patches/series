@@ -1,11 +1,4 @@
-qemu-1.7.1.diff
 02_kfreebsd.patch
 retry-pxe-after-efi.patch
 use-fixed-data-path.patch
-fix-smb-security-share.patch
 move-ncalrpc-dir-to-tmp.patch
-slirp-smb-redirect-port-445-too.patch
-# fixes from upstream
-implement-posix-timers.diff
-address_space_translate-do-not-cross-page-boundaries.diff
-linux-user-fixed-s390x-clone-argument-order.patch

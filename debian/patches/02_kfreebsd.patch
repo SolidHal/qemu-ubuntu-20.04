@@ -1,6 +1,6 @@
 --- a/configure
 +++ b/configure
-@@ -2406,6 +2406,14 @@
+@@ -3043,6 +3043,14 @@ cat > $TMPC << EOF
  #include <fcntl.h>
  #include <sys/stat.h>
  

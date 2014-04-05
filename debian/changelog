@@ -1,3 +1,28 @@
+qemu (2.0.0~rc1+dfsg-1exp) experimental; urgency=low
+
+  * new upstream release candidate (2.0-rc1)
+    Closes: #742730 -- image format processing issues
+    Closes: #739589 -- migration format processing issues
+    Closes: #743235
+  * refreshed patches:
+    02_kfreebsd.patch
+    retry-pxe-after-efi.patch
+    use-fixed-data-path.patch
+  * removed patches applied upstream:
+    qemu-1.7.1.diff
+    address_space_translate-do-not-cross-page-boundaries.diff
+    fix-smb-security-share.patch
+    slirp-smb-redirect-port-445-too.patch
+    implement-posix-timers.diff
+    linux-user-fixed-s390x-clone-argument-order.patch
+  * added bios-256k.bin symlink and bump seabios dependency to >= 1.7.4-2
+  * recommend ovmf package for qemu-system-x86 to support UEFI boot
+    (Closes: #714249)
+  * switch from sdl1 to sdl2 (build-depend on libsdl2-dev)
+  * output last 50 lines of config.log in case configure failed
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 05 Apr 2014 16:23:48 +0400
+
 qemu (1.7.0+dfsg-6) unstable; urgency=medium
 
   * make ceph (rbd) support linux-only, since it exists only on linux

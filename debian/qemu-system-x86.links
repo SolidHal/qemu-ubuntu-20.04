@@ -1,4 +1,5 @@
 usr/share/seabios/bios.bin usr/share/qemu/bios.bin
+usr/share/seabios/bios-256k.bin usr/share/qemu/bios-256k.bin
 usr/share/seabios/optionrom/linuxboot.bin usr/share/qemu/linuxboot.bin
 usr/share/seabios/optionrom/multiboot.bin usr/share/qemu/multiboot.bin
 usr/share/seabios/optionrom/extboot.bin usr/share/qemu/extboot.bin
