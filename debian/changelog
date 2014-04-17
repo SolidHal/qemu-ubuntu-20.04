@@ -1,9 +1,33 @@
+qemu (2.0.0+dfsg-1) unstable; urgency=low
+
+  * 2.0 actually does not close #739589,
+    remove it from from last changelog entry
+  * mention closing of #707629 by 2.0
+  * mention a list of CVE IDs closed by #742730
+  * mention closing of CVE-2013-4377 by 1.7.0-6
+  * do not set --enable-uname-release=2.6.32 for qemu-user anymore
+    (was needed for old ubuntu builders)
+  * removed 02_kfreebsd.patch: it adds configure check for futimens() and
+    futimesat() syscalls on FreeBSD, however futimens() appeared in FreeBSD
+    5.0, and futimesat() in 8.0, and 8.0 is the earliest supported version
+  * kmod dependency is linux-any
+  * doc-grammify-allows-to.patch: fix some lintian warnings
+  * remove alternatives for qemu: different architectures
+    aren't really alternatives and never had been 
+  * update Standards-Version to 3.9.5 (no changes needed)
+  * exec-limit-translation-limiting-in-address_space_translate-to-xen.diff -
+    fixes windows BSOD with virtio-scsi when upgrading from 1.7.0 to 1.7.1
+    or 2.0, among other things
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 17 Apr 2014 18:27:15 +0400
+
 qemu (2.0.0~rc1+dfsg-1exp) experimental; urgency=low
 
   * new upstream release candidate (2.0-rc1)
-    Closes: #742730 -- image format processing issues
-    Closes: #739589 -- migration format processing issues
-    Closes: #743235
+    Closes: #742730 -- image format processing issues:
+     CVE-2014-0142 CVE-2014-0143 CVE-2014-0144 CVE-2014-0145
+     CVE-2014-0146 CVE-2014-0147 CVE-2014-0148
+    Closes: #743235, #707629
   * refreshed patches:
     02_kfreebsd.patch
     retry-pxe-after-efi.patch
@@ -23,6 +47,27 @@ qemu (2.0.0~rc1+dfsg-1exp) experimental; urgency=low
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 05 Apr 2014 16:23:48 +0400
 
+qemu (1.7.0+dfsg-9) unstable; urgency=medium
+
+  * remove rbd/rados/ceph support *again*, till they'll actually provide
+    some symbol/library version mechanism
+    (Closes:  #744364, Reopens: #729961, #689239)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 13 Apr 2014 18:49:46 +0400
+
+qemu (1.7.0+dfsg-8) unstable; urgency=low
+
+  * fix a brown-paper-bag bug in the previous upload
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 11 Apr 2014 22:01:32 +0400
+
+qemu (1.7.0+dfsg-7) unstable; urgency=high
+
+  * fix guest-triggerable buffer overrun in virtio-net device
+    (Closes: #744221 CVE-2014-0150)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 11 Apr 2014 20:27:16 +0400
+
 qemu (1.7.0+dfsg-6) unstable; urgency=medium
 
   * make ceph (rbd) support linux-only, since it exists only on linux
@@ -41,6 +86,7 @@ qemu (1.7.0+dfsg-4) unstable; urgency=medium
 
   [ Michael Tokarev ]
   * 1.7.1 stable upstream release (Closes: #719633)
+    Closes: CVE-2013-4377
   * implement-posix-timers.diff from upstream (Closes: #732258)
   * address_space_translate-do-not-cross-page-boundaries.diff -
     upstream bugfix for xen

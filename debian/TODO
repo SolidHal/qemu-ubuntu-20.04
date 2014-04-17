@@ -21,6 +21,8 @@
 
 * startup script for qemu-guest-agent: check dependencies & runlevels.
 
+* remove /usr/bin/qemu alternative removing for jessie+1
+
 * maybe provide activation for udev & systemd:
 
    SUBSYSTEM=="virtio-ports", ATTR{name}=="org.qemu.guest_agent.0", \

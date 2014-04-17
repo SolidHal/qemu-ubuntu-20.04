@@ -1101,8 +1101,10 @@ static struct scsi_task *iscsi_do_inquiry(struct iscsi_context *iscsi, int lun,
     return task;
 
 fail:
-    error_setg(errp, "iSCSI: Inquiry command failed : %s",
-               iscsi_get_error(iscsi));
+    if (!error_is_set(errp)) {
+        error_setg(errp, "iSCSI: Inquiry command failed : %s",
+                   iscsi_get_error(iscsi));
+    }
     if (task != NULL) {
         scsi_free_scsi_task(task);
     }
@@ -1231,6 +1233,7 @@ static int iscsi_open(BlockDriverState *bs, QDict *options, int flags,
     iscsi_readcapacity_sync(iscsilun, &local_err);
     if (local_err != NULL) {
         error_propagate(errp, local_err);
+        ret = -EINVAL;
         goto out;
     }
     bs->total_sectors = sector_lun2qemu(iscsilun->num_blocks, iscsilun);

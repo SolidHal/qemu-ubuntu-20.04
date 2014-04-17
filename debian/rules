@@ -39,7 +39,6 @@ common_configure_opts = \
 	--with-system-pixman \
 	--interp-prefix=/etc/qemu-binfmt/%M \
 	--localstatedir=/var \
-	--enable-uname-release=2.6.32 \
 
 ifeq (${enable_system},enable)
 
@@ -169,9 +168,8 @@ binary-arch: install
 binary: install
 
 define inst-system
-	for x in postinst prerm postrm; do \
-	  sed 's/@ARCH@/${sysarch_$1}/' debian/qemu-system-alternatives.in > debian/qemu-system-$1.$$x.debhelper; \
-	done
+# remove alternatives for jessie+1
+	sed 's/@ARCH@/${sysarch_$1}/' debian/qemu-system-alternatives.in > debian/qemu-system-$1.postinst.debhelper
 	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
 	for t in ${sysarch_$1}; do \
 	    mv debian/tmp/usr/bin/qemu-system-$$t debian/qemu-system-$1/usr/bin/; \

@@ -133,6 +133,7 @@ dummy := $(call unnest-vars,, \
                 stub-obj-y \
                 util-obj-y \
                 qga-obj-y \
+                qga-vss-dll-obj-y \
                 block-obj-y \
                 block-obj-m \
                 common-obj-y \
@@ -376,7 +377,7 @@ endif
 ifneq ($(CONFIG_MODULES),)
 	$(INSTALL_DIR) "$(DESTDIR)$(qemu_moddir)"
 	for s in $(patsubst %.mo,%$(DSOSUF),$(modules-m)); do \
-		$(INSTALL_PROG) $(STRIP_OPT) $$s "$(DESTDIR)$(qemu_moddir)/$${s//\//-}"; \
+		$(INSTALL_PROG) $(STRIP_OPT) $$s "$(DESTDIR)$(qemu_moddir)/$$(echo $$s | tr / -)"; \
 	done
 endif
 ifneq ($(HELPERS-y),)
