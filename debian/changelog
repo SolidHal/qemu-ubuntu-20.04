@@ -1,3 +1,10 @@
+qemu (2.0.0+dfsg-2) unstable; urgency=medium
+
+  * resurrect 02_kfreebsd.patch, -- without it qemu FTBFS on current
+    Debian kFreeBSD system still.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 17 Apr 2014 22:04:38 +0400
+
 qemu (2.0.0+dfsg-1) unstable; urgency=low
 
   * 2.0 actually does not close #739589,
