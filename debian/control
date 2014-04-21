@@ -53,13 +53,11 @@ Build-Depends: debhelper (>= 9),
  libpixman-1-dev,
 # audio-drv-list += pa
  libpulse-dev,
-## --enable-rbd		linux-*
-# librados-dev [linux-any], librbd-dev [linux-any],
 # --enable-vnc-sasl
  libsasl2-dev,
-# --enable-sdl
-# --with-sdlabi=2.0
- libsdl2-dev,
+# note: libsdl2-dev is in universe on ubuntu
+# --enable-sdl --with-sdlabi=1.2
+ libsdl1.2-dev (>> 1.2.1),
 # --enable-seccomp	linux-amd64|linux-i386
  libseccomp-dev (>> 2.1.0) [linux-amd64 linux-i386],
 # --enable-spice	linux-amd64|linux-i386
@@ -314,6 +312,7 @@ Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common, qemu-keymaps,
  seabios (>= 1.7.4-2~), ipxe-qemu
 Recommends: qemu-utils,
+# ovmf recommends is debian-only because ubuntu/ovmf is in multiverse
  ovmf,
 Suggests: samba, vde2, kmod [linux-any], sgabios
 Provides: ${sysprovides:x86}
@@ -413,6 +412,7 @@ Description: Guest-side qemu-system agent
 Package: qemu-kvm
 Architecture: i386 amd64
 Multi-Arch: foreign
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ${misc:Depends}, qemu-system-x86 (>= 1.7.0+dfsg-2~)
 Provides: kvm,
 Conflicts: kvm,
@@ -424,4 +424,5 @@ Description: QEMU Full virtualization on x86 hardware (transitional package)
  .
  Please note that old qemu-kvm configuration files (in /etc/kvm/) are
  no longer used.
+
 

@@ -36,7 +36,8 @@ Build-Depends: debhelper (>= 9),
 # --enable-curl
  libcurl4-gnutls-dev,
 # --enable-fdt
- libfdt-dev,
+:debian: libfdt-dev,
+:ubuntu: libfdt-dev (>= 1.4.0),
 # --enable-vnc-tls
 # --enable-vnc-ws
  libgnutls-dev,
@@ -55,13 +56,13 @@ Build-Depends: debhelper (>= 9),
  libpixman-1-dev,
 # audio-drv-list += pa
  libpulse-dev,
-## --enable-rbd		linux-*
-# librados-dev [linux-any], librbd-dev [linux-any],
+:ubuntu:# --enable-rbd		linux-*
+:ubuntu: librados-dev [linux-any], librbd-dev [linux-any],
 # --enable-vnc-sasl
  libsasl2-dev,
-# --enable-sdl
-# --with-sdlabi=2.0
- libsdl2-dev,
+# note: libsdl2-dev is in universe on ubuntu
+# --enable-sdl --with-sdlabi=1.2
+ libsdl1.2-dev (>> 1.2.1),
 # --enable-seccomp	linux-amd64|linux-i386
  libseccomp-dev (>> 2.1.0) [linux-amd64 linux-i386],
 # --enable-spice	linux-amd64|linux-i386
@@ -237,10 +238,12 @@ Breaks: qemu-system (<< 1.3.0+dfsg-5),
 :ubuntu: qemu-common (<< 1.3.0+dfsg-5),
 :ubuntu: qemu-kvm (<< 1.2.0.dfsg-1),
 :ubuntu: kvm (<< 1.3.0+dfsg-5),
+:ubuntu: qemu-system-aarch64 (<< 2.0.0~rc1+dfsg-0ubuntu1),
 Replaces: qemu-system (<< 1.3.0+dfsg-5),
 :ubuntu: qemu-common (<< 1.3.0+dfsg-5),
 :ubuntu: qemu-kvm (<< 1.2.0.dfsg-1),
 :ubuntu: kvm (<< 1.3.0+dfsg-5),
+:ubuntu: qemu-system-aarch64 (<< 2.0.0~rc1+dfsg-0ubuntu1),
 Description: QEMU full system emulation binaries (arm)
  QEMU is a fast processor emulator: currently the package supports
  ARM emulation. By using dynamic translation it achieves
@@ -345,7 +348,8 @@ Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common, qemu-keymaps,
  seabios (>= 1.7.4-2~), ipxe-qemu
 Recommends: qemu-utils,
- ovmf,
+# ovmf recommends is debian-only because ubuntu/ovmf is in multiverse
+:debian: ovmf,
 :ubuntu: cpu-checker
 Suggests: samba, vde2, kmod [linux-any], sgabios
 Provides: ${sysprovides:x86}
@@ -457,6 +461,7 @@ Package: qemu-kvm
 :debian:Architecture: i386 amd64
 :ubuntu:Architecture: i386 amd64 armhf armel powerpc sparc
 Multi-Arch: foreign
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ${misc:Depends}, qemu-system-x86 (>= 1.7.0+dfsg-2~)
 Provides: kvm,
 :ubuntu: qemu-kvm-spice
@@ -480,3 +485,15 @@ Description: QEMU Full virtualization on x86 hardware (transitional package)
 :ubuntu: This transitional package helps users transition from the qemu-common package
 :ubuntu: to the qemu-keymaps package.  Once this package and its dependencies are
 :ubuntu: installed you can safely remove it.
+
+:ubuntu:Package: qemu-system-aarch64
+:ubuntu:Architecture: arm64
+:ubuntu:Multi-Arch: foreign
+:ubuntu:Depends: ${misc:Depends}, qemu-system-arm (>= 2.0~git-20140403.de03c31-0ubuntu2)
+:ubuntu:Description: QEMU full system emulation binaries (aarch64)
+:ubuntu: QEMU is a fast processor emulator: currently the package supports
+:ubuntu: ARM emulation. By using dynamic translation it achieves
+:ubuntu: reasonable speed while being easy to port on new host CPUs.
+:ubuntu: .
+:ubuntu: This is a transition package as qemu-system-aarch64 has been moved into
+:ubuntu: qemu-system-arm.

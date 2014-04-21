@@ -1,6 +1,12 @@
 #!/usr/bin/make -f
 
+DEB_VENDOR := $(shell dpkg-vendor --query vendor)
+ifeq ($(DEB_VENDOR),Ubuntu)
+VENDOR := ubuntu
+DEB_BUILD_PARALLEL = yes
+else
 VENDOR := debian
+endif
 
 # support parallel build using DEB_BUILD_OPTIONS=parallel=N
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))

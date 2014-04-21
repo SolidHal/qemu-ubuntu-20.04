@@ -1,6 +1,7 @@
 02_kfreebsd.patch
 retry-pxe-after-efi.patch
 use-fixed-data-path.patch
+mjt-set-oem-in-rsdt-like-slic.diff
 move-ncalrpc-dir-to-tmp.patch
 doc-grammify-allows-to.patch
 exec-limit-translation-limiting-in-address_space_translate-to-xen.diff
