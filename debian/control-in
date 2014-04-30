@@ -348,10 +348,8 @@ Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common, qemu-keymaps,
  seabios (>= 1.7.4-2~), ipxe-qemu
 Recommends: qemu-utils,
-# ovmf recommends is debian-only because ubuntu/ovmf is in multiverse
-:debian: ovmf,
 :ubuntu: cpu-checker
-Suggests: samba, vde2, kmod [linux-any], sgabios
+Suggests: samba, vde2, kmod [linux-any], sgabios, ovmf
 Provides: ${sysprovides:x86}
 :ubuntu:Conflicts: kvm (<< 1.3.0+dfsg-5)
 Breaks:
