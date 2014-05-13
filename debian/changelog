@@ -1,3 +1,14 @@
+qemu (2.0.0+dfsg-5) unstable; urgency=medium
+
+  * re-re-enable rbd (ceph) support again (Closes: #689239)
+    Should watch for breakage and for runtime dependencies closely from now on.
+  * fix qemu-kvm package description (stop mentioning it is transitional)
+  * move all binfmt handling from many files to d/binfmt-update-in
+  * introduce qemu-user-binfmt (dummy) package to support binfmt
+    registration of qemu-user binaries (Closes: #677529)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 13 May 2014 21:15:48 +0400
+
 qemu (2.0.0+dfsg-4) unstable; urgency=medium
 
   * suggests ovmf, not recommends it as it is not in -main (Closes: #745698)
