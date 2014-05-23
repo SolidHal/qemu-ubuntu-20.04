@@ -1,3 +1,15 @@
+qemu (2.0.0+dfsg-6) unstable; urgency=medium
+
+  * build-depend on libgnutls28-dev not libgnutls-dev
+  * added qcow1 block format validation patches from upstream:
+   block-fmt-validation/qcow1-check-maximum-cluster-size.patch
+   block-fmt-validation/qcow1-stricter-backing-file-length-check.patch
+   block-fmt-validation/qcow1-validate-image-size-CVE-2014-0223.patch
+   block-fmt-validation/qcow1-validate-L2-table-size-CVE-2014-0222.patch
+    (Finally closes: #742730, CVE-2014-0222, CVE-2014-0223)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 23 May 2014 12:12:38 +0400
+
 qemu (2.0.0+dfsg-5) unstable; urgency=medium
 
   * re-re-enable rbd (ceph) support again (Closes: #689239)
