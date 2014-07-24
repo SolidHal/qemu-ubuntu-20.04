@@ -1,3 +1,22 @@
+qemu (2.0.0+dfsg-7) unstable; urgency=medium
+
+  * clarify description of qemu-user-binfmt a bit 
+  * build-depend on acpica-tools (iasl) in order to rebuild .dsl files
+  * remove qemu-keymaps package, since it is not used by other tools
+    anymore, and ship keymaps in qemu-system-common.
+  * remove (and break by qemu-system-common) old qemu-common for
+    ubuntu too, since it was transitional-to-qemu-keymaps pkg
+  * reorganize docs (Closes: #751376):
+   - do not ship docs in qemu (meta)package, except of qemu-doc.html
+   - ship most of docs/* in qemu-system-common in /usr/share/doc/q-s-c/
+   - make symlinks from /usr/share/doc/qemu-system-foo/common to ../q-s-c/
+   - ship doc-base file for qemu-system-common too (for qemu-doc.html)
+   - rename qemu.1 manpage to qemu-system.1
+  * qemu-user-static & qemu-user-binfmt conflict with each other, not break.
+  * mention that qemu-user-binfmt is empty package (lintian)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 24 Jul 2014 16:51:16 +0400
+
 qemu (2.0.0+dfsg-6) unstable; urgency=medium
 
   * build-depend on libgnutls28-dev not libgnutls-dev

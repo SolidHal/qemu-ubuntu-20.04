@@ -158,11 +158,12 @@ define inst-system
 	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
 	for t in ${sysarch_$1}; do \
 	    mv debian/tmp/usr/bin/qemu-system-$$t debian/qemu-system-$1/usr/bin/; \
-	    echo ".so man1/qemu.1" > debian/qemu-system-$1/usr/share/man/man1/qemu-system-$$t.1; \
+	    echo ".so man1/qemu-system.1" > debian/qemu-system-$1/usr/share/man/man1/qemu-system-$$t.1; \
 	done
 	echo sysarch:$1=${sysarch_$1} > debian/qemu-system-$1.substvars
 	echo sysprovides:$1=${addprefix qemu-system-,${filter-out $1,${sysarch_$1}}} | \
 	  sed -e 's/ /, /g' -e 'y/_/-/' >> debian/qemu-system-$1.substvars
+	dh_link -pqemu-system-$1 usr/share/doc/qemu-system-common usr/share/doc/qemu-system-$1/common
 
 endef
 
@@ -178,6 +179,7 @@ install: build-stamp
 ifeq (${enable_system},enable)
 
 	# qemu-system subpackages
+	mv debian/tmp/usr/share/man/man1/qemu.1 debian/tmp/usr/share/man/man1/qemu-system.1
 	$(foreach s,${systems},$(call inst-system,$s))
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
