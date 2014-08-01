@@ -50,7 +50,7 @@ Build-Depends: debhelper (>= 9),
 # --disable-vte
 # libiscsi is debian-only since ubuntu/libiscsi is in universe
 :debian:# --enable-libiscsi
-:debian: libiscsi-dev,
+:debian: libiscsi-dev (>> 1.9.0~),
 # --enable-curses
  libncurses5-dev,
 # --with-system-pixman
@@ -102,6 +102,7 @@ Build-Depends: debhelper (>= 9),
 ##--enable-glusterfs todo
 ##--enable-lzo todo
 ##--enable-libnfs todo
+##:debian: libnfs-dev (>> 1.9.4)
 ##--enable-netmap todo bsd
 ##--enable-quorum todo needs gcrypt
 ##--enable-xen-pci-passthrough todo
@@ -109,10 +110,10 @@ Build-Conflicts: oss4-dev
 Standards-Version: 3.9.5
 Homepage: http://www.qemu.org/
 :debian:Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-qemu/qemu.git
-:ubuntu:Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-qemu/qemu.git;a=shortlog;h=refs/heads/ubuntu-trusty
+:ubuntu:Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-qemu/qemu.git;a=shortlog;h=refs/heads/ubuntu-utopic
 :ubuntu:XS-Debian-Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-qemu/qemu.git
 :debian:Vcs-Git: git://anonscm.debian.org/pkg-qemu/qemu.git
-:ubuntu:Vcs-Git: git://anonscm.debian.org/pkg-qemu/qemu.git -b ubuntu-trusty
+:ubuntu:Vcs-Git: git://anonscm.debian.org/pkg-qemu/qemu.git -b ubuntu-utopic
 :ubuntu:XS-Debian-Vcs-Git: git://anonscm.debian.org/pkg-qemu/qemu.git
 
 Package: qemu
@@ -421,15 +422,16 @@ Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 mips mipsel powerpc pow
 Multi-Arch: foreign
 Depends: ${misc:Depends}, qemu-user (= ${binary:Version}), binfmt-support
 Conflicts: qemu-user-static
-Description: QEMU user mode binfmt registration for qemu-user (empty package)
+Description: QEMU user mode binfmt registration for qemu-user
  QEMU is a fast processor emulator: currently the package supports
  ARM, CRIS, i386, M68k (ColdFire), MicroBlaze, MIPS, PowerPC, SH4,
  SPARC and x86-64 emulation. By using dynamic translation it achieves
  reasonable speed while being easy to port on new host CPUs.
  .
  This package provides binfmt support registration for the user mode
- emulation binaries from qemu-user.  It does not contain any additional
- files, only registration scripts which run at install and remove times.
+ emulation binaries from qemu-user.  This is an empty package, it does
+ not contain any additional files, only registration scripts which run
+ at install and remove times.
 
 Package: qemu-utils
 Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64

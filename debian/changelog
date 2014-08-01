@@ -1,3 +1,18 @@
+qemu (2.1+dfsg-1) unstable; urgency=medium
+
+  * new upstream release
+    Closes: #739589 CVE-2014-3461
+    Closes: #735618
+  * versioned build-depend on libiscsi-dev (>>1.9.0~)
+  * added ppc64le user target
+  * fix description of qemu-user-binfmt wrt "empty" (Closes: #755988)
+  * use /usr/share/dpkg/pkg-info.mk instead of inventing the same locally
+  * added debian/get-orig-source.sh (and a d/rules target)
+  * set ubuntu vcs branch to ubuntu-utopic
+  * binfmt-update-in: make sure to filter out compat arches
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 01 Aug 2014 20:06:22 +0400
+
 qemu (2.0.0+dfsg-7) unstable; urgency=medium
 
   * clarify description of qemu-user-binfmt a bit 
