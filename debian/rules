@@ -97,15 +97,6 @@ configure-stamp: configure
 		$(QEMU_CONFIGURE_OPTIONS) || \
 	 { echo ===== CONFIGURE FAILED ===; tail -n 50 config.log; exit 1; }
 
-ifeq ($(DEB_HOST_ARCH_OS),kfreebsd)
-# Hack alert.  qemu-1.3 still needs this.
-# On recent kFreebsd, old USB host API has been removed,
-# but qemu did not learn to use new USB API.
-# Just do not build USB host support.
-	sed -i 's/^HOST_USB=bsd/HOST_USB=stub/' \
-		qemu-build/config-host.mak
-endif
-
 ifeq ($(enable_linux_user),enable)
 # do not use debian/configure-opts here, all optional stuff will be enabled
 # automatically, dependencies are already verified in the main build
