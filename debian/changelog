@@ -1,3 +1,29 @@
+qemu (2.1+dfsg-3) unstable; urgency=medium
+
+  * set SHELL = /bin/sh -e, so that more complex shell constructs
+    in d/rules will fail if any command fail inside
+  * check for pipe2() being a stub too, like utimensat() etc
+  * build-depend on gnutls-dev, not libgnutls*-dev, so the
+    buuld system will pick default gnutls impl (so it works for
+    backports and future versions)
+  * build-depend on libjpeg-dev not libjpeg8-dev
+  * minimum version of seabios is 1.7.5 (Closes: #757958)
+  * ide-only-constrain-read_write-requests-to-drive-size.diff
+    (Closes: #757927)
+  * added use-arch-data-path.patch, to be able to search for binary
+    blobs in several (arch-specific) data directories instead of just one.
+  * removed all blob/firmware symlinks from qemu-system-x86, using
+    arch-specific datapath instead (/usr/share/seabios:/usr/lib/ipxe/qemu)
+  * removed retry-pxe-after-efi.patch and depend on ipxe-qemu which
+    introduced efi boot roms.  qemu should not try to load "wrong"
+    ROM, or else migration will fail due to rom size mismatch.
+  * include /usr/lib/qemu-bridge-helper binary, but not make it setuid
+    due to security concerns outlined in #691138 (Closes: #691138)
+  * make vnc-jpeg not debian-specific
+  * install kvm-spice symlinks on ubuntu
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 14 Aug 2014 14:30:24 +0400
+
 qemu (2.1+dfsg-2) unstable; urgency=medium
 
   * l2tp-linux-only.patch: fix FTBFS on kfreebsd

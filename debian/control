@@ -39,7 +39,7 @@ Build-Depends: debhelper (>= 9),
  libfdt-dev,
 # --enable-vnc-tls
 # --enable-vnc-ws
- libgnutls28-dev,
+ gnutls-dev,
 # gtk ui is almost the same as sdl but adds bloat
 # --disable-gtk
 ## --with-gtkabi=2.0
@@ -92,7 +92,7 @@ Build-Depends: debhelper (>= 9),
 # other optional features we enable
 # --enable-vnc
 # --enable-vnc-jpeg
- libjpeg8-dev,
+ libjpeg-dev,
 # --enable-vnc-png
  libpng12-dev,
 # --enable-kvm		linux-*
@@ -306,7 +306,7 @@ Package: qemu-system-x86
 Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 2.0.0+dfsg-7~),
- seabios (>= 1.7.4-2~), ipxe-qemu
+ seabios (>= 1.7.5~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
 Recommends: qemu-utils,
 Suggests: samba, vde2, kmod [linux-any], sgabios, ovmf
 Provides: ${sysprovides:x86}

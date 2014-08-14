@@ -1,6 +1,7 @@
 02_kfreebsd.patch
-retry-pxe-after-efi.patch
 use-fixed-data-path.patch
+use-arch-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
 l2tp-linux-only.patch
 imx_timer_TIMER_MAX_clash.diff
+ide-only-constrain-read_write-requests-to-drive-size.diff

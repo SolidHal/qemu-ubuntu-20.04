@@ -1,4 +1,5 @@
 #!/usr/bin/make -f
+SHELL = /bin/sh -e
 
 include /usr/share/dpkg/pkg-info.mk
 DEB_VENDOR := $(shell dpkg-vendor --query vendor)
@@ -29,10 +30,12 @@ BUILD_PACKAGES = $(shell dh_listpackages)
 enable_system = $(if $(filter qemu-system,${BUILD_PACKAGES}),enable,disable)
 enable_linux_user = $(if $(filter qemu-user,${BUILD_PACKAGES}),enable,disable)
 
+X86_DATAPATH = /usr/share/seabios:/usr/lib/ipxe/qemu
+
 # we add another set of configure options from debian/control
 common_configure_opts = \
 	--with-pkgversion="Debian $(DEB_VERSION)" \
-	--extra-cflags="$(CFLAGS)" \
+	--extra-cflags="$(CFLAGS) -DCONFIG_QEMU_X86_DATAPATH='\"${X86_DATAPATH}\"'" \
 	--extra-ldflags="$(LDFLAGS)" \
 	--prefix=/usr \
 	--sysconfdir=/etc \
@@ -178,11 +181,18 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 	dh_install -pqemu-kvm debian/kvm /usr/bin/
 	dh_install -pqemu-kvm debian/kvm.1 /usr/share/man/man1/
+ifeq ($(DEB_VENDOR),Ubuntu)
+# on ubuntu there was kvm-spice package/binary which was used in libvirt xml
+	dh_link -pqemu-kvm usr/bin/kvm usr/bin/kvm-spice \
+		usr/bin/qemu-system-x86_64 usr/bin/qemu-system-x86_64-spice
+endif
 endif
 
-# virtfs-proxy-helper is linux-specific
+# virtfs-proxy-helper and qemu-bridge-helper are linux-specific
 	for f in usr/bin/virtfs-proxy-helper \
-	         usr/share/man/man1/virtfs-proxy-helper.1 ; do \
+	         usr/share/man/man1/virtfs-proxy-helper.1 \
+		 usr/lib/qemu-bridge-helper \
+	; do \
 	  mkdir -p debian/qemu-system-common/$${f%/*} ; \
 	  mv debian/tmp/$$f debian/qemu-system-common/$$f ; \
 	done
