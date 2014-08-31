@@ -1,3 +1,20 @@
+qemu (2.1+dfsg-4) unstable; urgency=medium
+
+  * mention libnuma-dev but not enable for now
+  * 9p-readdir.patch: fix readdir in 9p mapped mode (Closes: #755738)
+  * pc-reserve-more-memory-for-acpi.patch: fix linux -kernel not working
+    with new qemu (Closes: #759522)
+  * qemu-options-add-missing--drive-discard-option-to-cmdline-help.diff -
+    documentation fix
+  * mention that 2.1 closed #754336.
+  * move qemu-bridge-helper to /usr/lib/qemu/ subdir (lintian)
+  * debian/binfmt-update-in (Serge Hallyn):
+    - don't run in a container
+    - add ppc64le as target
+  * add apport hook from ubuntu package (ubuntu-only for now)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 31 Aug 2014 09:32:59 +0400
+
 qemu (2.1+dfsg-3) unstable; urgency=medium
 
   * set SHELL = /bin/sh -e, so that more complex shell constructs
@@ -38,6 +55,7 @@ qemu (2.1+dfsg-1) unstable; urgency=medium
   * new upstream release
     Closes: #739589 CVE-2014-3461
     Closes: #735618
+    Closes: #754336
   * versioned build-depend on libiscsi-dev (>>1.9.0~)
   * added ppc64le user target
   * fix description of qemu-user-binfmt wrt "empty" (Closes: #755988)

@@ -39,7 +39,7 @@ common_configure_opts = \
 	--extra-ldflags="$(LDFLAGS)" \
 	--prefix=/usr \
 	--sysconfdir=/etc \
-	--libexecdir=/usr/lib \
+	--libexecdir=/usr/lib/qemu \
 	--localstatedir=/var \
 	--disable-blobs \
 	--disable-strip \
@@ -187,11 +187,16 @@ ifeq ($(DEB_VENDOR),Ubuntu)
 		usr/bin/qemu-system-x86_64 usr/bin/qemu-system-x86_64-spice
 endif
 endif
+ifeq ($(DEB_VENDOR),Ubuntu)
+# apport hook is ubuntu-specific
+	dh_install -pqemu-system-common debian/source_qemu.py \
+		usr/share/apport/package-hooks/
+endif
 
 # virtfs-proxy-helper and qemu-bridge-helper are linux-specific
 	for f in usr/bin/virtfs-proxy-helper \
 	         usr/share/man/man1/virtfs-proxy-helper.1 \
-		 usr/lib/qemu-bridge-helper \
+		 usr/lib/qemu/qemu-bridge-helper \
 	; do \
 	  mkdir -p debian/qemu-system-common/$${f%/*} ; \
 	  mv debian/tmp/$$f debian/qemu-system-common/$$f ; \
