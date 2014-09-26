@@ -1,3 +1,17 @@
+qemu (2.1+dfsg-5) unstable; urgency=medium
+
+  * upstream bugfix release v2.1.2
+    (Closes: #762532 CVE-2014-3640 CVE-2014-5388)
+  * Add x32 to the list of supported architectures
+    (patch by Thorsten Glaser)
+  * fix wrong reference in kvm.1 (Closes: #761137)
+  * removed patches (applied upstream):
+    l2tp-linux-only.patch
+    ide-only-constrain-read_write-requests-to-drive-size.diff
+    pc-reserve-more-memory-for-acpi.patch
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 26 Sep 2014 17:43:26 +0400
+
 qemu (2.1+dfsg-4) unstable; urgency=medium
 
   * mention libnuma-dev but not enable for now
