@@ -16,5 +16,10 @@ CVE-2014-3689-vmware-vga/3-use-vmsvga_verify_rect-in-vmsvga_update_rect.patch
 CVE-2014-3689-vmware-vga/4-use-vmsvga_verify_rect-in-vmsvga_copy_rect.patch
 CVE-2014-3689-vmware-vga/5-use-vmsvga_verify_rect-in-vmsvga_fill_rect.patch
 
+vnc-sanitize-bits_per_pixel-from-the-client-CVE-2014-7815.patch
+
 net-slirp-specify-logbase-for-smbd.patch
 slirp-smbd-modify-set-several-parameters-in-generated-smb-conf.patch
+
+block-raw-posix-Fix-disk-corruption-in-try_fiemap.patch
+block-raw-posix-use-seek_hole-ahead-of-fiemap.patch

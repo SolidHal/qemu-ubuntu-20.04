@@ -1,3 +1,18 @@
+qemu (2.1+dfsg-7) unstable; urgency=high
+
+  * urgency is high due to 2 security fixes
+    (one current and one forgotten in previous release)
+    and because of possible data corruption bugfix
+  * vnc-sanitize-bits_per_pixel-from-the-client-CVE-2014-7815.patch
+    from upstream (Closes: CVE-2014-7815)
+  * fix spelling mistake in previous changelog entry
+  * add two patches from upstream for block/raw-posix.c to work around
+    probs in FS_IOC_FIEMAP ioctl and to prefer seek_hole over fiemap.
+    This should fix a long-standing ghost data corruption observed
+    in various places.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 03 Nov 2014 18:44:34 +0300
+
 qemu (2.1+dfsg-6) unstable; urgency=medium
 
   * mention closing of CVE-2014-3615 by 2.1.2 (2.1+dfsg-5)
@@ -15,7 +30,7 @@ qemu (2.1+dfsg-6) unstable; urgency=medium
     thank you Tim Small for the patch (Closes: #765075)
   * apply 5 patches from upstream to fix a security issue in
     vmware-vga (Closes: #765496 CVE-2014-3689)
-  * apply two patche from upstream to make qemu to work with samba4
+  * apply two patches from upstream to make qemu to work with samba4
     (Closes: #747636)
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 03 Nov 2014 18:07:48 +0300
