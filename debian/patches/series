@@ -7,4 +7,14 @@ use-arch-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
 imx_timer_TIMER_MAX_clash.diff
 9p-readdir.patch
+9p-use-little-endian-format-for-xattr-values.patch
 qemu-options-add-missing--drive-discard-option-to-cmdline-help.diff
+# 5 patches to fix CVE-2014-3689 from upstream, #765496
+CVE-2014-3689-vmware-vga/1-CVE-2014-3689-turn-off-hw-accel.patch
+CVE-2014-3689-vmware-vga/2-add-vmsvga_verify_rect.patch
+CVE-2014-3689-vmware-vga/3-use-vmsvga_verify_rect-in-vmsvga_update_rect.patch
+CVE-2014-3689-vmware-vga/4-use-vmsvga_verify_rect-in-vmsvga_copy_rect.patch
+CVE-2014-3689-vmware-vga/5-use-vmsvga_verify_rect-in-vmsvga_fill_rect.patch
+
+net-slirp-specify-logbase-for-smbd.patch
+slirp-smbd-modify-set-several-parameters-in-generated-smb-conf.patch

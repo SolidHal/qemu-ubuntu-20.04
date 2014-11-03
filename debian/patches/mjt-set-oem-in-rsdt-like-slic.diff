@@ -66,3 +66,14 @@ index a5d3fbf..9e0e16a 100644
      h->checksum = 0;
      /* Checksum to be filled in by Guest linker */
      bios_linker_loader_add_checksum(linker, ACPI_BUILD_TABLE_FILE,
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -1349,6 +1349,8 @@
+ For data=, only data
+ portion of the table is used, all header information is specified in the
+ command line.
++If a SLIC table is supplied to qemu, then the oem_id from the SLIC table
++will be copied into the RSDT table (this is a Debian addition).
+ ETEXI
+ 
+ DEF("smbios", HAS_ARG, QEMU_OPTION_smbios,

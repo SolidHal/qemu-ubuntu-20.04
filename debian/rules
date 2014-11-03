@@ -1,13 +1,18 @@
 #!/usr/bin/make -f
 SHELL = /bin/sh -e
 
+# get DEB_VERSION
 include /usr/share/dpkg/pkg-info.mk
-DEB_VENDOR := $(shell dpkg-vendor --query vendor)
-ifeq ($(DEB_VENDOR),Ubuntu)
-VENDOR := ubuntu
+# get DEB_HOST_ARCH DEB_HOST_ARCH_OS DEB_HOST_GNU_TYPE DEB_BUILD_GNU_TYPE
+include /usr/share/dpkg/architecture.mk
+# get CFLAGS LDFLAGS etc
+include /usr/share/dpkg/buildflags.mk
+
+ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes),yes)
+VENDOR := UBUNTU
 DEB_BUILD_PARALLEL = yes
 else
-VENDOR := debian
+VENDOR := DEBIAN
 endif
 
 # support parallel build using DEB_BUILD_OPTIONS=parallel=N
@@ -15,17 +20,11 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
   MAKEFLAGS += -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
-# Compiler flags
-CFLAGS = $(shell dpkg-buildflags --get CFLAGS) $(shell dpkg-buildflags --get CPPFLAGS)
-LDFLAGS = $(shell dpkg-buildflags --get LDFLAGS) -Wl,--as-needed
 # verbose build
 V ?= 1
 
-# Architecture/system specific configuration
-DEB_HOST_ARCH = $(shell dpkg-architecture -qDEB_HOST_ARCH)
-DEB_HOST_ARCH_OS = $(shell dpkg-architecture -qDEB_HOST_ARCH_OS)
 # list of packages we're supposed to build
-BUILD_PACKAGES = $(shell dh_listpackages)
+BUILD_PACKAGES = $(call dpkg_late_eval,BUILD_PACKAGES,dh_listpackages)
 
 enable_system = $(if $(filter qemu-system,${BUILD_PACKAGES}),enable,disable)
 enable_linux_user = $(if $(filter qemu-user,${BUILD_PACKAGES}),enable,disable)
@@ -35,8 +34,8 @@ X86_DATAPATH = /usr/share/seabios:/usr/lib/ipxe/qemu
 # we add another set of configure options from debian/control
 common_configure_opts = \
 	--with-pkgversion="Debian $(DEB_VERSION)" \
-	--extra-cflags="$(CFLAGS) -DCONFIG_QEMU_X86_DATAPATH='\"${X86_DATAPATH}\"'" \
-	--extra-ldflags="$(LDFLAGS)" \
+	--extra-cflags="$(CFLAGS) $(CPPFLAGS) -DCONFIG_QEMU_X86_DATAPATH='\"${X86_DATAPATH}\"' -DVENDOR_$(VENDOR)" \
+	--extra-ldflags="$(LDFLAGS) -Wl,--as-needed" \
 	--prefix=/usr \
 	--sysconfdir=/etc \
 	--libexecdir=/usr/lib/qemu \
@@ -46,6 +45,11 @@ common_configure_opts = \
 	--with-system-pixman \
 	--interp-prefix=/etc/qemu-binfmt/%M \
 	--localstatedir=/var \
+
+# Cross compiling support
+ifneq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
+common_configure_opts  += --cross-prefix=$(DEB_HOST_GNU_TYPE)-
+endif
 
 ifeq (${enable_system},enable)
 
@@ -82,17 +86,13 @@ user_targets = \
 
 endif	# enable_linux_user
 
-# Cross compiling support
-ifneq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
-common_configure_opts  += --cross-prefix=$(DEB_HOST_GNU_TYPE)-
-endif
-
 configure-stamp: configure
 	dh_testdir
 
 	# system build
-	mkdir -p qemu-build && cd qemu-build && \
-	   ../configure ${common_configure_opts} --disable-user \
+	rm -rf qemu-build; mkdir qemu-build
+	cd qemu-build && \
+	    ../configure ${common_configure_opts} --disable-user \
 		--${enable_system}-system \
 		--${enable_linux_user}-linux-user \
 		$(shell sh debian/extract-config-opts \
@@ -103,10 +103,11 @@ configure-stamp: configure
 ifeq ($(enable_linux_user),enable)
 # do not use debian/configure-opts here, all optional stuff will be enabled
 # automatically, dependencies are already verified in the main build
-	mkdir -p user-static-build && cd user-static-build && \
-		../configure ${common_configure_opts} \
-			--static --disable-system \
-			--target-list="$(addsuffix -linux-user,${user_targets})"
+	rm -rf user-static-build; mkdir user-static-build
+	cd user-static-build && \
+	    ../configure ${common_configure_opts} \
+		--static --disable-system \
+		--target-list="$(addsuffix -linux-user,${user_targets})"
 endif
 	touch $@
 
@@ -131,8 +132,8 @@ endif
 
 clean:	debian/control
 	dh_testdir
-	rm -rf *-build/
-	rm -f *-stamp
+	rm -rf qemu-build user-static-build
+	rm -f configure-stamp build-stamp
 	find scripts/ -name '*.pyc' -delete || :
 	dh_clean
 
@@ -181,13 +182,13 @@ ifeq ($(DEB_HOST_ARCH_OS),linux)
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 	dh_install -pqemu-kvm debian/kvm /usr/bin/
 	dh_install -pqemu-kvm debian/kvm.1 /usr/share/man/man1/
-ifeq ($(DEB_VENDOR),Ubuntu)
+ifeq ($(VENDOR),UBUNTU)
 # on ubuntu there was kvm-spice package/binary which was used in libvirt xml
 	dh_link -pqemu-kvm usr/bin/kvm usr/bin/kvm-spice \
 		usr/bin/qemu-system-x86_64 usr/bin/qemu-system-x86_64-spice
 endif
 endif
-ifeq ($(DEB_VENDOR),Ubuntu)
+ifeq ($(VENDOR),UBUNTU)
 # apport hook is ubuntu-specific
 	dh_install -pqemu-system-common debian/source_qemu.py \
 		usr/share/apport/package-hooks/
@@ -270,8 +271,8 @@ endif
 ifneq (,$(wildcard debian/control-in))
 # only include rules for debian/control if debian/control-in is present
 debian/control: debian/control-in debian/rules
-	sed -e 's/^:${VENDOR}://' -e '/^:[a-z]*:/D' \
-		$< > $@.tmp
+	sed -e 's/^:$(shell echo ${VENDOR} | tr '[A-Z]' '[a-z]')://' \
+		-e '/^:[a-z]*:/D' $< > $@.tmp
 	mv -f $@.tmp $@
 endif
 

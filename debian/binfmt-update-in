@@ -55,7 +55,8 @@ case "$DPKG_MAINTSCRIPT_ARCH" in
   amd64 | i386) omit="i386|x86_64" ;;
   arm | armel | armhf | arm64) omit="arm|aarch64" ;;
   mips | mipsel) omit="$DPKG_MAINTSCRIPT_ARCH" ;;
-  ppc64 | powerpc | ppc64el) omit="ppc|ppc64|ppc64abi32|ppc64le" ;;
+  ppc64 | powerpc) omit="ppc|ppc64|ppc64abi32" ;;
+  ppc64el) omit="ppc64le" ;;
   s390x) omit="s390x" ;;
   sparc | sparc64) omit="sparc|sparc32plus|sparc64" ;;
   *) omit="$DPKG_MAINTSCRIPT_ARCH" ;;

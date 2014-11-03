@@ -1,9 +1,31 @@
+qemu (2.1+dfsg-6) unstable; urgency=medium
+
+  * mention closing of CVE-2014-3615 by 2.1.2 (2.1+dfsg-5)
+  * 9p-use-little-endian-format-for-xattr-values.patch (Closes: #755740)
+  * mention closing of #760386
+  * mention closing of more CVEs by 2.1+dfsg-1
+  * recognize ppc64el in qemu-debootstrap (Luca Falavigna) (Closes: #760949)
+  * use dpkg-vendor to let derived distros to use our d/rules
+  * use /usr/share/dpkg/architecture.mk to get DEB_HOST_* and DEB_BUILD_*
+    variables.  This restores cross building support.
+  * use /usr/share/dpkg/buildflags.mk for CFLAGS LDFLAGS &Co
+  * pass -DVENDOR_{DEBIAN,UBUNTU} to compiler
+  * do not treat ppc* and ppc*le as compatible for binfmt registrations
+  * mention ACPI SLIC to RSDT id copying if slic table is supplied,
+    thank you Tim Small for the patch (Closes: #765075)
+  * apply 5 patches from upstream to fix a security issue in
+    vmware-vga (Closes: #765496 CVE-2014-3689)
+  * apply two patche from upstream to make qemu to work with samba4
+    (Closes: #747636)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 03 Nov 2014 18:07:48 +0300
+
 qemu (2.1+dfsg-5) unstable; urgency=medium
 
   * upstream bugfix release v2.1.2
-    (Closes: #762532 CVE-2014-3640 CVE-2014-5388)
+    (Closes: #762532 CVE-2014-3640 CVE-2014-5388 CVE-2014-3615)
   * Add x32 to the list of supported architectures
-    (patch by Thorsten Glaser)
+    (patch by Thorsten Glaser) (Closes: #760386)
   * fix wrong reference in kvm.1 (Closes: #761137)
   * removed patches (applied upstream):
     l2tp-linux-only.patch
@@ -67,9 +89,16 @@ qemu (2.1+dfsg-2) unstable; urgency=medium
 qemu (2.1+dfsg-1) unstable; urgency=medium
 
   * new upstream release
-    Closes: #739589 CVE-2014-3461
+    Closes: #739589:
+     CVE-2013-4148 CVE-2013-4149 CVE-2013-4150 CVE-2013-4151
+     CVE-2013-4526 CVE-2013-4527 CVE-2013-4528
+     CVE-2013-4530 CVE-2013-4531 CVE-2013-4532 CVE-2013-4533 CVE-2013-4534
+     CVE-2013-4535 CVE-2013-4536 CVE-2013-4537 CVE-2013-4538 CVE-2013-4539
+     CVE-2013-4540 CVE-2013-4541 CVE-2013-4542
+     CVE-2013-6399 CVE-2014-0182 CVE-2014-3461
     Closes: #735618
     Closes: #754336
+    Closes: CVE-2014-3471 (pcie hotplug/hotunplug)
   * versioned build-depend on libiscsi-dev (>>1.9.0~)
   * added ppc64le user target
   * fix description of qemu-user-binfmt wrt "empty" (Closes: #755988)

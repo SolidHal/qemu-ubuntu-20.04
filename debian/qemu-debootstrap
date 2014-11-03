@@ -149,6 +149,9 @@ case "$deb_arch" in
   powerpc|powerpcspe)
     qemu_arch="ppc"
   ;;
+  ppc64el)
+    qemu_arch="ppc64le"
+  ;;
   *)
     die "Sorry, I don't know how to support arch %s" "$arch"
   ;;

@@ -1,0 +1,40 @@
+From 44d8d2b2ddbaa3ee4125ec6cb2e8691e6348b01e Mon Sep 17 00:00:00 2001
+From: Michael Tokarev <mjt@tls.msk.ru>
+Date: Sat, 25 Oct 2014 00:29:50 +0400
+Subject: net/slirp: specify logbase for smbd
+Bug-Debian: http://bugs.debian.org/747636
+
+It looks like smbd always logs to /var/log/samba/log.$progname
+even if config file specifies different logfile -- when it needs
+to log something before completing reading the config file.  But
+if it can't open it for writing, it fails and exits.  Tell smbd
+to use our temp dir as logbase (-l option) to avoid that.
+
+The same option is used by samba3 and samba4, so there should
+be no incompatible changes.
+
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+Reviewed-by: Jan Kiszka <jan.kiszka@siemens.com>
+Tested-by: Jan Kiszka <jan.kiszka@siemens.com>
+---
+ net/slirp.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/slirp.c b/net/slirp.c
+index c171119..920af30 100644
+--- a/net/slirp.c
++++ b/net/slirp.c
+@@ -549,8 +549,8 @@ static int slirp_smb(SlirpState* s, const char *exported_dir,
+             );
+     fclose(f);
+ 
+-    snprintf(smb_cmdline, sizeof(smb_cmdline), "%s -s %s",
+-             CONFIG_SMBD_COMMAND, smb_conf);
++    snprintf(smb_cmdline, sizeof(smb_cmdline), "%s -l %s -s %s",
++             CONFIG_SMBD_COMMAND, s->smb_dir, smb_conf);
+ 
+     if (slirp_add_exec(s->slirp, 0, smb_cmdline, &vserver_addr, 139) < 0 ||
+         slirp_add_exec(s->slirp, 0, smb_cmdline, &vserver_addr, 445) < 0) {
+-- 
+1.7.10.4
+
