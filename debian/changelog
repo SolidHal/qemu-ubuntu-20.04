@@ -1,3 +1,41 @@
+qemu (2.1+dfsg-8) unstable; urgency=low
+
+  [ Michael Tokarev ]
+  * add Built-Using control field for qemu-user-static package:
+    take contents of qemu-user ${shlibs:Depends} and transform it
+    into list of source packages with versions.  (Closes: #768926)
+  * run remove-alternatives in qemu-system.postinst (the metapkg)
+    too, not only in qemu-system-XX.postinst, to handle upgrades
+    from wheezy (Closes: #768244)
+  * several fixes for debian/qemu-user.1 manpage.  It needs more
+    work, but at least some easy and obvious errors are fixed now.
+    (Closes: #763841)
+  * migration-fix-parameter-validation-on-ram-load.patch from upstream
+    (Closes: #769451 CVE-2014-7840)
+  * fix x86_64 binfmt mask to allow more values in ELF_OSABI field
+    (byte7).  Current gcc/binfmt sometimes produces binaries with
+    this field set to 3 (OSABI_GNU) not 0 (OSABI_SYSV) as used to be.
+    Set mask to 0xfb not 0xff here, to allow 0 (traditional SYSV),
+    1 (HPUX), 2 (NETBSD) or 3 (GNU).  This lets 2 more types than
+    necessary, but qemu will reject wrong types so no harm is done.
+    Some other binfmts ignore this field completely (with mask=0).
+    Maybe some day we'll have 2 different binfmt registrations for
+    the 2 different ABI types.  (Closes: #763043)
+  * usb-host-fix-usb_host_speed_compat-tyops.patch -- fix host usb devices
+    attach, without this patch many USB devices does not work
+  * qdev-monitor-fix-segmentation-fault-on-qdev_device_h.patch - trivial
+    patch from upstream to fix segfault in -device foo,help (Closes: #770880)
+
+  [ Aurelien Jarno ]
+  * Add tcg-mips-fix-store-softmmu-slow-path.patch from upstream to fix
+    TCG support on mips/mipsel hosts (Closes: #769470).
+
+  [ Ian Campbell ]
+  * Backport patch to fix unmapping of persistent grants in the Xen qdisk
+    backend (Closes: #770468).
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 27 Nov 2014 18:32:45 +0300
+
 qemu (2.1+dfsg-7) unstable; urgency=high
 
   * urgency is high due to 2 security fixes

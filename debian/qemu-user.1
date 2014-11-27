@@ -1,9 +1,8 @@
-.\" $Id: qemu-user.1 234 2007-02-07 22:57:18Z guillem $
 .TH qemu\-user 1 2007-02-08 "0.9.0" Debian
 .SH NAME
 qemu\-user \- QEMU User Emulator
 .SH SYNOPSIS
-.B qemu\-user
+.BI qemu\- user
 .RI [ options ]
 .I program
 .RI [ program-arguments... ]
@@ -21,7 +20,7 @@ Print this help.
 Wait gdb connection to port 1234.
 .TP
 .BR \-L " \fI<path>\fP"
-Set the elf interpreter prefix (default=\fI/usr/gnemul/qemu\-arm\fP).
+Set the elf interpreter prefix (default=\fI/etc/qemu\-binfmt/%M\fP).
 .TP
 .BR \-s " \fI<size>\fP"
 Set the stack size in bytes (default=\fI524288\fP).
@@ -32,7 +31,7 @@ Activate log (logfile=\fI/tmp/qemu.log\fP)
 .BR \-p " \fI<pagesize>\fP"
 Set the host page size to 'pagesize'.
 .SH SEE ALSO
-.BR qemu (1),
-.BR qemu\-img (1).
+.BR qemu-system (1)
+(in qemu-system-common package).
 .SH AUTHOR
 This manual page was written by Guillem Jover <guillem@debian.org>.

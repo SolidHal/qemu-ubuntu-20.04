@@ -401,6 +401,7 @@ Description: QEMU user mode emulation binaries
 
 Package: qemu-user-static
 Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 mips mipsel powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
+Built-Using: ${built-using}
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: binfmt-support

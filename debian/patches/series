@@ -23,3 +23,9 @@ slirp-smbd-modify-set-several-parameters-in-generated-smb-conf.patch
 
 block-raw-posix-Fix-disk-corruption-in-try_fiemap.patch
 block-raw-posix-use-seek_hole-ahead-of-fiemap.patch
+tcg-mips-fix-store-softmmu-slow-path.patch
+# CVE-2014-7840
+migration-fix-parameter-validation-on-ram-load.patch
+usb-host-fix-usb_host_speed_compat-tyops.patch
+xen_disk-fix-unmapping-of-persistent-grants.patch
+qdev-monitor-fix-segmentation-fault-on-qdev_device_h.patch

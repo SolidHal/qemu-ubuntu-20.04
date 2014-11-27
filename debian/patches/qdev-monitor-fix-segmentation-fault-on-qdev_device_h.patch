@@ -1,0 +1,47 @@
+From 0722eba9450cb8be9713fec1caa0772330739586 Mon Sep 17 00:00:00 2001
+From: Gonglei <arei.gonglei@huawei.com>
+Date: Tue, 16 Sep 2014 10:19:33 +0800
+Subject: qdev-monitor: fix segmentation fault on qdev_device_help()
+Bug-Debian: http://bugs.debian.org/770880
+
+Normally, qmp_device_list_properties() may return NULL when
+a device haven't special properties excpet Object and DeviceState
+properties, such as virtio-balloon-device.
+
+We just need check local_err instead of prop_list.
+
+Example:
+
+Segmentation fault (core dumped)
+
+The backtrace as below:
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00005555559af1a8 in error_get_pretty (err=0x0) at util/error.c:152
+152         return err->msg;
+(gdb) bt
+    func=0x55555574a6ca <device_help_func>, opaque=0x0, abort_on_failure=0) at util/qemu-option.c:1072
+
+Signed-off-by: Gonglei <arei.gonglei@huawei.com>
+Reviewed-by: Markus Armbruster <armbru@redhat.com>
+Signed-off-by: Stefan Hajnoczi <stefanha@redhat.com>
+---
+ qdev-monitor.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/qdev-monitor.c b/qdev-monitor.c
+index fb9ee24..5ec6606 100644
+--- a/qdev-monitor.c
++++ b/qdev-monitor.c
+@@ -206,7 +206,7 @@ int qdev_device_help(QemuOpts *opts)
+     }
+ 
+     prop_list = qmp_device_list_properties(driver, &local_err);
+-    if (!prop_list) {
++    if (local_err) {
+         error_printf("%s\n", error_get_pretty(local_err));
+         error_free(local_err);
+         return 1;
+-- 
+1.7.10.4
+

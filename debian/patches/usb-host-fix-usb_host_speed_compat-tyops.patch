@@ -1,0 +1,35 @@
+From 79ae25af1569a50a0ec799901a1bb280c088f121 Mon Sep 17 00:00:00 2001
+From: Gerd Hoffmann <kraxel@redhat.com>
+Date: Mon, 10 Nov 2014 12:14:22 +0100
+Subject: usb-host: fix usb_host_speed_compat tyops
+
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+Reviewed-by: Gonglei <arei.gonglei@huawei.com>
+---
+ hw/usb/host-libusb.c |    6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/hw/usb/host-libusb.c b/hw/usb/host-libusb.c
+index 032a0e4..a5f9dab 100644
+--- a/hw/usb/host-libusb.c
++++ b/hw/usb/host-libusb.c
+@@ -749,13 +749,13 @@ static void usb_host_speed_compat(USBHostDevice *s)
+ 
+     udev->speedmask = (1 << udev->speed);
+     if (udev->speed == USB_SPEED_SUPER && compat_high) {
+-        udev->speedmask |= USB_SPEED_HIGH;
++        udev->speedmask |= USB_SPEED_MASK_HIGH;
+     }
+     if (udev->speed == USB_SPEED_SUPER && compat_full) {
+-        udev->speedmask |= USB_SPEED_FULL;
++        udev->speedmask |= USB_SPEED_MASK_FULL;
+     }
+     if (udev->speed == USB_SPEED_HIGH && compat_full) {
+-        udev->speedmask |= USB_SPEED_FULL;
++        udev->speedmask |= USB_SPEED_MASK_FULL;
+     }
+ }
+ 
+-- 
+1.7.10.4
+

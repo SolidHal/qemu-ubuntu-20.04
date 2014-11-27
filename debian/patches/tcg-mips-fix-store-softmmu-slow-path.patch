@@ -1,0 +1,35 @@
+From 0a2923f8488498000eec54871456aa64a4391da4 Mon Sep 17 00:00:00 2001
+From: Aurelien Jarno <aurelien@aurel32.net>
+Date: Mon, 27 Oct 2014 15:53:35 +0100
+Subject: tcg/mips: fix store softmmu slow path
+Bug-Debian: http://bugs.debian.org/769470
+
+Commit 9d8bf2d1 moved the softmmu slow path out of line and introduce a
+regression at the same time by always calling tcg_out_tlb_load with
+is_load=1. This makes impossible to run any significant code under
+qemu-system-mips*.
+
+Cc: Paolo Bonzini <pbonzini@redhat.com>
+Cc: qemu-stable@nongnu.org
+Reviewed-by: Richard Henderson <rth@twiddle.net>
+Signed-off-by: Aurelien Jarno <aurelien@aurel32.net>
+---
+ tcg/mips/tcg-target.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tcg/mips/tcg-target.c b/tcg/mips/tcg-target.c
+index 9cce356..b7f4d67 100644
+--- a/tcg/mips/tcg-target.c
++++ b/tcg/mips/tcg-target.c
+@@ -1302,7 +1302,7 @@ static void tcg_out_qemu_st(TCGContext *s, const TCGArg *args, bool is_64)
+        so we can reuse that for the base.  */
+     base = (TARGET_LONG_BITS == 32 ? TCG_REG_A1 : TCG_REG_A2);
+     tcg_out_tlb_load(s, base, addr_regl, addr_regh, mem_index,
+-                     s_bits, label_ptr, 1);
++                     s_bits, label_ptr, 0);
+     tcg_out_qemu_st_direct(s, data_regl, data_regh, base, opc);
+     add_qemu_ldst_label(s, 0, opc, data_regl, data_regh, addr_regl, addr_regh,
+                         mem_index, s->code_ptr, label_ptr);
+-- 
+2.1.3
+

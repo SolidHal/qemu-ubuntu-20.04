@@ -146,7 +146,8 @@ binary-arch: install
 binary: install
 
 define inst-system
-# remove alternatives for jessie+1
+# remove alternatives handling for jessie+1
+# remove alternatives in system-$1 for testing->jessie upgrade path
 	sed 's/@ARCH@/${sysarch_$1}/' debian/qemu-system-alternatives.in > debian/qemu-system-$1.postinst.debhelper
 	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
 	for t in ${sysarch_$1}; do \
@@ -174,6 +175,9 @@ ifeq (${enable_system},enable)
 	# qemu-system subpackages
 	mv debian/tmp/usr/share/man/man1/qemu.1 debian/tmp/usr/share/man/man1/qemu-system.1
 	$(foreach s,${systems},$(call inst-system,$s))
+# remove alternatives handling for jessie+1
+# remove alternatives in qemu-system (metapkg) for wheezy->jessie upgrade path
+	sed 's/@ARCH@/${system_targets}/' debian/qemu-system-alternatives.in > debian/qemu-system.postinst.debhelper
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
@@ -264,6 +268,18 @@ endif
 	dh_fixperms ${ai}
 	dh_installdeb ${ai}
 	dh_shlibdeps ${ai}
+ifeq ($(enable_linux_user),enable)
+# after shlibdeps finished, grab ${shlibs:Depends} from -user package
+# and transform it into Built-Using field for -user-static.
+# See also dpkg-query bug #588505
+	if [ -f debian/qemu-user.substvars ]; then \
+	  pkgs=$$(sed -n -e's/([^)]*)//g' -e's/,//g' -e's/^shlibs:Depends=//p' debian/qemu-user.substvars); \
+	  srcs=; for p in $$pkgs; do \
+	    srcs="$$srcs $$(dpkg-query -f '$${source:Package} (= $${source:Version}),' -W $$p)"; \
+	  done ; \
+	  echo "built-using=$$srcs" >> debian/qemu-user-static.substvars ; \
+	fi
+endif
 	dh_gencontrol ${ai}
 	dh_md5sums ${ai}
 	dh_builddeb ${ai}
