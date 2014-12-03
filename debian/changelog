@@ -1,3 +1,11 @@
+qemu (2.1+dfsg-9) unstable; urgency=high
+
+  * apply upstream patches for CVE-2014-8106
+    (cirrus: insufficient blit region checks)
+    (Closes: #772025 CVE-2014-8106)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 04 Dec 2014 00:10:43 +0300
+
 qemu (2.1+dfsg-8) unstable; urgency=low
 
   [ Michael Tokarev ]
