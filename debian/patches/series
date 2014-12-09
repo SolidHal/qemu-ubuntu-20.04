@@ -3,7 +3,7 @@ v2.1.2.diff
 
 02_kfreebsd.patch
 use-fixed-data-path.patch
-use-arch-data-path.patch
+use-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
 imx_timer_TIMER_MAX_clash.diff
 9p-readdir.patch

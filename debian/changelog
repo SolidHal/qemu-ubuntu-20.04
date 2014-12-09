@@ -1,3 +1,19 @@
+qemu (2.1+dfsg-10) unstable; urgency=medium
+
+  * make (debian-specific) x86 data path (with seabios and ipxe
+    in it) non-x86-specific, since other arches use firmware
+    files too (Closes: #772127)
+  * add seabios to Recommends to qemu-system-misc, qemu-system-mips,
+    qemu-system-ppc and qemu-system-sparc packages, because these
+    packages contains emulators using vgabios which is part of
+    seabios package (#772127).
+  * add ipxe-qemu to Recommends to qemu-system-misc, qemu-system-arm,
+    qemu-system-mips, qemu-system-ppc, qemu-system-sparc packages,
+    because these packages contains emulators using network boot
+    roms (#772127), in a similar way.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 09 Dec 2014 13:47:36 +0300
+
 qemu (2.1+dfsg-9) unstable; urgency=high
 
   * apply upstream patches for CVE-2014-8106

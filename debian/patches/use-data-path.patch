@@ -1,6 +1,6 @@
 From: Michael Tokarev <mjt@tls.msk.ru>
 Date: Sun, 24 Nov 2013 00:56:47 +0400
-Subject: use (arch-specific) data path, not just a single directory
+Subject: use data path to search data files, not just a single directory
 Forwarded: no
 
 Upstream qemu builds all firmware/binary files and keeps them
@@ -18,42 +18,29 @@ package and seabios package, either of them should work).
 
 This patch is debian-specific.
 
---- a/arch_init.c
-+++ b/arch_init.c
-@@ -71,6 +71,13 @@ int graphic_height = 600;
- int graphic_depth = 32;
- #endif
- 
-+/* list of (arch-specific) directories to search for data files */
-+char qemu_datapath[] =
-+  CONFIG_QEMU_DATADIR
-+#if (defined(TARGET_I386) || defined(TARGET_X86_64)) && defined(CONFIG_QEMU_X86_DATAPATH)
-+  ":" CONFIG_QEMU_X86_DATAPATH
-+#endif
-+;
- 
- #if defined(TARGET_ALPHA)
- #define QEMU_ARCH QEMU_ARCH_ALPHA
 --- a/vl.c
 +++ b/vl.c
-@@ -124,7 +124,8 @@ int main(int argc, char **argv)
+@@ -124,7 +124,11 @@
  #define MAX_VIRTIO_CONSOLES 1
  #define MAX_SCLP_CONSOLES 1
  
 -static const char *data_dir[16];
-+extern char qemu_datapath[]; /* arch-specific */
++#ifndef CONFIG_QEMU_DATAPATH
++# define CONFIG_QEMU_DATAPATH CONFIG_QEMU_DATADIR
++#endif
++static char qemu_datapath[] = CONFIG_QEMU_DATAPATH;
 +static const char *data_dir[32];
  static int data_dir_idx;
  const char *bios_name = NULL;
  enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
-@@ -4062,9 +4063,12 @@ int main(int argc, char **argv, char **e
+@@ -4046,9 +4050,12 @@
          }
      }
  
 -    /* If all else fails use the install path specified when building. */
 -    if (data_dir_idx < ARRAY_SIZE(data_dir)) {
 -        data_dir[data_dir_idx++] = CONFIG_QEMU_DATADIR;
-+    /* add standard and arch-specific dirs to data path */
++    /* add standard dirs to data path */
 +    for(optarg = strtok(qemu_datapath, ":");
 +        optarg && data_dir_idx < ARRAY_SIZE(data_dir);
 +        optarg = strtok(NULL, ":"))
