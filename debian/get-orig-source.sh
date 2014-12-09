@@ -26,7 +26,6 @@ rm -vf pc-bios/spapr-rtas.bin	# pc-bios/spapr-rtas/
 rm -vf pc-bios/vgabios*.bin	# roms/vgabios/
 rm -vf pc-bios/pxe-*.rom	# roms/ipxe/
 rm -vf pc-bios/efi-*.rom	# roms/ipxe/
-rm -vf pc-bios/petalogix*.dtb	# source unknown
 rm -vf pc-bios/bamboo.dtb	# pc-bios/bamboo.dts
 rm -vf pc-bios/openbios-*	# roms/openbios/
 rm -vf pc-bios/palcode-clipper	# roms/qemu-palcode/ alpha palcode

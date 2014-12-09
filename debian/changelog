@@ -1,3 +1,31 @@
+qemu (1:2.2+dfsg-2exp) experimental; urgency=medium
+
+  * and finally uploading to experimental as it should be
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 10 Dec 2014 00:58:32 +0300
+
+qemu (1:2.1+dfsg-11) unstable; urgency=medium
+
+  * bump epoch and reupload to cancel 2.2+dfsg-1exp upload
+    mistakenly done to unstable.  No other changes.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 10 Dec 2014 00:52:28 +0300
+
+qemu (2.2+dfsg-1exp) unstable; urgency=medium
+
+  * new upstream release 2.2.0 (Closes: #751078)
+  * removed all patches which was cherry-picked from upstream,
+    only keeping debian-specific changes
+  * refreshed mjt-set-oem-in-rsdt-like-slic.diff
+  * added tricore to qemu-system-misc package (new arch)
+  * restore upstream pc-bios/petalogix-*.dtb "blobs":
+    upstream says it is the canonical form, dtc is used
+    to convert from dts to dtb and back, the conversion
+    is reversible
+  * install petalogix firmware for microblaze (Closes: #769068)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 09 Dec 2014 23:09:26 +0300
+
 qemu (2.1+dfsg-10) unstable; urgency=medium
 
   * make (debian-specific) x86 data path (with seabios and ipxe

@@ -18,11 +18,9 @@ practice.
     
 Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
 
-diff --git a/hw/acpi/core.c b/hw/acpi/core.c
-index 79414b4..a8a3f26 100644
 --- a/hw/acpi/core.c
 +++ b/hw/acpi/core.c
-@@ -53,6 +53,7 @@ static const char unsigned dfl_hdr[ACPI_TABLE_HDR_SIZE - ACPI_TABLE_PFX_SIZE] =
+@@ -53,6 +53,7 @@ static const char unsigned dfl_hdr[ACPI_
  
  char unsigned *acpi_tables;
  size_t acpi_tables_len;
@@ -30,7 +28,7 @@ index 79414b4..a8a3f26 100644
  
  static QemuOptsList qemu_acpi_opts = {
      .name = "acpi",
-@@ -226,6 +227,10 @@ static void acpi_table_install(const char unsigned *blob, size_t bloblen,
+@@ -226,6 +227,10 @@ static void acpi_table_install(const cha
      /* recalculate checksum */
      ext_hdr->checksum = acpi_checksum((const char unsigned *)ext_hdr +
                                        ACPI_TABLE_PFX_SIZE, acpi_payload_size);
@@ -41,20 +39,18 @@ index 79414b4..a8a3f26 100644
  }
  
  void acpi_table_add(const QemuOpts *opts, Error **errp)
-diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
-index a5d3fbf..9e0e16a 100644
 --- a/hw/i386/acpi-build.c
 +++ b/hw/i386/acpi-build.c
-@@ -224,6 +224,8 @@ static void acpi_get_pci_info(PcPciInfo *info)
- #define ACPI_BUILD_TABLE_FILE "etc/acpi/tables"
+@@ -252,6 +252,8 @@ static void acpi_get_pci_info(PcPciInfo
  #define ACPI_BUILD_RSDP_FILE "etc/acpi/rsdp"
+ #define ACPI_BUILD_TPMLOG_FILE "etc/tpm/log"
  
 +extern size_t slic_table_offset;
 +
  static void
  build_header(GArray *linker, GArray *table_data,
               AcpiTableHeader *h, const char *sig, int len, uint8_t rev)
-@@ -237,6 +239,11 @@ build_header(GArray *linker, GArray *table_data,
+@@ -265,6 +267,11 @@ build_header(GArray *linker, GArray *tab
      h->oem_revision = cpu_to_le32(1);
      memcpy(h->asl_compiler_id, ACPI_BUILD_APPNAME4, 4);
      h->asl_compiler_revision = cpu_to_le32(1);
@@ -68,7 +64,7 @@ index a5d3fbf..9e0e16a 100644
      bios_linker_loader_add_checksum(linker, ACPI_BUILD_TABLE_FILE,
 --- a/qemu-options.hx
 +++ b/qemu-options.hx
-@@ -1349,6 +1349,8 @@
+@@ -1358,6 +1358,8 @@ ACPI headers (possible overridden by oth
  For data=, only data
  portion of the table is used, all header information is specified in the
  command line.

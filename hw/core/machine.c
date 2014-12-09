@@ -12,6 +12,9 @@
 
 #include "hw/boards.h"
 #include "qapi/visitor.h"
+#include "hw/sysbus.h"
+#include "sysemu/sysemu.h"
+#include "qemu/error-report.h"
 
 static char *machine_get_accel(Object *obj, Error **errp)
 {
@@ -24,6 +27,7 @@ static void machine_set_accel(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->accel);
     ms->accel = g_strdup(value);
 }
 
@@ -79,6 +83,7 @@ static void machine_set_kernel(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->kernel_filename);
     ms->kernel_filename = g_strdup(value);
 }
 
@@ -93,6 +98,7 @@ static void machine_set_initrd(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->initrd_filename);
     ms->initrd_filename = g_strdup(value);
 }
 
@@ -107,6 +113,7 @@ static void machine_set_append(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->kernel_cmdline);
     ms->kernel_cmdline = g_strdup(value);
 }
 
@@ -121,6 +128,7 @@ static void machine_set_dtb(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->dtb);
     ms->dtb = g_strdup(value);
 }
 
@@ -135,6 +143,7 @@ static void machine_set_dumpdtb(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->dumpdtb);
     ms->dumpdtb = g_strdup(value);
 }
 
@@ -176,6 +185,7 @@ static void machine_set_dt_compatible(Object *obj, const char *value, Error **er
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->dt_compatible);
     ms->dt_compatible = g_strdup(value);
 }
 
@@ -232,11 +242,53 @@ static void machine_set_firmware(Object *obj, const char *value, Error **errp)
 {
     MachineState *ms = MACHINE(obj);
 
+    g_free(ms->firmware);
     ms->firmware = g_strdup(value);
+}
+
+static bool machine_get_iommu(Object *obj, Error **errp)
+{
+    MachineState *ms = MACHINE(obj);
+
+    return ms->iommu;
+}
+
+static void machine_set_iommu(Object *obj, bool value, Error **errp)
+{
+    MachineState *ms = MACHINE(obj);
+
+    ms->iommu = value;
+}
+
+static int error_on_sysbus_device(SysBusDevice *sbdev, void *opaque)
+{
+    error_report("Option '-device %s' cannot be handled by this machine",
+                 object_class_get_name(object_get_class(OBJECT(sbdev))));
+    exit(1);
+}
+
+static void machine_init_notify(Notifier *notifier, void *data)
+{
+    Object *machine = qdev_get_machine();
+    ObjectClass *oc = object_get_class(machine);
+    MachineClass *mc = MACHINE_CLASS(oc);
+
+    if (mc->has_dynamic_sysbus) {
+        /* Our machine can handle dynamic sysbus devices, we're all good */
+        return;
+    }
+
+    /*
+     * Loop through all dynamically created devices and check whether there
+     * are sysbus devices among them. If there are, error out.
+     */
+    foreach_dynamic_sysbus_device(error_on_sysbus_device, NULL);
 }
 
 static void machine_initfn(Object *obj)
 {
+    MachineState *ms = MACHINE(obj);
+
     object_property_add_str(obj, "accel",
                             machine_get_accel, machine_set_accel, NULL);
     object_property_add_bool(obj, "kernel-irqchip",
@@ -270,10 +322,21 @@ static void machine_initfn(Object *obj)
                              machine_set_dump_guest_core,
                              NULL);
     object_property_add_bool(obj, "mem-merge",
-                             machine_get_mem_merge, machine_set_mem_merge, NULL);
-    object_property_add_bool(obj, "usb", machine_get_usb, machine_set_usb, NULL);
+                             machine_get_mem_merge,
+                             machine_set_mem_merge, NULL);
+    object_property_add_bool(obj, "usb",
+                             machine_get_usb,
+                             machine_set_usb, NULL);
     object_property_add_str(obj, "firmware",
-                            machine_get_firmware, machine_set_firmware, NULL);
+                            machine_get_firmware,
+                            machine_set_firmware, NULL);
+    object_property_add_bool(obj, "iommu",
+                             machine_get_iommu,
+                             machine_set_iommu, NULL);
+
+    /* Register notifier when init is done for sysbus sanity checks */
+    ms->sysbus_notifier.notify = machine_init_notify;
+    qemu_add_machine_init_done_notifier(&ms->sysbus_notifier);
 }
 
 static void machine_finalize(Object *obj)

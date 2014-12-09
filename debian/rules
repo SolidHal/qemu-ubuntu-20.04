@@ -57,7 +57,7 @@ ifeq (${enable_system},enable)
 system_targets = \
  i386 x86_64 alpha aarch64 arm cris lm32 m68k microblaze microblazeel \
  mips mipsel mips64 mips64el moxie or32 ppc ppcemb ppc64 sh4 sh4eb \
- sparc sparc64 s390x xtensa xtensaeb unicore32
+ sparc sparc64 s390x tricore xtensa xtensaeb unicore32
 
 # qemu-system subpackages, from d/control
 sys_systems = arm mips ppc sparc x86
@@ -178,6 +178,8 @@ ifeq (${enable_system},enable)
 # remove alternatives handling for jessie+1
 # remove alternatives in qemu-system (metapkg) for wheezy->jessie upgrade path
 	sed 's/@ARCH@/${system_targets}/' debian/qemu-system-alternatives.in > debian/qemu-system.postinst.debhelper
+# microblaze firmware
+	dh_install -pqemu-system-misc pc-bios/petalogix-*.dtb /usr/share/qemu/
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 

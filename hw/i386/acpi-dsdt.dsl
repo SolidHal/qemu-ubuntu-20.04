@@ -297,13 +297,12 @@ DefinitionBlock (
 #include "hw/acpi/pc-hotplug.h"
 #define CPU_STATUS_BASE PIIX4_CPU_HOTPLUG_IO_BASE
 #include "acpi-dsdt-cpu-hotplug.dsl"
+#include "acpi-dsdt-mem-hotplug.dsl"
 
 
 /****************************************************************
  * General purpose events
  ****************************************************************/
-    External(\_SB.PCI0.MEMORY_HOPTLUG_DEVICE.MEMORY_SLOT_SCAN_METHOD, MethodObj)
-
     Scope(\_GPE) {
         Name(_HID, "ACPI0006")
 
@@ -321,7 +320,7 @@ DefinitionBlock (
         }
         Method(_E03) {
             // Memory hotplug event
-            \_SB.PCI0.MEMORY_HOPTLUG_DEVICE.MEMORY_SLOT_SCAN_METHOD()
+            \_SB.PCI0.MEMORY_HOTPLUG_DEVICE.MEMORY_SLOT_SCAN_METHOD()
         }
         Method(_L04) {
         }
