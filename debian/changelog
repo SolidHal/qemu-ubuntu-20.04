@@ -1,19 +1,27 @@
+qemu (1:2.2+dfsg-3exp) experimental; urgency=medium
+
+  * mention closing of #753887 by 2.2
+  * install only specific bamboo.dtb for ppc, not *.dtb
+    (Closes: #773033)
+  * install qemu-system-misc firmware in d/*.install not d/rules,
+    as other firmware files
+  * exec-change-default-exception_index-value-for-migration-to--1.patch:
+    cherry-picked commit adee64249ee37e from upstream
+  * stop messing up with alternatives (qemu for qemu-system-*)
+  * stop shipping qemu-system-x86 initscript to load kvm modules
+    (kernel since 3.4 does that automatically) (Closes: #751754)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 22 Jan 2015 09:28:01 +0300
+
 qemu (1:2.2+dfsg-2exp) experimental; urgency=medium
 
   * and finally uploading to experimental as it should be
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 10 Dec 2014 00:58:32 +0300
 
-qemu (1:2.1+dfsg-11) unstable; urgency=medium
-
-  * bump epoch and reupload to cancel 2.2+dfsg-1exp upload
-    mistakenly done to unstable.  No other changes.
-
- -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 10 Dec 2014 00:52:28 +0300
-
 qemu (2.2+dfsg-1exp) unstable; urgency=medium
 
-  * new upstream release 2.2.0 (Closes: #751078)
+  * new upstream release 2.2.0 (Closes: #751078, #726629, #753887)
   * removed all patches which was cherry-picked from upstream,
     only keeping debian-specific changes
   * refreshed mjt-set-oem-in-rsdt-like-slic.diff
@@ -25,6 +33,13 @@ qemu (2.2+dfsg-1exp) unstable; urgency=medium
   * install petalogix firmware for microblaze (Closes: #769068)
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 09 Dec 2014 23:09:26 +0300
+
+qemu (1:2.1+dfsg-11) unstable; urgency=medium
+
+  * bump epoch and reupload to cancel 2.2+dfsg-1exp upload
+    mistakenly done to unstable.  No other changes.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 10 Dec 2014 00:52:28 +0300
 
 qemu (2.1+dfsg-10) unstable; urgency=medium
 

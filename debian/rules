@@ -146,9 +146,6 @@ binary-arch: install
 binary: install
 
 define inst-system
-# remove alternatives handling for jessie+1
-# remove alternatives in system-$1 for testing->jessie upgrade path
-	sed 's/@ARCH@/${sysarch_$1}/' debian/qemu-system-alternatives.in > debian/qemu-system-$1.postinst.debhelper
 	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
 	for t in ${sysarch_$1}; do \
 	    mv debian/tmp/usr/bin/qemu-system-$$t debian/qemu-system-$1/usr/bin/; \
@@ -175,11 +172,18 @@ ifeq (${enable_system},enable)
 	# qemu-system subpackages
 	mv debian/tmp/usr/share/man/man1/qemu.1 debian/tmp/usr/share/man/man1/qemu-system.1
 	$(foreach s,${systems},$(call inst-system,$s))
-# remove alternatives handling for jessie+1
-# remove alternatives in qemu-system (metapkg) for wheezy->jessie upgrade path
-	sed 's/@ARCH@/${system_targets}/' debian/qemu-system-alternatives.in > debian/qemu-system.postinst.debhelper
-# microblaze firmware
-	dh_install -pqemu-system-misc pc-bios/petalogix-*.dtb /usr/share/qemu/
+
+ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
+# We used to load kvm module on x86 using an initscript,
+# but modern kernels do that automatically.  Remove the initscript.
+# Remove this fragment for stretch+1.
+	for x in preinst postinst postrm; do \
+	  echo 'dpkg-maintscript-helper rm_conffile /etc/init.d/qemu-system-x86 1:2.2+dfsg-3~ qemu-system-x86 "$$@"' \
+	    >> debian/qemu-system-x86.$$x.debhelper ; \
+	done
+	echo '[ configure = "$$1" ] && dpkg --compare-versions "$$2" le 1:2.2+dfsg-3~ && update-rc.d qemu-system-x86 remove >/dev/null' \
+	  >> debian/qemu-system-x86.postinst.debhelper
+endif
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
@@ -255,12 +259,6 @@ ifeq (${enable_system},enable)
 # qemu-ifup is arch-specific
 	install -D debian/qemu-ifup.$(DEB_HOST_ARCH_OS) \
 		debian/qemu-system-common/etc/qemu-ifup
-ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-# we load kvm module only on x86 (modern kernels don't need even that),
-# and we don't want to fail installation if module can't be loaded
-# remoe past jessie (and maybe for jessie too)
-	dh_installinit -pqemu-system-x86 --no-restart-on-upgrade --error-handler=: -- start 20 S .
-endif
 endif
 	dh_installinit -pqemu-guest-agent
 endif

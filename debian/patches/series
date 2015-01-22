@@ -2,3 +2,4 @@
 use-fixed-data-path.patch
 use-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
+exec-change-default-exception_index-value-for-migration-to--1.patch

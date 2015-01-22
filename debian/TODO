@@ -1,27 +1,8 @@
-* remove qemu-system-x86 initscript (kvm module loading)
-  past jessie or even for jessie.  Modern kernels (3.4+)
-  loads these modules automatically.
-
 * fix other binaries (s390-zipl, ppc_rom)
-
-* figure out what to do with kvm initscripts and udev rules.
-  Currently we ship kvm udev rules in qemu-system-common, even
-  if kvm modules makes no sence on many arches and even if
-  corresponding qemu-system-$arch might not be installed.
-  We load kvm module (on x86 only) in qemu-system-x86, but
-  we don't fix permissions of /dev/kvm at install time (see
-  qemu-system-common.postinst).  It all is.. wrong.
-
-  Maybe we should provide all - the kvm udev rules, kvm module
-  loading script, and postinst snippet to change perms - in
-  all relevant arch-specific packages only when arch is native?
-  But how to do that properly?
 
 * permissions/ownership for /dev/vhost_net???
 
 * startup script for qemu-guest-agent: check dependencies & runlevels.
-
-* remove /usr/bin/qemu alternative removing for jessie+1
 
 * maybe provide activation for udev & systemd:
 
@@ -146,9 +127,5 @@
 	  69K virtfs-proxy-helper
 
   Total size of the qemu-dbg (all the above) .deb is ~150Mb when compressed
-  using default gzip, or 90Mb with
-
-     dh_builddeb -- -Zxz
-
-  Note that in both cases -dbg is much larger than sum of all other binary
-  packages.
+  using gzip or 90Mb with xz.  In both cases -dbg is much larger than sum of
+  all other binary packages.
