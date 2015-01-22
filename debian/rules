@@ -178,9 +178,10 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 # but modern kernels do that automatically.  Remove the initscript.
 # Remove this fragment for stretch+1.
 	for x in preinst postinst postrm; do \
-	  echo 'dpkg-maintscript-helper rm_conffile /etc/init.d/qemu-system-x86 1:2.2+dfsg-3~ qemu-system-x86 "$$@"' \
+	  echo 'dpkg-maintscript-helper rm_conffile /etc/init.d/qemu-system-x86 1:2.2+dfsg-3~ -- "$$@"' \
 	    >> debian/qemu-system-x86.$$x.debhelper ; \
 	done
+# there's no need to restore the links b/c kernel autoloads our modules
 	echo '[ configure = "$$1" ] && dpkg --compare-versions "$$2" le 1:2.2+dfsg-3~ && update-rc.d qemu-system-x86 remove >/dev/null' \
 	  >> debian/qemu-system-x86.postinst.debhelper
 endif
