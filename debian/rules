@@ -182,7 +182,7 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 	    >> debian/qemu-system-x86.$$x.debhelper ; \
 	done
 # there's no need to restore the links b/c kernel autoloads our modules
-	echo '[ configure = "$$1" ] && dpkg --compare-versions "$$2" le 1:2.2+dfsg-3~ && update-rc.d qemu-system-x86 remove >/dev/null' \
+	echo 'if [ configure = "$$1" ] && dpkg --compare-versions "$$2" le-nl 1:2.2+dfsg-3~; then update-rc.d qemu-system-x86 remove >/dev/null; fi' \
 	  >> debian/qemu-system-x86.postinst.debhelper
 endif
 

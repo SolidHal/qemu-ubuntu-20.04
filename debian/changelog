@@ -1,3 +1,9 @@
+qemu (1:2.2+dfsg-5exp) experimental; urgency=medium
+
+  * fix initscript removal once again
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 23 Jan 2015 15:05:46 +0300
+
 qemu (1:2.2+dfsg-4exp) experimental; urgency=medium
 
   * fix a brown-paper bag bug removing the qemu-system-x86 initscript
