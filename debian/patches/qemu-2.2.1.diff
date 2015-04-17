@@ -1,0 +1,2314 @@
+diff --git a/VERSION b/VERSION
+index ccbccc3..c043eea 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-2.2.0
++2.2.1
+diff --git a/audio/audio_template.h b/audio/audio_template.h
+index 8173188..584e536 100644
+--- a/audio/audio_template.h
++++ b/audio/audio_template.h
+@@ -191,9 +191,9 @@ static void glue (audio_pcm_hw_gc_, TYPE) (HW **hwp)
+         audio_detach_capture (hw);
+ #endif
+         QLIST_REMOVE (hw, entries);
++        glue (hw->pcm_ops->fini_, TYPE) (hw);
+         glue (s->nb_hw_voices_, TYPE) += 1;
+         glue (audio_pcm_hw_free_resources_ ,TYPE) (hw);
+-        glue (hw->pcm_ops->fini_, TYPE) (hw);
+         g_free (hw);
+         *hwp = NULL;
+     }
+diff --git a/block-migration.c b/block-migration.c
+index 08db01a..2e92605 100644
+--- a/block-migration.c
++++ b/block-migration.c
+@@ -653,6 +653,7 @@ static int block_save_iterate(QEMUFile *f, void *opaque)
+ {
+     int ret;
+     int64_t last_ftell = qemu_ftell(f);
++    int64_t delta_ftell;
+ 
+     DPRINTF("Enter save live iterate submitted %d transferred %d\n",
+             block_mig_state.submitted, block_mig_state.transferred);
+@@ -702,7 +703,14 @@ static int block_save_iterate(QEMUFile *f, void *opaque)
+     }
+ 
+     qemu_put_be64(f, BLK_MIG_FLAG_EOS);
+-    return qemu_ftell(f) - last_ftell;
++    delta_ftell = qemu_ftell(f) - last_ftell;
++    if (delta_ftell > 0) {
++        return 1;
++    } else if (delta_ftell < 0) {
++        return -1;
++    } else {
++        return 0;
++    }
+ }
+ 
+ /* Called with iothread lock taken.  */
+@@ -757,8 +765,8 @@ static uint64_t block_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
+                        block_mig_state.read_done * BLOCK_SIZE;
+ 
+     /* Report at least one block pending during bulk phase */
+-    if (pending == 0 && !block_mig_state.bulk_completed) {
+-        pending = BLOCK_SIZE;
++    if (pending <= max_size && !block_mig_state.bulk_completed) {
++        pending = max_size + BLOCK_SIZE;
+     }
+     blk_mig_unlock();
+     qemu_mutex_unlock_iothread();
+diff --git a/block.c b/block.c
+index a612594..8717597 100644
+--- a/block.c
++++ b/block.c
+@@ -629,7 +629,7 @@ BlockDriver *bdrv_find_protocol(const char *filename,
+     }
+ 
+     if (!path_has_protocol(filename) || !allow_protocol_prefix) {
+-        return bdrv_find_format("file");
++        return &bdrv_file;
+     }
+ 
+     p = strchr(filename, ':');
+@@ -658,12 +658,7 @@ static int find_image_format(BlockDriverState *bs, const char *filename,
+ 
+     /* Return the raw BlockDriver * to scsi-generic devices or empty drives */
+     if (bs->sg || !bdrv_is_inserted(bs) || bdrv_getlength(bs) == 0) {
+-        drv = bdrv_find_format("raw");
+-        if (!drv) {
+-            error_setg(errp, "Could not find raw image format");
+-            ret = -ENOENT;
+-        }
+-        *pdrv = drv;
++        *pdrv = &bdrv_raw;
+         return ret;
+     }
+ 
+@@ -1180,7 +1175,6 @@ int bdrv_open_backing_file(BlockDriverState *bs, QDict *options, Error **errp)
+ {
+     char *backing_filename = g_malloc0(PATH_MAX);
+     int ret = 0;
+-    BlockDriver *back_drv = NULL;
+     BlockDriverState *backing_hd;
+     Error *local_err = NULL;
+ 
+@@ -1213,14 +1207,14 @@ int bdrv_open_backing_file(BlockDriverState *bs, QDict *options, Error **errp)
+ 
+     backing_hd = bdrv_new();
+ 
+-    if (bs->backing_format[0] != '\0') {
+-        back_drv = bdrv_find_format(bs->backing_format);
++    if (bs->backing_format[0] != '\0' && !qdict_haskey(options, "driver")) {
++        qdict_put(options, "driver", qstring_from_str(bs->backing_format));
+     }
+ 
+     assert(bs->backing_hd == NULL);
+     ret = bdrv_open(&backing_hd,
+                     *backing_filename ? backing_filename : NULL, NULL, options,
+-                    bdrv_backing_flags(bs->open_flags), back_drv, &local_err);
++                    bdrv_backing_flags(bs->open_flags), NULL, &local_err);
+     if (ret < 0) {
+         bdrv_unref(backing_hd);
+         backing_hd = NULL;
+@@ -1294,7 +1288,6 @@ int bdrv_append_temp_snapshot(BlockDriverState *bs, int flags, Error **errp)
+     /* TODO: extra byte is a hack to ensure MAX_PATH space on Windows. */
+     char *tmp_filename = g_malloc0(PATH_MAX + 1);
+     int64_t total_size;
+-    BlockDriver *bdrv_qcow2;
+     QemuOpts *opts = NULL;
+     QDict *snapshot_options;
+     BlockDriverState *bs_snapshot;
+@@ -1319,11 +1312,10 @@ int bdrv_append_temp_snapshot(BlockDriverState *bs, int flags, Error **errp)
+         goto out;
+     }
+ 
+-    bdrv_qcow2 = bdrv_find_format("qcow2");
+-    opts = qemu_opts_create(bdrv_qcow2->create_opts, NULL, 0,
++    opts = qemu_opts_create(bdrv_qcow2.create_opts, NULL, 0,
+                             &error_abort);
+     qemu_opt_set_number(opts, BLOCK_OPT_SIZE, total_size);
+-    ret = bdrv_create(bdrv_qcow2, tmp_filename, opts, &local_err);
++    ret = bdrv_create(&bdrv_qcow2, tmp_filename, opts, &local_err);
+     qemu_opts_del(opts);
+     if (ret < 0) {
+         error_setg_errno(errp, -ret, "Could not create temporary overlay "
+@@ -1343,7 +1335,7 @@ int bdrv_append_temp_snapshot(BlockDriverState *bs, int flags, Error **errp)
+     bs_snapshot = bdrv_new();
+ 
+     ret = bdrv_open(&bs_snapshot, NULL, NULL, snapshot_options,
+-                    flags, bdrv_qcow2, &local_err);
++                    flags, &bdrv_qcow2, &local_err);
+     if (ret < 0) {
+         error_propagate(errp, local_err);
+         goto out;
+@@ -5541,6 +5533,18 @@ void bdrv_img_create(const char *filename, const char *fmt,
+         return;
+     }
+ 
++    if (!drv->create_opts) {
++        error_setg(errp, "Format driver '%s' does not support image creation",
++                   drv->format_name);
++        return;
++    }
++
++    if (!proto_drv->create_opts) {
++        error_setg(errp, "Protocol driver '%s' does not support image creation",
++                   proto_drv->format_name);
++        return;
++    }
++
+     create_opts = qemu_opts_append(create_opts, drv->create_opts);
+     create_opts = qemu_opts_append(create_opts, proto_drv->create_opts);
+ 
+diff --git a/block/iscsi.c b/block/iscsi.c
+index ed375fc..12ddbfb 100644
+--- a/block/iscsi.c
++++ b/block/iscsi.c
+@@ -1286,7 +1286,7 @@ static int iscsi_open(BlockDriverState *bs, QDict *options, int flags,
+     QemuOpts *opts;
+     Error *local_err = NULL;
+     const char *filename;
+-    int i, ret;
++    int i, ret = 0;
+ 
+     if ((BDRV_SECTOR_SIZE % 512) != 0) {
+         error_setg(errp, "iSCSI: Invalid BDRV_SECTOR_SIZE. "
+diff --git a/block/nfs.c b/block/nfs.c
+index c76e368..ca9e24e 100644
+--- a/block/nfs.c
++++ b/block/nfs.c
+@@ -409,6 +409,19 @@ out:
+     return ret;
+ }
+ 
++static QemuOptsList nfs_create_opts = {
++    .name = "nfs-create-opts",
++    .head = QTAILQ_HEAD_INITIALIZER(nfs_create_opts.head),
++    .desc = {
++        {
++            .name = BLOCK_OPT_SIZE,
++            .type = QEMU_OPT_SIZE,
++            .help = "Virtual disk size"
++        },
++        { /* end of list */ }
++    }
++};
++
+ static int nfs_file_create(const char *url, QemuOpts *opts, Error **errp)
+ {
+     int ret = 0;
+@@ -470,6 +483,8 @@ static BlockDriver bdrv_nfs = {
+ 
+     .instance_size                  = sizeof(NFSClient),
+     .bdrv_needs_filename            = true,
++    .create_opts                    = &nfs_create_opts,
++
+     .bdrv_has_zero_init             = nfs_has_zero_init,
+     .bdrv_get_allocated_file_size   = nfs_get_allocated_file_size,
+     .bdrv_truncate                  = nfs_file_truncate,
+diff --git a/block/qcow2-cluster.c b/block/qcow2-cluster.c
+index df0b2c9..1fea514 100644
+--- a/block/qcow2-cluster.c
++++ b/block/qcow2-cluster.c
+@@ -1263,7 +1263,7 @@ int qcow2_alloc_cluster_offset(BlockDriverState *bs, uint64_t offset,
+ 
+ again:
+     start = offset;
+-    remaining = *num << BDRV_SECTOR_BITS;
++    remaining = (uint64_t)*num << BDRV_SECTOR_BITS;
+     cluster_offset = 0;
+     *host_offset = 0;
+     cur_bytes = 0;
+diff --git a/block/qcow2.c b/block/qcow2.c
+index d120494..e4e690a 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -117,7 +117,7 @@ static int qcow2_read_extensions(BlockDriverState *bs, uint64_t start_offset,
+ #ifdef DEBUG_EXT
+         printf("ext.magic = 0x%x\n", ext.magic);
+ #endif
+-        if (ext.len > end_offset - offset) {
++        if (offset > end_offset || ext.len > end_offset - offset) {
+             error_setg(errp, "Header extension too large");
+             return -EINVAL;
+         }
+@@ -1428,10 +1428,23 @@ static void qcow2_close(BlockDriverState *bs)
+     s->l1_table = NULL;
+ 
+     if (!(bs->open_flags & BDRV_O_INCOMING)) {
+-        qcow2_cache_flush(bs, s->l2_table_cache);
+-        qcow2_cache_flush(bs, s->refcount_block_cache);
++        int ret1, ret2;
+ 
+-        qcow2_mark_clean(bs);
++        ret1 = qcow2_cache_flush(bs, s->l2_table_cache);
++        ret2 = qcow2_cache_flush(bs, s->refcount_block_cache);
++
++        if (ret1) {
++            error_report("Failed to flush the L2 table cache: %s",
++                         strerror(-ret1));
++        }
++        if (ret2) {
++            error_report("Failed to flush the refcount block cache: %s",
++                         strerror(-ret2));
++        }
++
++        if (!ret1 && !ret2) {
++            qcow2_mark_clean(bs);
++        }
+     }
+ 
+     qcow2_cache_destroy(bs, s->l2_table_cache);
+@@ -1915,10 +1928,9 @@ static int qcow2_create2(const char *filename, int64_t total_size,
+      * refcount of the cluster that is occupied by the header and the refcount
+      * table)
+      */
+-    BlockDriver* drv = bdrv_find_format("qcow2");
+-    assert(drv != NULL);
+     ret = bdrv_open(&bs, filename, NULL, NULL,
+-        BDRV_O_RDWR | BDRV_O_CACHE_WB | BDRV_O_NO_FLUSH, drv, &local_err);
++                    BDRV_O_RDWR | BDRV_O_CACHE_WB | BDRV_O_NO_FLUSH,
++                    &bdrv_qcow2, &local_err);
+     if (ret < 0) {
+         error_propagate(errp, local_err);
+         goto out;
+@@ -1970,7 +1982,7 @@ static int qcow2_create2(const char *filename, int64_t total_size,
+     /* Reopen the image without BDRV_O_NO_FLUSH to flush it before returning */
+     ret = bdrv_open(&bs, filename, NULL, NULL,
+                     BDRV_O_RDWR | BDRV_O_CACHE_WB | BDRV_O_NO_BACKING,
+-                    drv, &local_err);
++                    &bdrv_qcow2, &local_err);
+     if (local_err) {
+         error_propagate(errp, local_err);
+         goto out;
+@@ -2150,8 +2162,7 @@ static int qcow2_write_compressed(BlockDriverState *bs, int64_t sector_num,
+         /* align end of file to a sector boundary to ease reading with
+            sector based I/Os */
+         cluster_offset = bdrv_getlength(bs->file);
+-        bdrv_truncate(bs->file, cluster_offset);
+-        return 0;
++        return bdrv_truncate(bs->file, cluster_offset);
+     }
+ 
+     if (nb_sectors != s->cluster_sectors) {
+@@ -2847,7 +2858,7 @@ static QemuOptsList qcow2_create_opts = {
+     }
+ };
+ 
+-static BlockDriver bdrv_qcow2 = {
++BlockDriver bdrv_qcow2 = {
+     .format_name        = "qcow2",
+     .instance_size      = sizeof(BDRVQcowState),
+     .bdrv_probe         = qcow2_probe,
+diff --git a/block/raw-posix.c b/block/raw-posix.c
+index b1af77e..ef21242 100644
+--- a/block/raw-posix.c
++++ b/block/raw-posix.c
+@@ -446,6 +446,7 @@ static int raw_open_common(BlockDriverState *bs, QDict *options,
+     }
+ 
+     if (fstat(s->fd, &st) < 0) {
++        ret = -errno;
+         error_setg_errno(errp, errno, "Could not stat file");
+         goto fail;
+     }
+@@ -1684,7 +1685,7 @@ static QemuOptsList raw_create_opts = {
+     }
+ };
+ 
+-static BlockDriver bdrv_file = {
++BlockDriver bdrv_file = {
+     .format_name = "file",
+     .protocol_name = "file",
+     .instance_size = sizeof(BDRVRawState),
+diff --git a/block/raw-win32.c b/block/raw-win32.c
+index 7b58881..06243d7 100644
+--- a/block/raw-win32.c
++++ b/block/raw-win32.c
+@@ -540,7 +540,7 @@ static QemuOptsList raw_create_opts = {
+     }
+ };
+ 
+-static BlockDriver bdrv_file = {
++BlockDriver bdrv_file = {
+     .format_name	= "file",
+     .protocol_name	= "file",
+     .instance_size	= sizeof(BDRVRawState),
+diff --git a/block/raw_bsd.c b/block/raw_bsd.c
+index 401b967..ea2b864 100644
+--- a/block/raw_bsd.c
++++ b/block/raw_bsd.c
+@@ -173,7 +173,7 @@ static int raw_probe(const uint8_t *buf, int buf_size, const char *filename)
+     return 1;
+ }
+ 
+-static BlockDriver bdrv_raw = {
++BlockDriver bdrv_raw = {
+     .format_name          = "raw",
+     .bdrv_probe           = &raw_probe,
+     .bdrv_reopen_prepare  = &raw_reopen_prepare,
+diff --git a/block/vpc.c b/block/vpc.c
+index 38c4f02..40baa64 100644
+--- a/block/vpc.c
++++ b/block/vpc.c
+@@ -801,6 +801,7 @@ static int vpc_create(const char *filename, QemuOpts *opts, Error **errp)
+     }
+ 
+     total_sectors = (int64_t) cyls * heads * secs_per_cyl;
++    total_size = total_sectors * BDRV_SECTOR_SIZE;
+ 
+     /* Prepare the Hard Disk Footer */
+     memset(buf, 0, 1024);
+@@ -822,13 +823,8 @@ static int vpc_create(const char *filename, QemuOpts *opts, Error **errp)
+     /* Version of Virtual PC 2007 */
+     footer->major = cpu_to_be16(0x0005);
+     footer->minor = cpu_to_be16(0x0003);
+-    if (disk_type == VHD_DYNAMIC) {
+-        footer->orig_size = cpu_to_be64(total_sectors * 512);
+-        footer->size = cpu_to_be64(total_sectors * 512);
+-    } else {
+-        footer->orig_size = cpu_to_be64(total_size);
+-        footer->size = cpu_to_be64(total_size);
+-    }
++    footer->orig_size = cpu_to_be64(total_size);
++    footer->size = cpu_to_be64(total_size);
+     footer->cyls = cpu_to_be16(cyls);
+     footer->heads = heads;
+     footer->secs_per_cyl = secs_per_cyl;
+diff --git a/block/vvfat.c b/block/vvfat.c
+index cefe3a4..e34a789 100644
+--- a/block/vvfat.c
++++ b/block/vvfat.c
+@@ -2917,6 +2917,12 @@ static int enable_write_target(BDRVVVFATState *s, Error **errp)
+     }
+ 
+     bdrv_qcow = bdrv_find_format("qcow");
++    if (!bdrv_qcow) {
++        error_setg(errp, "Failed to locate qcow driver");
++        ret = -ENOENT;
++        goto err;
++    }
++
+     opts = qemu_opts_create(bdrv_qcow->create_opts, NULL, 0, &error_abort);
+     qemu_opt_set_number(opts, BLOCK_OPT_SIZE, s->sector_count * 512);
+     qemu_opt_set(opts, BLOCK_OPT_BACKING_FILE, "fat:");
+diff --git a/cpus.c b/cpus.c
+index 0c33458..ff555e2 100644
+--- a/cpus.c
++++ b/cpus.c
+@@ -372,15 +372,19 @@ static void icount_warp_rt(void *opaque)
+ void qtest_clock_warp(int64_t dest)
+ {
+     int64_t clock = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
++    AioContext *aio_context;
+     assert(qtest_enabled());
++    aio_context = qemu_get_aio_context();
+     while (clock < dest) {
+         int64_t deadline = qemu_clock_deadline_ns_all(QEMU_CLOCK_VIRTUAL);
+         int64_t warp = qemu_soonest_timeout(dest - clock, deadline);
++
+         seqlock_write_lock(&timers_state.vm_clock_seqlock);
+         timers_state.qemu_icount_bias += warp;
+         seqlock_write_unlock(&timers_state.vm_clock_seqlock);
+ 
+         qemu_clock_run_timers(QEMU_CLOCK_VIRTUAL);
++        timerlist_run_timers(aio_context->tlg.tl[QEMU_CLOCK_VIRTUAL]);
+         clock = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+     }
+     qemu_clock_notify(QEMU_CLOCK_VIRTUAL);
+diff --git a/exec.c b/exec.c
+index 71ac104..46fe70e 100644
+--- a/exec.c
++++ b/exec.c
+@@ -434,7 +434,7 @@ static int cpu_common_pre_load(void *opaque)
+ {
+     CPUState *cpu = opaque;
+ 
+-    cpu->exception_index = 0;
++    cpu->exception_index = -1;
+ 
+     return 0;
+ }
+@@ -443,7 +443,7 @@ static bool cpu_common_exception_index_needed(void *opaque)
+ {
+     CPUState *cpu = opaque;
+ 
+-    return cpu->exception_index != 0;
++    return tcg_enabled() && cpu->exception_index != -1;
+ }
+ 
+ static const VMStateDescription vmstate_cpu_common_exception_index = {
+diff --git a/hw/audio/sb16.c b/hw/audio/sb16.c
+index bda26d0..444eb9e 100644
+--- a/hw/audio/sb16.c
++++ b/hw/audio/sb16.c
+@@ -999,7 +999,7 @@ static IO_READ_PROTO (dsp_read)
+         retval = (!s->out_data_len || s->highspeed) ? 0 : 0x80;
+         if (s->mixer_regs[0x82] & 1) {
+             ack = 1;
+-            s->mixer_regs[0x82] &= 1;
++            s->mixer_regs[0x82] &= ~1;
+             qemu_irq_lower (s->pic);
+         }
+         break;
+@@ -1008,7 +1008,7 @@ static IO_READ_PROTO (dsp_read)
+         retval = 0xff;
+         if (s->mixer_regs[0x82] & 2) {
+             ack = 1;
+-            s->mixer_regs[0x82] &= 2;
++            s->mixer_regs[0x82] &= ~2;
+             qemu_irq_lower (s->pic);
+         }
+         break;
+diff --git a/hw/char/serial.c b/hw/char/serial.c
+index ebcacdc..51d939e 100644
+--- a/hw/char/serial.c
++++ b/hw/char/serial.c
+@@ -350,10 +350,24 @@ static void serial_ioport_write(void *opaque, hwaddr addr, uint64_t val,
+                      s->poll_msl = 0;
+                 }
+             }
+-            if (s->lsr & UART_LSR_THRE) {
++
++            /* Turning on the THRE interrupt on IER can trigger the interrupt
++             * if LSR.THRE=1, even if it had been masked before by reading IIR.
++             * This is not in the datasheet, but Windows relies on it.  It is
++             * unclear if THRE has to be resampled every time THRI becomes
++             * 1, or only on the rising edge.  Bochs does the latter, and Windows
++             * always toggles IER to all zeroes and back to all ones.  But for
++             * now leave it as it has always been in QEMU.
++             *
++             * If IER.THRI is zero, thr_ipending is not used.  Set it to zero
++             * so that the thr_ipending subsection is not migrated.
++             */
++            if ((s->ier & UART_IER_THRI) && (s->lsr & UART_LSR_THRE)) {
+                 s->thr_ipending = 1;
+-                serial_update_irq(s);
++            } else {
++                s->thr_ipending = 0;
+             }
++            serial_update_irq(s);
+         }
+         break;
+     case 2:
+@@ -623,8 +637,17 @@ static int serial_post_load(void *opaque, int version_id)
+ static bool serial_thr_ipending_needed(void *opaque)
+ {
+     SerialState *s = opaque;
+-    bool expected_value = ((s->iir & UART_IIR_ID) == UART_IIR_THRI);
+-    return s->thr_ipending != expected_value;
++
++    if (s->ier & UART_IER_THRI) {
++        bool expected_value = ((s->iir & UART_IIR_ID) == UART_IIR_THRI);
++        return s->thr_ipending != expected_value;
++    } else {
++        /* LSR.THRE will be sampled again when the interrupt is
++         * enabled.  thr_ipending is not used in this case, do
++         * not migrate it.
++         */
++        return false;
++    }
+ }
+ 
+ const VMStateDescription vmstate_serial_thr_ipending = {
+diff --git a/hw/core/qdev.c b/hw/core/qdev.c
+index 35fd00d..ef06aa4 100644
+--- a/hw/core/qdev.c
++++ b/hw/core/qdev.c
+@@ -938,7 +938,12 @@ void qdev_alias_all_properties(DeviceState *target, Object *source)
+ static int qdev_add_hotpluggable_device(Object *obj, void *opaque)
+ {
+     GSList **list = opaque;
+-    DeviceState *dev = DEVICE(obj);
++    DeviceState *dev = (DeviceState *)object_dynamic_cast(OBJECT(obj),
++                                                          TYPE_DEVICE);
++
++    if (dev == NULL) {
++        return 0;
++    }
+ 
+     if (dev->realized && object_property_get_bool(obj, "hotpluggable", NULL)) {
+         *list = g_slist_append(*list, dev);
+diff --git a/hw/i386/acpi-dsdt-cpu-hotplug.dsl b/hw/i386/acpi-dsdt-cpu-hotplug.dsl
+index 34aab5a..268d870 100644
+--- a/hw/i386/acpi-dsdt-cpu-hotplug.dsl
++++ b/hw/i386/acpi-dsdt-cpu-hotplug.dsl
+@@ -94,6 +94,7 @@ Scope(\_SB) {
+ 
+     Device(CPU_HOTPLUG_RESOURCE_DEVICE) {
+         Name(_HID, EisaId("PNP0A06"))
++        Name(_UID, "CPU hotplug resources")
+ 
+         Name(_CRS, ResourceTemplate() {
+             IO(Decode16, CPU_STATUS_BASE, CPU_STATUS_BASE, 0, CPU_STATUS_LEN)
+diff --git a/hw/i386/acpi-dsdt.hex.generated b/hw/i386/acpi-dsdt.hex.generated
+index 875570e..92c749c 100644
+--- a/hw/i386/acpi-dsdt.hex.generated
++++ b/hw/i386/acpi-dsdt.hex.generated
+@@ -3,12 +3,12 @@ static unsigned char AcpiDsdtAmlCode[] = {
+ 0x53,
+ 0x44,
+ 0x54,
+-0x8,
++0x25,
+ 0xe,
+ 0x0,
+ 0x0,
+ 0x1,
+-0xfc,
++0x6e,
+ 0x42,
+ 0x58,
+ 0x50,
+@@ -31,8 +31,8 @@ static unsigned char AcpiDsdtAmlCode[] = {
+ 0x4e,
+ 0x54,
+ 0x4c,
+-0x28,
+-0x8,
++0x14,
++0x2,
+ 0x14,
+ 0x20,
+ 0x10,
+@@ -2318,8 +2318,8 @@ static unsigned char AcpiDsdtAmlCode[] = {
+ 0x53,
+ 0x1,
+ 0x10,
+-0x42,
+-0x11,
++0x4f,
++0x12,
+ 0x5f,
+ 0x53,
+ 0x42,
+@@ -2551,7 +2551,8 @@ static unsigned char AcpiDsdtAmlCode[] = {
+ 0x60,
+ 0x5b,
+ 0x82,
+-0x29,
++0x46,
++0x4,
+ 0x50,
+ 0x52,
+ 0x45,
+@@ -2568,6 +2569,34 @@ static unsigned char AcpiDsdtAmlCode[] = {
+ 0x6,
+ 0x8,
+ 0x5f,
++0x55,
++0x49,
++0x44,
++0xd,
++0x43,
++0x50,
++0x55,
++0x20,
++0x68,
++0x6f,
++0x74,
++0x70,
++0x6c,
++0x75,
++0x67,
++0x20,
++0x72,
++0x65,
++0x73,
++0x6f,
++0x75,
++0x72,
++0x63,
++0x65,
++0x73,
++0x0,
++0x8,
++0x5f,
+ 0x43,
+ 0x52,
+ 0x53,
+diff --git a/hw/i386/kvm/apic.c b/hw/i386/kvm/apic.c
+index 271e97f..5b47056 100644
+--- a/hw/i386/kvm/apic.c
++++ b/hw/i386/kvm/apic.c
+@@ -171,12 +171,15 @@ static const MemoryRegionOps kvm_apic_io_ops = {
+     .endianness = DEVICE_NATIVE_ENDIAN,
+ };
+ 
+-static void kvm_apic_realize(DeviceState *dev, Error **errp)
++static void kvm_apic_reset(APICCommonState *s)
+ {
+-    APICCommonState *s = APIC_COMMON(dev);
+-
+     /* Not used by KVM, which uses the CPU mp_state instead.  */
+     s->wait_for_sipi = 0;
++}
++
++static void kvm_apic_realize(DeviceState *dev, Error **errp)
++{
++    APICCommonState *s = APIC_COMMON(dev);
+ 
+     memory_region_init_io(&s->io_memory, NULL, &kvm_apic_io_ops, s, "kvm-apic-msi",
+                           APIC_SPACE_SIZE);
+@@ -191,6 +194,7 @@ static void kvm_apic_class_init(ObjectClass *klass, void *data)
+     APICCommonClass *k = APIC_COMMON_CLASS(klass);
+ 
+     k->realize = kvm_apic_realize;
++    k->reset = kvm_apic_reset;
+     k->set_base = kvm_apic_set_base;
+     k->set_tpr = kvm_apic_set_tpr;
+     k->get_tpr = kvm_apic_get_tpr;
+diff --git a/hw/i386/q35-acpi-dsdt.hex.generated b/hw/i386/q35-acpi-dsdt.hex.generated
+index 4807bdf..84513b7 100644
+--- a/hw/i386/q35-acpi-dsdt.hex.generated
++++ b/hw/i386/q35-acpi-dsdt.hex.generated
+@@ -3,12 +3,12 @@ static unsigned char Q35AcpiDsdtAmlCode[] = {
+ 0x53,
+ 0x44,
+ 0x54,
+-0xf6,
+-0x1f,
++0x13,
++0x20,
+ 0x0,
+ 0x0,
+ 0x1,
+-0x91,
++0x2,
+ 0x42,
+ 0x58,
+ 0x50,
+@@ -31,8 +31,8 @@ static unsigned char Q35AcpiDsdtAmlCode[] = {
+ 0x4e,
+ 0x54,
+ 0x4c,
+-0x28,
+-0x8,
++0x14,
++0x2,
+ 0x14,
+ 0x20,
+ 0x10,
+@@ -6959,8 +6959,8 @@ static unsigned char Q35AcpiDsdtAmlCode[] = {
+ 0x53,
+ 0x1,
+ 0x10,
+-0x42,
+-0x11,
++0x4f,
++0x12,
+ 0x5f,
+ 0x53,
+ 0x42,
+@@ -7192,7 +7192,8 @@ static unsigned char Q35AcpiDsdtAmlCode[] = {
+ 0x60,
+ 0x5b,
+ 0x82,
+-0x29,
++0x46,
++0x4,
+ 0x50,
+ 0x52,
+ 0x45,
+@@ -7209,6 +7210,34 @@ static unsigned char Q35AcpiDsdtAmlCode[] = {
+ 0x6,
+ 0x8,
+ 0x5f,
++0x55,
++0x49,
++0x44,
++0xd,
++0x43,
++0x50,
++0x55,
++0x20,
++0x68,
++0x6f,
++0x74,
++0x70,
++0x6c,
++0x75,
++0x67,
++0x20,
++0x72,
++0x65,
++0x73,
++0x6f,
++0x75,
++0x72,
++0x63,
++0x65,
++0x73,
++0x0,
++0x8,
++0x5f,
+ 0x43,
+ 0x52,
+ 0x53,
+diff --git a/hw/input/hid.c b/hw/input/hid.c
+index 148c003..58212a7 100644
+--- a/hw/input/hid.c
++++ b/hw/input/hid.c
+@@ -41,7 +41,7 @@ static const uint8_t hid_usage_keys[0x100] = {
+     0x07, 0x09, 0x0a, 0x0b, 0x0d, 0x0e, 0x0f, 0x33,
+     0x34, 0x35, 0xe1, 0x31, 0x1d, 0x1b, 0x06, 0x19,
+     0x05, 0x11, 0x10, 0x36, 0x37, 0x38, 0xe5, 0x55,
+-    0xe2, 0x2c, 0x32, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e,
++    0xe2, 0x2c, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e,
+     0x3f, 0x40, 0x41, 0x42, 0x43, 0x53, 0x47, 0x5f,
+     0x60, 0x61, 0x56, 0x5c, 0x5d, 0x5e, 0x57, 0x59,
+     0x5a, 0x5b, 0x62, 0x63, 0x00, 0x00, 0x00, 0x44,
+diff --git a/hw/input/pckbd.c b/hw/input/pckbd.c
+index 2b0cd3d..9b9a7d7 100644
+--- a/hw/input/pckbd.c
++++ b/hw/input/pckbd.c
+@@ -101,6 +101,12 @@
+ #define KBD_OUT_OBF             0x10    /* Keyboard output buffer full */
+ #define KBD_OUT_MOUSE_OBF       0x20    /* Mouse output buffer full */
+ 
++/* OSes typically write 0xdd/0xdf to turn the A20 line off and on.
++ * We make the default value of the outport include these four bits,
++ * so that the subsection is rarely necessary.
++ */
++#define KBD_OUT_ONES            0xcc
++
+ /* Mouse Commands */
+ #define AUX_SET_SCALE11		0xE6	/* Set 1:1 scaling */
+ #define AUX_SET_SCALE21		0xE7	/* Set 2:1 scaling */
+@@ -367,13 +373,13 @@ static void kbd_reset(void *opaque)
+ 
+     s->mode = KBD_MODE_KBD_INT | KBD_MODE_MOUSE_INT;
+     s->status = KBD_STAT_CMD | KBD_STAT_UNLOCKED;
+-    s->outport = KBD_OUT_RESET | KBD_OUT_A20;
++    s->outport = KBD_OUT_RESET | KBD_OUT_A20 | KBD_OUT_ONES;
+     s->outport_present = false;
+ }
+ 
+ static uint8_t kbd_outport_default(KBDState *s)
+ {
+-    return KBD_OUT_RESET | KBD_OUT_A20
++    return KBD_OUT_RESET | KBD_OUT_A20 | KBD_OUT_ONES
+            | (s->status & KBD_STAT_OBF ? KBD_OUT_OBF : 0)
+            | (s->status & KBD_STAT_MOUSE_OBF ? KBD_OUT_MOUSE_OBF : 0);
+ }
+diff --git a/hw/intc/apic_common.c b/hw/intc/apic_common.c
+index 4e62f25..d9bb188 100644
+--- a/hw/intc/apic_common.c
++++ b/hw/intc/apic_common.c
+@@ -178,6 +178,7 @@ bool apic_next_timer(APICCommonState *s, int64_t current_time)
+ void apic_init_reset(DeviceState *dev)
+ {
+     APICCommonState *s = APIC_COMMON(dev);
++    APICCommonClass *info = APIC_COMMON_GET_CLASS(s);
+     int i;
+ 
+     if (!s) {
+@@ -206,6 +207,10 @@ void apic_init_reset(DeviceState *dev)
+         timer_del(s->timer);
+     }
+     s->timer_expiry = -1;
++
++    if (info->reset) {
++        info->reset(s);
++    }
+ }
+ 
+ void apic_designate_bsp(DeviceState *dev)
+diff --git a/hw/isa/vt82c686.c b/hw/isa/vt82c686.c
+index e0c235c..a43e26d 100644
+--- a/hw/isa/vt82c686.c
++++ b/hw/isa/vt82c686.c
+@@ -36,7 +36,7 @@
+ 
+ typedef struct SuperIOConfig
+ {
+-    uint8_t config[0xff];
++    uint8_t config[0x100];
+     uint8_t index;
+     uint8_t data;
+ } SuperIOConfig;
+diff --git a/hw/misc/vfio.c b/hw/misc/vfio.c
+index fd318a1..7bff62c 100644
+--- a/hw/misc/vfio.c
++++ b/hw/misc/vfio.c
+@@ -4049,6 +4049,7 @@ static void vfio_put_device(VFIODevice *vdev)
+     DPRINTF("vfio_put_device: close vdev->fd\n");
+     close(vdev->fd);
+     if (vdev->msix) {
++        object_unparent(OBJECT(&vdev->msix->mmap_mem));
+         g_free(vdev->msix);
+         vdev->msix = NULL;
+     }
+diff --git a/hw/ppc/spapr_iommu.c b/hw/ppc/spapr_iommu.c
+index 6c91d8e..da47474 100644
+--- a/hw/ppc/spapr_iommu.c
++++ b/hw/ppc/spapr_iommu.c
+@@ -173,9 +173,9 @@ sPAPRTCETable *spapr_tce_new_table(DeviceState *owner, uint32_t liobn,
+     return tcet;
+ }
+ 
+-static void spapr_tce_table_finalize(Object *obj)
++static void spapr_tce_table_unrealize(DeviceState *dev, Error **errp)
+ {
+-    sPAPRTCETable *tcet = SPAPR_TCE_TABLE(obj);
++    sPAPRTCETable *tcet = SPAPR_TCE_TABLE(dev);
+ 
+     QLIST_REMOVE(tcet, list);
+ 
+@@ -420,6 +420,7 @@ static void spapr_tce_table_class_init(ObjectClass *klass, void *data)
+     DeviceClass *dc = DEVICE_CLASS(klass);
+     dc->init = spapr_tce_table_realize;
+     dc->reset = spapr_tce_reset;
++    dc->unrealize = spapr_tce_table_unrealize;
+ 
+     QLIST_INIT(&spapr_tce_tables);
+ 
+@@ -435,7 +436,6 @@ static TypeInfo spapr_tce_table_info = {
+     .parent = TYPE_DEVICE,
+     .instance_size = sizeof(sPAPRTCETable),
+     .class_init = spapr_tce_table_class_init,
+-    .instance_finalize = spapr_tce_table_finalize,
+ };
+ 
+ static void register_types(void)
+diff --git a/hw/scsi/scsi-bus.c b/hw/scsi/scsi-bus.c
+index 24f7b74..9b740a3 100644
+--- a/hw/scsi/scsi-bus.c
++++ b/hw/scsi/scsi-bus.c
+@@ -1770,6 +1770,8 @@ void scsi_req_cancel(SCSIRequest *req)
+     req->io_canceled = true;
+     if (req->aiocb) {
+         blk_aio_cancel(req->aiocb);
++    } else {
++        scsi_req_cancel_complete(req);
+     }
+ }
+ 
+diff --git a/hw/scsi/virtio-scsi.c b/hw/scsi/virtio-scsi.c
+index ef48550..a44c410 100644
+--- a/hw/scsi/virtio-scsi.c
++++ b/hw/scsi/virtio-scsi.c
+@@ -144,7 +144,7 @@ static int virtio_scsi_parse_req(VirtIOSCSIReq *req,
+      *
+      * TODO: always disable this workaround for virtio 1.0 devices.
+      */
+-    if ((vdev->guest_features & VIRTIO_F_ANY_LAYOUT) == 0) {
++    if ((vdev->guest_features & (1 << VIRTIO_F_ANY_LAYOUT)) == 0) {
+         req_size = req->elem.out_sg[0].iov_len;
+         resp_size = req->elem.in_sg[0].iov_len;
+     }
+diff --git a/hw/timer/mc146818rtc.c b/hw/timer/mc146818rtc.c
+index f18d128..9373e18 100644
+--- a/hw/timer/mc146818rtc.c
++++ b/hw/timer/mc146818rtc.c
+@@ -734,7 +734,7 @@ static int rtc_post_load(void *opaque, int version_id)
+ }
+ 
+ static const VMStateDescription vmstate_rtc_irq_reinject_on_ack_count = {
+-    .name = "irq_reinject_on_ack_count",
++    .name = "mc146818rtc/irq_reinject_on_ack_count",
+     .version_id = 1,
+     .minimum_version_id = 1,
+     .fields = (VMStateField[]) {
+diff --git a/hw/virtio/dataplane/vring.c b/hw/virtio/dataplane/vring.c
+index 61f6d83..78c6f45 100644
+--- a/hw/virtio/dataplane/vring.c
++++ b/hw/virtio/dataplane/vring.c
+@@ -133,12 +133,12 @@ bool vring_should_notify(VirtIODevice *vdev, Vring *vring)
+      * interrupts. */
+     smp_mb();
+ 
+-    if ((vdev->guest_features & VIRTIO_F_NOTIFY_ON_EMPTY) &&
++    if ((vdev->guest_features & (1 << VIRTIO_F_NOTIFY_ON_EMPTY)) &&
+         unlikely(vring->vr.avail->idx == vring->last_avail_idx)) {
+         return true;
+     }
+ 
+-    if (!(vdev->guest_features & VIRTIO_RING_F_EVENT_IDX)) {
++    if (!(vdev->guest_features & (1 << VIRTIO_RING_F_EVENT_IDX))) {
+         return !(vring->vr.avail->flags & VRING_AVAIL_F_NO_INTERRUPT);
+     }
+     old = vring->signalled_used;
+diff --git a/include/block/block_int.h b/include/block/block_int.h
+index a1c17b9..2ae82c5 100644
+--- a/include/block/block_int.h
++++ b/include/block/block_int.h
+@@ -411,6 +411,14 @@ struct BlockDriverState {
+     Error *backing_blocker;
+ };
+ 
++
++/* Essential block drivers which must always be statically linked into qemu, and
++ * which therefore can be accessed without using bdrv_find_format() */
++extern BlockDriver bdrv_file;
++extern BlockDriver bdrv_raw;
++extern BlockDriver bdrv_qcow2;
++
++
+ int get_tmp_filename(char *filename, int size);
+ 
+ void bdrv_set_io_limits(BlockDriverState *bs,
+diff --git a/include/hw/i386/apic_internal.h b/include/hw/i386/apic_internal.h
+index 83e2a42..dc7a89d 100644
+--- a/include/hw/i386/apic_internal.h
++++ b/include/hw/i386/apic_internal.h
+@@ -89,6 +89,7 @@ typedef struct APICCommonClass
+     void (*external_nmi)(APICCommonState *s);
+     void (*pre_save)(APICCommonState *s);
+     void (*post_load)(APICCommonState *s);
++    void (*reset)(APICCommonState *s);
+ } APICCommonClass;
+ 
+ struct APICCommonState {
+diff --git a/include/qemu/atomic.h b/include/qemu/atomic.h
+index 492bce1..93c2ae2 100644
+--- a/include/qemu/atomic.h
++++ b/include/qemu/atomic.h
+@@ -122,11 +122,11 @@
+ #endif
+ 
+ #ifndef atomic_read
+-#define atomic_read(ptr)       (*(__typeof__(*ptr) *volatile) (ptr))
++#define atomic_read(ptr)       (*(__typeof__(*ptr) volatile*) (ptr))
+ #endif
+ 
+ #ifndef atomic_set
+-#define atomic_set(ptr, i)     ((*(__typeof__(*ptr) *volatile) (ptr)) = (i))
++#define atomic_set(ptr, i)     ((*(__typeof__(*ptr) volatile*) (ptr)) = (i))
+ #endif
+ 
+ /* These have the same semantics as Java volatile variables.
+diff --git a/libcacard/Makefile b/libcacard/Makefile
+index 0e7903f..b5eddff 100644
+--- a/libcacard/Makefile
++++ b/libcacard/Makefile
+@@ -19,6 +19,8 @@ vscclient$(EXESUF): libcacard/vscclient.o libcacard.la
+ 
+ libcacard.la: LDFLAGS += -rpath $(libdir) -no-undefined \
+ 	-export-symbols $(SRC_PATH)/libcacard/libcacard.syms
++# Prevent libcacard.so linking against the entire world of 3rd party libs
++libcacard.la: LIBS =
+ libcacard.la: $(libcacard-lobj-y)
+ 	$(call LINK,$^)
+ 
+diff --git a/linux-user/main.c b/linux-user/main.c
+index 5c14c1e..f2cf2b6 100644
+--- a/linux-user/main.c
++++ b/linux-user/main.c
+@@ -3435,12 +3435,19 @@ CPUArchState *cpu_copy(CPUArchState *env)
+ {
+     CPUState *cpu = ENV_GET_CPU(env);
+     CPUArchState *new_env = cpu_init(cpu_model);
+-    CPUState *new_cpu = ENV_GET_CPU(new_env);
++    CPUState *new_cpu;
+ #if defined(TARGET_HAS_ICE)
+     CPUBreakpoint *bp;
+     CPUWatchpoint *wp;
+ #endif
+ 
++    if (!new_env) {
++        fprintf(stderr, "cpu_copy: Failed to create new CPU\n");
++        exit(1);
++    }
++
++    new_cpu = ENV_GET_CPU(new_env);
++
+     /* Reset non arch specific state */
+     cpu_reset(new_cpu);
+ 
+diff --git a/linux-user/signal.c b/linux-user/signal.c
+index e11b208..a324fd1 100644
+--- a/linux-user/signal.c
++++ b/linux-user/signal.c
+@@ -5091,7 +5091,7 @@ static void setup_frame(int sig, struct target_sigaction *ka,
+     /* moveq #,d0; trap #0 */
+ 
+     __put_user(0x70004e40 + (TARGET_NR_sigreturn << 16),
+-                      (long *)(frame->retcode));
++                      (uint32_t *)(frame->retcode));
+ 
+     /* Set up to return from userspace */
+ 
+@@ -5225,8 +5225,8 @@ static void setup_rt_frame(int sig, struct target_sigaction *ka,
+     /* moveq #,d0; notb d0; trap #0 */
+ 
+     __put_user(0x70004600 + ((TARGET_NR_rt_sigreturn ^ 0xff) << 16),
+-               (long *)(frame->retcode + 0));
+-    __put_user(0x4e40, (short *)(frame->retcode + 4));
++               (uint32_t *)(frame->retcode + 0));
++    __put_user(0x4e40, (uint16_t *)(frame->retcode + 4));
+ 
+     if (err)
+         goto give_sigsegv;
+index 5bc0af0..ba821ab 100644
+--- a/pc-bios/optionrom/linuxboot.S
++++ b/pc-bios/optionrom/linuxboot.S
+@@ -76,7 +76,31 @@ boot_kernel:
+ 
+ 
+ copy_kernel:
+-	/* Compute initrd address */
++	/* Read info block in low memory (0x10000 or 0x90000) */
++	read_fw		FW_CFG_SETUP_ADDR
++	shr		$4, %eax
++	mov		%eax, %es
++	xor		%edi, %edi
++	read_fw_blob_addr32_edi(FW_CFG_SETUP)
++
++	cmpw            $0x203, %es:0x206      // if protocol >= 0x203
++	jae             1f                     // have initrd_max
++	movl            $0x37ffffff, %es:0x22c // else assume 0x37ffffff
++1:
++
++	/* Check if using kernel-specified initrd address */
++	read_fw		FW_CFG_INITRD_ADDR
++	mov		%eax, %edi             // (load_kernel wants it in %edi)
++	read_fw		FW_CFG_INITRD_SIZE     // find end of initrd
++	add		%edi, %eax
++	xor		%es:0x22c, %eax        // if it matches es:0x22c
++	and		$-4096, %eax           // (apart from padding for page)
++	jz		load_kernel            // then initrd is not at top
++					       // of memory
++
++	/* pc.c placed the initrd at end of memory.  Compute a better
++	 * initrd address based on e801 data.
++	 */
+ 	mov		$0xe801, %ax
+ 	xor		%cx, %cx
+ 	xor		%dx, %dx
+@@ -107,7 +131,9 @@ copy_kernel:
+ 	read_fw         FW_CFG_INITRD_SIZE
+ 	subl            %eax, %edi
+ 	andl            $-4096, %edi          /* EDI = start of initrd */
++	movl		%edi, %es:0x218       /* put it in the header */
+ 
++load_kernel:
+ 	/* We need to load the kernel into memory we can't access in 16 bit
+ 	   mode, so let's get into 32 bit mode, write the kernel and jump
+ 	   back again. */
+@@ -139,19 +165,10 @@ copy_kernel:
+ 	/* We're now running in 16-bit CS, but 32-bit ES! */
+ 
+ 	/* Load kernel and initrd */
+-	pushl		%edi
+ 	read_fw_blob_addr32_edi(FW_CFG_INITRD)
+ 	read_fw_blob_addr32(FW_CFG_KERNEL)
+ 	read_fw_blob_addr32(FW_CFG_CMDLINE)
+ 
+-	read_fw		FW_CFG_SETUP_ADDR
+-	mov		%eax, %edi
+-	mov		%eax, %ebx
+-	read_fw_blob_addr32_edi(FW_CFG_SETUP)
+-
+-	/* Update the header with the initrd address we chose above */
+-	popl		%es:0x218(%ebx)
+-
+ 	/* And now jump into Linux! */
+ 	mov		$0, %eax
+ 	mov		%eax, %cr0
+diff --git a/qemu-coroutine.c b/qemu-coroutine.c
+index bd574aa..0101855 100644
+--- a/qemu-coroutine.c
++++ b/qemu-coroutine.c
+@@ -135,7 +135,7 @@ void coroutine_fn qemu_coroutine_yield(void)
+     }
+ 
+     self->caller = NULL;
+-    coroutine_swap(self, to);
++    qemu_coroutine_switch(self, to, COROUTINE_YIELD);
+ }
+ 
+ void qemu_coroutine_adjust_pool_size(int n)
+diff --git a/qemu-img.c b/qemu-img.c
+index a42335c..7876258 100644
+--- a/qemu-img.c
++++ b/qemu-img.c
+@@ -1531,6 +1531,20 @@ static int img_convert(int argc, char **argv)
+         goto out;
+     }
+ 
++    if (!drv->create_opts) {
++        error_report("Format driver '%s' does not support image creation",
++                     drv->format_name);
++        ret = -1;
++        goto out;
++    }
++
++    if (!proto_drv->create_opts) {
++        error_report("Protocol driver '%s' does not support image creation",
++                     proto_drv->format_name);
++        ret = -1;
++        goto out;
++    }
++
+     create_opts = qemu_opts_append(create_opts, drv->create_opts);
+     create_opts = qemu_opts_append(create_opts, proto_drv->create_opts);
+ 
+@@ -2972,6 +2986,13 @@ static int img_amend(int argc, char **argv)
+         goto out;
+     }
+ 
++    if (!bs->drv->create_opts) {
++        error_report("Format driver '%s' does not support any options to amend",
++                     fmt);
++        ret = -1;
++        goto out;
++    }
++
+     create_opts = qemu_opts_append(create_opts, bs->drv->create_opts);
+     opts = qemu_opts_create(create_opts, NULL, 0, &error_abort);
+     if (options && qemu_opts_do_parse(opts, options, NULL)) {
+diff --git a/target-arm/translate-a64.c b/target-arm/translate-a64.c
+index 80d2c07..97206aa 100644
+--- a/target-arm/translate-a64.c
++++ b/target-arm/translate-a64.c
+@@ -2107,7 +2107,7 @@ static void disas_ldst_reg_imm9(DisasContext *s, uint32_t insn)
+         }
+     } else {
+         TCGv_i64 tcg_rt = cpu_reg(s, rt);
+-        int memidx = is_unpriv ? 1 : get_mem_index(s);
++        int memidx = is_unpriv ? MMU_USER_IDX : get_mem_index(s);
+ 
+         if (is_store) {
+             do_gpr_st_memidx(s, tcg_rt, tcg_addr, size, memidx);
+diff --git a/target-i386/translate.c b/target-i386/translate.c
+index 782f7d2..269b885 100644
+--- a/target-i386/translate.c
++++ b/target-i386/translate.c
+@@ -3069,7 +3069,8 @@ static void gen_sse(CPUX86State *env, DisasContext *s, int b,
+                 goto illegal_op;
+             gen_lea_modrm(env, s, modrm);
+             if (b1 & 1) {
+-                gen_stq_env_A0(s, offsetof(CPUX86State, xmm_regs[reg]));
++                gen_stq_env_A0(s, offsetof(CPUX86State,
++                                           xmm_regs[reg].XMM_Q(0)));
+             } else {
+                 tcg_gen_ld32u_tl(cpu_T[0], cpu_env, offsetof(CPUX86State,
+                     xmm_regs[reg].XMM_L(0)));
+diff --git a/target-mips/machine.c b/target-mips/machine.c
+index 0ba7d73..6c76dfb 100644
+--- a/target-mips/machine.c
++++ b/target-mips/machine.c
+@@ -285,6 +285,10 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
+     qemu_get_sbe32s(f, &env->CP0_SRSConf4);
+     qemu_get_sbe32s(f, &env->CP0_HWREna);
+     qemu_get_betls(f, &env->CP0_BadVAddr);
++    if (version_id >= 5) {
++        qemu_get_be32s(f, &env->CP0_BadInstr);
++        qemu_get_be32s(f, &env->CP0_BadInstrP);
++    }
+     qemu_get_sbe32s(f, &env->CP0_Count);
+     qemu_get_betls(f, &env->CP0_EntryHi);
+     qemu_get_sbe32s(f, &env->CP0_Compare);
+@@ -319,8 +323,6 @@ int cpu_load(QEMUFile *f, void *opaque, int version_id)
+     qemu_get_betls(f, &env->CP0_ErrorEPC);
+     qemu_get_sbe32s(f, &env->CP0_DESAVE);
+     if (version_id >= 5) {
+-        qemu_get_be32s(f, &env->CP0_BadInstr);
+-        qemu_get_be32s(f, &env->CP0_BadInstrP);
+         for (i = 0; i < MIPS_KSCRATCH_NUM; i++) {
+             qemu_get_betls(f, &env->CP0_KScratch[i]);
+         }
+diff --git a/target-xtensa/translate.c b/target-xtensa/translate.c
+index badca19..a81573d 100644
+--- a/target-xtensa/translate.c
++++ b/target-xtensa/translate.c
+@@ -887,6 +887,11 @@ static TCGv_i32 gen_mac16_m(TCGv_i32 v, bool hi, bool is_unsigned)
+     return m;
+ }
+ 
++static inline unsigned xtensa_op0_insn_len(unsigned op0)
++{
++    return op0 >= 8 ? 2 : 3;
++}
++
+ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
+ {
+ #define HAS_OPTION_BITS(opt) do { \
+@@ -989,6 +994,7 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
+     uint8_t b0 = cpu_ldub_code(env, dc->pc);
+     uint8_t b1 = cpu_ldub_code(env, dc->pc + 1);
+     uint8_t b2 = 0;
++    unsigned len = xtensa_op0_insn_len(OP0);
+ 
+     static const uint32_t B4CONST[] = {
+         0xffffffff, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 32, 64, 128, 256
+@@ -998,13 +1004,19 @@ static void disas_xtensa_insn(CPUXtensaState *env, DisasContext *dc)
+         32768, 65536, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 32, 64, 128, 256
+     };
+ 
+-    if (OP0 >= 8) {
+-        dc->next_pc = dc->pc + 2;
++    switch (len) {
++    case 2:
+         HAS_OPTION(XTENSA_OPTION_CODE_DENSITY);
+-    } else {
+-        dc->next_pc = dc->pc + 3;
++        break;
++
++    case 3:
+         b2 = cpu_ldub_code(env, dc->pc + 2);
++        break;
++
++    default:
++        RESERVED();
+     }
++    dc->next_pc = dc->pc + len;
+ 
+     switch (OP0) {
+     case 0: /*QRST*/
+@@ -2949,6 +2961,12 @@ invalid_opcode:
+ #undef HAS_OPTION
+ }
+ 
++static inline unsigned xtensa_insn_len(CPUXtensaState *env, DisasContext *dc)
++{
++    uint8_t b0 = cpu_ldub_code(env, dc->pc);
++    return xtensa_op0_insn_len(OP0);
++}
++
+ static void check_breakpoint(CPUXtensaState *env, DisasContext *dc)
+ {
+     CPUState *cs = CPU(xtensa_env_get_cpu(env));
+@@ -3081,6 +3099,7 @@ void gen_intermediate_code_internal(XtensaCPU *cpu,
+     } while (dc.is_jmp == DISAS_NEXT &&
+             insn_count < max_insns &&
+             dc.pc < next_page_start &&
++            dc.pc + xtensa_insn_len(env, &dc) <= next_page_start &&
+             tcg_ctx.gen_opc_ptr < gen_opc_end);
+ 
+     reset_litbase(&dc);
+diff --git a/tests/acpi-test-data/pc/DSDT b/tests/acpi-test-data/pc/DSDT
+index ee9cc67..010d746 100644
+Binary files a/tests/acpi-test-data/pc/DSDT and b/tests/acpi-test-data/pc/DSDT differ
+diff --git a/tests/acpi-test-data/q35/DSDT b/tests/acpi-test-data/q35/DSDT
+index ef0c75f..8ac32ef 100644
+Binary files a/tests/acpi-test-data/q35/DSDT and b/tests/acpi-test-data/q35/DSDT differ
+diff --git a/tests/qemu-iotests/026.out b/tests/qemu-iotests/026.out
+index f7c78e7..ad84ac2 100644
+--- a/tests/qemu-iotests/026.out
++++ b/tests/qemu-iotests/026.out
+@@ -14,6 +14,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_update; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ 
+ 1 leaked clusters were found on the image.
+@@ -21,6 +23,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_update; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ 
+ 1 leaked clusters were found on the image.
+@@ -38,6 +42,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_update; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 1 leaked clusters were found on the image.
+@@ -45,6 +51,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_update; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 1 leaked clusters were found on the image.
+@@ -70,7 +78,11 @@ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824
+ Event: l2_load; errno: 5; imm: off; once: off; write 
+ wrote 131072/131072 bytes at offset 0
+ 128 KiB, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ read failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -78,7 +90,11 @@ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824
+ Event: l2_load; errno: 5; imm: off; once: off; write -b
+ wrote 131072/131072 bytes at offset 0
+ 128 KiB, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ read failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -102,7 +118,11 @@ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824
+ Event: l2_load; errno: 28; imm: off; once: off; write 
+ wrote 131072/131072 bytes at offset 0
+ 128 KiB, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ read failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -110,12 +130,17 @@ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824
+ Event: l2_load; errno: 28; imm: off; once: off; write -b
+ wrote 131072/131072 bytes at offset 0
+ 128 KiB, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ read failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 5; imm: off; once: on; write 
++Failed to flush the L2 table cache: Input/output error
+ write failed: Input/output error
+ 
+ 127 leaked clusters were found on the image.
+@@ -123,6 +148,7 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 5; imm: off; once: on; write -b
++Failed to flush the L2 table cache: Input/output error
+ write failed: Input/output error
+ 
+ 127 leaked clusters were found on the image.
+@@ -130,6 +156,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ 
+ 127 leaked clusters were found on the image.
+@@ -137,6 +165,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ 
+ 127 leaked clusters were found on the image.
+@@ -144,6 +174,7 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 28; imm: off; once: on; write 
++Failed to flush the L2 table cache: No space left on device
+ write failed: No space left on device
+ 
+ 127 leaked clusters were found on the image.
+@@ -151,6 +182,7 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 28; imm: off; once: on; write -b
++Failed to flush the L2 table cache: No space left on device
+ write failed: No space left on device
+ 
+ 127 leaked clusters were found on the image.
+@@ -158,6 +190,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 127 leaked clusters were found on the image.
+@@ -165,6 +199,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_update; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 127 leaked clusters were found on the image.
+@@ -182,11 +218,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_alloc.write; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_alloc.write; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ 
+ 1 leaked clusters were found on the image.
+@@ -204,11 +244,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_alloc.write; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l2_alloc.write; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 1 leaked clusters were found on the image.
+@@ -226,11 +270,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: write_aio; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: write_aio; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -246,11 +294,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: write_aio; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: write_aio; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -266,11 +318,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_load; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_load; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -286,51 +342,67 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_load; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_load; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 5; imm: off; once: on; write 
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 5; imm: off; once: on; write -b
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 28; imm: off; once: on; write 
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 28; imm: off; once: on; write -b
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_update_part; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -346,11 +418,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -366,11 +442,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -386,11 +466,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: cluster_alloc; errno: 5; imm: off; once: off; write 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: cluster_alloc; errno: 5; imm: off; once: off; write -b
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -406,11 +490,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: cluster_alloc; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: cluster_alloc; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ 
+@@ -429,6 +517,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.hookup; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 55 leaked clusters were found on the image.
+@@ -436,6 +526,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.hookup; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 251 leaked clusters were found on the image.
+@@ -453,11 +545,15 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.write; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.write; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -473,6 +569,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.write_blocks; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 11 leaked clusters were found on the image.
+@@ -480,6 +578,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.write_blocks; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 23 leaked clusters were found on the image.
+@@ -497,6 +597,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.write_table; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 11 leaked clusters were found on the image.
+@@ -504,6 +606,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.write_table; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 23 leaked clusters were found on the image.
+@@ -521,6 +625,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.switch_table; errno: 28; imm: off; once: off; write 
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 11 leaked clusters were found on the image.
+@@ -528,6 +634,8 @@ This means waste of disk space, but no harm to data.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: refblock_alloc.switch_table; errno: 28; imm: off; once: off; write -b
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 23 leaked clusters were found on the image.
+@@ -543,6 +651,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_grow.alloc_table; errno: 5; imm: off; once: off
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -553,6 +663,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_grow.alloc_table; errno: 28; imm: off; once: off
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -563,6 +675,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_grow.write_table; errno: 5; imm: off; once: off
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -573,6 +687,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_grow.write_table; errno: 28; imm: off; once: off
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+@@ -583,6 +699,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_grow.activate_table; errno: 5; imm: off; once: off
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ write failed: Input/output error
+ 
+ 96 leaked clusters were found on the image.
+@@ -595,6 +713,8 @@ No errors were found on the image.
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=1073741824 
+ 
+ Event: l1_grow.activate_table; errno: 28; imm: off; once: off
++Failed to flush the L2 table cache: No space left on device
++Failed to flush the refcount block cache: No space left on device
+ write failed: No space left on device
+ 
+ 96 leaked clusters were found on the image.
+diff --git a/tests/qemu-iotests/071.out b/tests/qemu-iotests/071.out
+index 5f840a9..0624581 100644
+--- a/tests/qemu-iotests/071.out
++++ b/tests/qemu-iotests/071.out
+@@ -30,10 +30,14 @@ blkverify: read sector_num=0 nb_sectors=4 contents mismatch in sector 0
+ 
+ === Testing blkdebug through filename ===
+ 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ read failed: Input/output error
+ 
+ === Testing blkdebug through file blockref ===
+ 
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ read failed: Input/output error
+ 
+ === Testing blkdebug on existing block device ===
+@@ -48,6 +52,8 @@ read failed: Input/output error
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "SHUTDOWN"}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "DEVICE_TRAY_MOVED", "data": {"device": "ide1-cd0", "tray-open": true}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "DEVICE_TRAY_MOVED", "data": {"device": "floppy0", "tray-open": true}}
++qemu-system-x86_64: Failed to flush the L2 table cache: Input/output error
++qemu-system-x86_64: Failed to flush the refcount block cache: Input/output error
+ 
+ 
+ === Testing blkverify on existing block device ===
+@@ -86,5 +92,7 @@ read failed: Input/output error
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "SHUTDOWN"}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "DEVICE_TRAY_MOVED", "data": {"device": "ide1-cd0", "tray-open": true}}
+ {"timestamp": {"seconds":  TIMESTAMP, "microseconds":  TIMESTAMP}, "event": "DEVICE_TRAY_MOVED", "data": {"device": "floppy0", "tray-open": true}}
++qemu-system-x86_64: Failed to flush the L2 table cache: Input/output error
++qemu-system-x86_64: Failed to flush the refcount block cache: Input/output error
+ 
+ *** done
+diff --git a/tests/qemu-iotests/080 b/tests/qemu-iotests/080
+index 9de337c..73795f1 100755
+--- a/tests/qemu-iotests/080
++++ b/tests/qemu-iotests/080
+@@ -78,6 +78,8 @@ poke_file "$TEST_IMG" "$offset_backing_file_offset" "\xff\xff\xff\xff\xff\xff\xf
+ poke_file "$TEST_IMG" "$offset_ext_magic" "\x12\x34\x56\x78"
+ poke_file "$TEST_IMG" "$offset_ext_size" "\x7f\xff\xff\xff"
+ { $QEMU_IO -c "read 0 512" $TEST_IMG; } 2>&1 | _filter_qemu_io | _filter_testdir
++poke_file "$TEST_IMG" "$offset_backing_file_offset" "\x00\x00\x00\x00\x00\x00\x00\x$(printf %x $offset_ext_size)"
++{ $QEMU_IO -c "read 0 512" $TEST_IMG; } 2>&1 | _filter_qemu_io | _filter_testdir
+ poke_file "$TEST_IMG" "$offset_backing_file_offset" "\x00\x00\x00\x00\x00\x00\x00\x00"
+ { $QEMU_IO -c "read 0 512" $TEST_IMG; } 2>&1 | _filter_qemu_io | _filter_testdir
+ 
+diff --git a/tests/qemu-iotests/080.out b/tests/qemu-iotests/080.out
+index f7a943c..33d1f71 100644
+--- a/tests/qemu-iotests/080.out
++++ b/tests/qemu-iotests/080.out
+@@ -13,6 +13,8 @@ qemu-io: can't open device TEST_DIR/t.qcow2: Invalid backing file offset
+ no file open, try 'help open'
+ qemu-io: can't open device TEST_DIR/t.qcow2: Header extension too large
+ no file open, try 'help open'
++qemu-io: can't open device TEST_DIR/t.qcow2: Header extension too large
++no file open, try 'help open'
+ 
+ == Huge refcount table size ==
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=67108864 
+diff --git a/tests/qemu-iotests/089.out b/tests/qemu-iotests/089.out
+index b2b0390..bf3b8a0 100644
+--- a/tests/qemu-iotests/089.out
++++ b/tests/qemu-iotests/089.out
+@@ -24,6 +24,8 @@ read 512/512 bytes at offset 0
+ Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=67108864 
+ wrote 512/512 bytes at offset 229376
+ 512 bytes, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
++Failed to flush the L2 table cache: Input/output error
++Failed to flush the refcount block cache: Input/output error
+ read failed: Input/output error
+ 
+ === Testing qemu-img info output ===
+diff --git a/tests/qemu-iotests/113 b/tests/qemu-iotests/113
+new file mode 100755
+index 0000000..a2cd96b
+--- /dev/null
++++ b/tests/qemu-iotests/113
+@@ -0,0 +1,76 @@
++#!/bin/bash
++#
++# Test case for accessing creation options on image formats and
++# protocols not supporting image creation
++#
++# Copyright (C) 2014 Red Hat, Inc.
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++#
++
++# creator
++owner=mreitz@redhat.com
++
++seq="$(basename $0)"
++echo "QA output created by $seq"
++
++here="$PWD"
++tmp=/tmp/$$
++status=1	# failure is the default!
++
++_cleanup()
++{
++	_cleanup_test_img
++}
++trap "_cleanup; exit \$status" 0 1 2 3 15
++
++# get standard environment, filters and checks
++. ./common.rc
++. ./common.filter
++
++# We can only test one format here because we need its sample file
++_supported_fmt bochs
++_supported_proto nbd
++_supported_os Linux
++
++echo
++echo '=== Unsupported image creation in qemu-img create ==='
++echo
++
++$QEMU_IMG create -f $IMGFMT nbd://example.com 2>&1 64M | _filter_imgfmt
++
++echo
++echo '=== Unsupported image creation in qemu-img convert ==='
++echo
++
++# We could use any input image format here, but this is a bochs test, so just
++# use the bochs image
++_use_sample_img empty.bochs.bz2
++$QEMU_IMG convert -f $IMGFMT -O $IMGFMT "$TEST_IMG" nbd://example.com 2>&1 \
++    | _filter_imgfmt
++
++echo
++echo '=== Unsupported format in qemu-img amend ==='
++echo
++
++# The protocol does not matter here
++_use_sample_img empty.bochs.bz2
++$QEMU_IMG amend -f $IMGFMT -o foo=bar "$TEST_IMG" 2>&1 | _filter_imgfmt
++
++
++# success, all done
++echo
++echo '*** done'
++rm -f $seq.full
++status=0
+diff --git a/tests/qemu-iotests/113.out b/tests/qemu-iotests/113.out
+new file mode 100644
+index 0000000..00bdfd6
+--- /dev/null
++++ b/tests/qemu-iotests/113.out
+@@ -0,0 +1,15 @@
++QA output created by 113
++
++=== Unsupported image creation in qemu-img create ===
++
++qemu-img: nbd://example.com: Format driver 'IMGFMT' does not support image creation
++
++=== Unsupported image creation in qemu-img convert ===
++
++qemu-img: Format driver 'IMGFMT' does not support image creation
++
++=== Unsupported format in qemu-img amend ===
++
++qemu-img: Format driver 'IMGFMT' does not support any options to amend
++
++*** done
+diff --git a/tests/qemu-iotests/114 b/tests/qemu-iotests/114
+new file mode 100755
+index 0000000..d02e7ff
+--- /dev/null
++++ b/tests/qemu-iotests/114
+@@ -0,0 +1,61 @@
++#!/bin/bash
++#
++# Test invalid backing file format in qcow2 images
++#
++# Copyright (C) 2014 Red Hat, Inc.
++#
++# This program is free software; you can redistribute it and/or modify
++# it under the terms of the GNU General Public License as published by
++# the Free Software Foundation; either version 2 of the License, or
++# (at your option) any later version.
++#
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++#
++# You should have received a copy of the GNU General Public License
++# along with this program.  If not, see <http://www.gnu.org/licenses/>.
++#
++
++# creator
++owner=kwolf@redhat.com
++
++seq="$(basename $0)"
++echo "QA output created by $seq"
++
++here="$PWD"
++tmp=/tmp/$$
++status=1	# failure is the default!
++
++_cleanup()
++{
++	_cleanup_test_img
++}
++trap "_cleanup; exit \$status" 0 1 2 3 15
++
++# get standard environment, filters and checks
++. ./common.rc
++. ./common.filter
++
++_supported_fmt qcow2
++_supported_proto generic
++_supported_os Linux
++
++
++TEST_IMG="$TEST_IMG.base" _make_test_img 64M
++_make_test_img -b "$TEST_IMG.base" 64M
++
++# Set an invalid backing file format
++$PYTHON qcow2.py "$TEST_IMG" add-header-ext 0xE2792ACA "foo"
++_img_info
++
++# Try opening the image. Should fail (and not probe) in the first case, but
++# overriding the backing file format should be possible.
++$QEMU_IO -c "open $TEST_IMG" -c "read 0 4k" 2>&1 | _filter_qemu_io | _filter_testdir
++$QEMU_IO -c "open -o backing.driver=$IMGFMT $TEST_IMG" -c "read 0 4k" | _filter_qemu_io
++
++# success, all done
++echo '*** done'
++rm -f $seq.full
++status=0
+diff --git a/tests/qemu-iotests/114.out b/tests/qemu-iotests/114.out
+new file mode 100644
+index 0000000..6c6b210
+--- /dev/null
++++ b/tests/qemu-iotests/114.out
+@@ -0,0 +1,13 @@
++QA output created by 114
++Formatting 'TEST_DIR/t.IMGFMT.base', fmt=IMGFMT size=67108864 
++Formatting 'TEST_DIR/t.IMGFMT', fmt=IMGFMT size=67108864 backing_file='TEST_DIR/t.IMGFMT.base' 
++image: TEST_DIR/t.IMGFMT
++file format: IMGFMT
++virtual size: 64M (67108864 bytes)
++cluster_size: 65536
++backing file: TEST_DIR/t.IMGFMT.base
++backing file format: foo
++qemu-io: can't open device TEST_DIR/t.qcow2: Could not open backing file: Unknown driver 'foo'
++read 4096/4096 bytes at offset 0
++4 KiB, X ops; XX:XX:XX.X (XXX YYY/sec and XXX ops/sec)
++*** done
+diff --git a/tests/qemu-iotests/common.rc b/tests/qemu-iotests/common.rc
+index 9c49deb..f2554ec 100644
+--- a/tests/qemu-iotests/common.rc
++++ b/tests/qemu-iotests/common.rc
+@@ -175,7 +175,9 @@ _cleanup_test_img()
+     case "$IMGPROTO" in
+ 
+         nbd)
+-            kill $QEMU_NBD_PID
++            if [ -n "$QEMU_NBD_PID" ]; then
++                kill $QEMU_NBD_PID
++            fi
+             rm -f "$TEST_IMG_FILE"
+             ;;
+         file)
+diff --git a/tests/qemu-iotests/group b/tests/qemu-iotests/group
+index 7dfe469..da59f57 100644
+--- a/tests/qemu-iotests/group
++++ b/tests/qemu-iotests/group
+@@ -112,3 +112,5 @@
+ 107 rw auto quick
+ 108 rw auto quick
+ 111 rw auto quick
++113 rw auto quick
++114 rw auto quick
+diff --git a/tests/qemu-iotests/qcow2.py b/tests/qemu-iotests/qcow2.py
+index 2058596..9cc4cf7 100755
+--- a/tests/qemu-iotests/qcow2.py
++++ b/tests/qemu-iotests/qcow2.py
+@@ -7,6 +7,10 @@ import string
+ class QcowHeaderExtension:
+ 
+     def __init__(self, magic, length, data):
++        if length % 8 != 0:
++            padding = 8 - (length % 8)
++            data += "\0" * padding
++
+         self.magic  = magic
+         self.length = length
+         self.data   = data
+diff --git a/tests/tcg/xtensa/test_mmu.S b/tests/tcg/xtensa/test_mmu.S
+index 58c5bca..a15316f 100644
+--- a/tests/tcg/xtensa/test_mmu.S
++++ b/tests/tcg/xtensa/test_mmu.S
+@@ -641,7 +641,7 @@ test cross_page_tb
+     witlb   a2, a3
+     wdtlb   a2, a3
+ 
+-    movi    a2, 0x00007ffd
++    movi    a2, 0x00007ffc
+     movi    a3, 20f
+     movi    a4, 21f
+     sub     a4, a4, a3
+@@ -651,7 +651,7 @@ test cross_page_tb
+     addi    a2, a2, 1
+     addi    a3, a3, 1
+ 1:
+-    movi    a2, 0x00007ffd
++    movi    a2, 0x00007ffc
+     movi    a3, 0x00008000
+     /* DTLB: OK, ITLB: OK */
+     jx      a2
+@@ -668,10 +668,10 @@ test cross_page_tb
+     movi    a3, 1
+     assert  eq, a2, a3
+     rsr     a2, epc1
+-    movi    a3, 0x8000
++    movi    a3, 0x7fff
+     assert  eq, a2, a3
+     rsr     a2, excsave1
+-    movi    a3, 0x00007ffd
++    movi    a3, 0x00007ffc
+     assert  ne, a2, a3
+ 
+     reset_ps
+@@ -680,7 +680,7 @@ test cross_page_tb
+     movi    a2, 0x0400000c /* PPN */
+     movi    a3, 0x00008000 /* VPN */
+     wdtlb   a2, a3
+-    movi    a2, 0x00007ffd
++    movi    a2, 0x00007ffc
+     movi    a3, 0x00008000
+     /* DTLB: FAIL, ITLB: OK */
+     jx      a2
+@@ -689,10 +689,10 @@ test cross_page_tb
+     movi    a3, 28
+     assert  eq, a2, a3
+     rsr     a2, epc1
+-    movi    a3, 0x7ffd
++    movi    a3, 0x7ffc
+     assert  eq, a2, a3
+     rsr     a2, excsave1
+-    movi    a3, 0x00007ffd
++    movi    a3, 0x00007ffc
+     assert  eq, a2, a3
+ 
+     reset_ps
+@@ -703,7 +703,7 @@ test cross_page_tb
+     witlb   a2, a3
+     movi    a2, 0x04000003 /* PPN */
+     wdtlb   a2, a3
+-    movi    a2, 0x00007ffd
++    movi    a2, 0x00007ffc
+     movi    a3, 0x00008000
+     /* DTLB: OK, ITLB: FAIL */
+     jx      a2
+@@ -712,10 +712,10 @@ test cross_page_tb
+     movi    a3, 20
+     assert  eq, a2, a3
+     rsr     a2, epc1
+-    movi    a3, 0x8000
++    movi    a3, 0x7fff
+     assert  eq, a2, a3
+     rsr     a2, excsave1
+-    movi    a3, 0x00007ffd
++    movi    a3, 0x00007ffc
+     assert  ne, a2, a3
+ 
+     reset_ps
+@@ -724,7 +724,7 @@ test cross_page_tb
+     movi    a2, 0x0400000c /* PPN */
+     movi    a3, 0x00008000 /* VPN */
+     wdtlb   a2, a3
+-    movi    a2, 0x00007ffd
++    movi    a2, 0x00007ffc
+     movi    a3, 0x00008000
+     /* DTLB: FAIL, ITLB: FAIL */
+     jx      a2
+@@ -733,10 +733,10 @@ test cross_page_tb
+     movi    a3, 28
+     assert  eq, a2, a3
+     rsr     a2, epc1
+-    movi    a3, 0x7ffd
++    movi    a3, 0x7ffc
+     assert  eq, a2, a3
+     rsr     a2, excsave1
+-    movi    a3, 0x00007ffd
++    movi    a3, 0x00007ffc
+     assert  eq, a2, a3
+ test_end
+ 
+diff --git a/util/qemu-thread-posix.c b/util/qemu-thread-posix.c
+index d05a649..bb14ad4 100644
+--- a/util/qemu-thread-posix.c
++++ b/util/qemu-thread-posix.c
+@@ -306,11 +306,13 @@ static inline void futex_wait(QemuEvent *ev, unsigned val)
+ #else
+ static inline void futex_wake(QemuEvent *ev, int n)
+ {
++    pthread_mutex_lock(&ev->lock);
+     if (n == 1) {
+         pthread_cond_signal(&ev->cond);
+     } else {
+         pthread_cond_broadcast(&ev->cond);
+     }
++    pthread_mutex_unlock(&ev->lock);
+ }
+ 
+ static inline void futex_wait(QemuEvent *ev, unsigned val)
+diff --git a/vl.c b/vl.c
+index eb89d62..91411c1 100644
+--- a/vl.c
++++ b/vl.c
+@@ -2886,9 +2886,6 @@ int main(int argc, char **argv, char **envp)
+                 exit(1);
+             }
+             switch(popt->index) {
+-            case QEMU_OPTION_M:
+-                machine_class = machine_parse(optarg);
+-                break;
+             case QEMU_OPTION_no_kvm_irqchip: {
+                 olist = qemu_find_opts("machine");
+                 qemu_opts_parse(olist, "kernel_irqchip=off", 0);
+@@ -3506,16 +3503,13 @@ int main(int argc, char **argv, char **envp)
+                 olist = qemu_find_opts("machine");
+                 qemu_opts_parse(olist, "accel=kvm", 0);
+                 break;
++            case QEMU_OPTION_M:
+             case QEMU_OPTION_machine:
+                 olist = qemu_find_opts("machine");
+                 opts = qemu_opts_parse(olist, optarg, 1);
+                 if (!opts) {
+                     exit(1);
+                 }
+-                optarg = qemu_opt_get(opts, "type");
+-                if (optarg) {
+-                    machine_class = machine_parse(optarg);
+-                }
+                 break;
+              case QEMU_OPTION_no_kvm:
+                 olist = qemu_find_opts("machine");
+@@ -3807,6 +3801,13 @@ int main(int argc, char **argv, char **envp)
+             }
+         }
+     }
++
++    opts = qemu_get_machine_opts();
++    optarg = qemu_opt_get(opts, "type");
++    if (optarg) {
++        machine_class = machine_parse(optarg);
++    }
++
+     loc_set_none();
+ 
+     os_daemonize();
+diff --git a/xen-hvm.c b/xen-hvm.c
+index 7548794..e2e575b 100644
+--- a/xen-hvm.c
++++ b/xen-hvm.c
+@@ -90,6 +90,12 @@ static inline ioreq_t *xen_vcpu_ioreq(shared_iopage_t *shared_page, int vcpu)
+ #endif
+ 
+ #define BUFFER_IO_MAX_DELAY  100
++/* Leave some slack so that hvmloader does not complain about lack of
++ * memory at boot time ("Could not allocate order=0 extent").
++ * Once hvmloader is modified to cope with that situation without
++ * printing warning messages, QEMU_SPARE_PAGES can be removed.
++ */
++#define QEMU_SPARE_PAGES 16
+ 
+ typedef struct XenPhysmap {
+     hwaddr start_addr;
+@@ -244,6 +250,8 @@ void xen_ram_alloc(ram_addr_t ram_addr, ram_addr_t size, MemoryRegion *mr)
+     unsigned long nr_pfn;
+     xen_pfn_t *pfn_list;
+     int i;
++    xc_domaininfo_t info;
++    unsigned long free_pages;
+ 
+     if (runstate_check(RUN_STATE_INMIGRATE)) {
+         /* RAM already populated in Xen */
+@@ -266,6 +274,22 @@ void xen_ram_alloc(ram_addr_t ram_addr, ram_addr_t size, MemoryRegion *mr)
+         pfn_list[i] = (ram_addr >> TARGET_PAGE_BITS) + i;
+     }
+ 
++    if ((xc_domain_getinfolist(xen_xc, xen_domid, 1, &info) != 1) ||
++        (info.domain != xen_domid)) {
++        hw_error("xc_domain_getinfolist failed");
++    }
++    free_pages = info.max_pages - info.tot_pages;
++    if (free_pages > QEMU_SPARE_PAGES) {
++        free_pages -= QEMU_SPARE_PAGES;
++    } else {
++        free_pages = 0;
++    }
++    if ((free_pages < nr_pfn) &&
++        (xc_domain_setmaxmem(xen_xc, xen_domid,
++                             ((info.max_pages + nr_pfn - free_pages)
++                              << (XC_PAGE_SHIFT - 10))) < 0)) {
++        hw_error("xc_domain_setmaxmem failed");
++    }
+     if (xc_domain_populate_physmap_exact(xen_xc, xen_domid, nr_pfn, 0, 0, pfn_list)) {
+         hw_error("xen: failed to populate ram at " RAM_ADDR_FMT, ram_addr);
+     }

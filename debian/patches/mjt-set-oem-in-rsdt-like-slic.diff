@@ -1,7 +1,7 @@
 commit 4933716beef26b353a1c374d6d8e6dd2e09333af
 Author: Michael Tokarev <mjt@tls.msk.ru>
 Date:   Sat Apr 5 19:17:54 2014 +0400
-Subject: copy OEM ACPI parameters from SLIC table to RSDT
+Subject: copy OEM ACPI parameters from SLIC table to RSDT and FACP.
     
 When building RSDT table, pick OEM ID fields from uer-supplied SLIC
 table instead of using hard-coded QEMU defaults.  This way, say,
@@ -12,6 +12,8 @@ activation as on bare metal, by pointing at system firmware:
 
 Windows7 requires that OEM ID in RSDT matches those in SLIC to
 consider SLIC to be valid.
+
+In UEFI mode, win7 checks FACP too.
 
 This is somewhat hackish approach, but it works fairy well in
 practice.
@@ -54,7 +56,7 @@ Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
      h->oem_revision = cpu_to_le32(1);
      memcpy(h->asl_compiler_id, ACPI_BUILD_APPNAME4, 4);
      h->asl_compiler_revision = cpu_to_le32(1);
-+    if (memcmp(sig, "RSDT", 4) == 0 && slic_table_offset) {
++    if (slic_table_offset && (!memcmp(sig, "RSDT", 4) || !memcmp(sig, "FACP", 4))) {
 +      /* for win7: OEM info in RSDT and SLIC should be the same */
 +      AcpiTableHeader *s = (AcpiTableHeader *)(acpi_tables + slic_table_offset);
 +      memcpy(h->oem_id, s->oem_id, 6 + 4 + 4);
@@ -69,7 +71,7 @@ Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
  portion of the table is used, all header information is specified in the
  command line.
 +If a SLIC table is supplied to qemu, then the oem_id from the SLIC table
-+will be copied into the RSDT table (this is a Debian addition).
++will be copied into the RSDT and FACP tables (this is a Debian addition).
  ETEXI
  
  DEF("smbios", HAS_ARG, QEMU_OPTION_smbios,

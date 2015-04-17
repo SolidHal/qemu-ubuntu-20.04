@@ -1,5 +1,8 @@
+# upstream stable patch
+qemu-2.2.1.diff
 02_kfreebsd.patch
 use-fixed-data-path.patch
 use-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
-exec-change-default-exception_index-value-for-migration-to--1.patch
+kvm-on-x32.patch
+rules.mak-fix-module-build.patch

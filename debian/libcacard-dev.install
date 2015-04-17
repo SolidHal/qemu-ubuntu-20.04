@@ -1,0 +1,5 @@
+usr/lib/*/libcacard.so
+usr/lib/*/libcacard.a
+usr/lib/*/pkgconfig/libcacard.pc
+usr/include/cacard
+docs/libcacard.txt usr/share/doc/libcacard-dev
