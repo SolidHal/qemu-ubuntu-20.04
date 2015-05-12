@@ -1,3 +1,32 @@
+qemu (1:2.3+dfsg-3) unstable; urgency=high
+
+  * fdc-force-the-fifo-access-to-be-in-bounds-CVE-2015-3456.patch
+    (Closes: CVE-2015-3456)
+  * fix the OSABI binfmt mask for x86_64 arch, to actually fix #763043.
+    Original fix didn't work, because "someone" forgot arithmetics.
+    (Really Closes: #763043)
+  * align binfmt magics/masks to be in single column
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 12 May 2015 23:02:29 +0300
+
+qemu (1:2.3+dfsg-2) unstable; urgency=medium
+
+  * do not install upstream changelog file, it is unused for a long time
+  * mention closing of #781250 #769299 by 2.3
+  * mention qemu-block-extra split in NEWS files
+  * fix spelling prob in the manpage
+  * bump Standards-Version to 3.9.6 (no changes needed)
+  * add mips64 and mips64el binfmt registration (Closes: #778624)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 04 May 2015 13:01:03 +0300
+
+qemu (1:2.3+dfsg-1) unstable; urgency=medium
+
+  * new upstream release (2.3)
+    (Closes: #781250 #769299 #781250 #769299)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 24 Apr 2015 17:33:46 +0300
+
 qemu (1:2.2+dfsg-6exp) experimental; urgency=medium
 
   * qemu 2.2.1 stable/bugfix release (remove included upstream

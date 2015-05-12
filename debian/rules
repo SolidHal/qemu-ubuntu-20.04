@@ -255,7 +255,7 @@ endif	# enable_linux_user
 	dh_install --list-missing
 # install the rest for arch/indep as needed
 	dh_installdocs ${ai} -Nqemu-user-binfmt
-	dh_installchangelogs ${ai} -Nqemu-user-binfmt Changelog
+	dh_installchangelogs ${ai} -Nqemu-user-binfmt
 	dh_installdocs ${ai} -pqemu-user-binfmt --link-doc=qemu-user
 	dh_installman ${ai}
 	dh_installudev ${ai}
