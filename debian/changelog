@@ -1,3 +1,12 @@
+qemu (1:2.3+dfsg-4) unstable; urgency=medium
+
+  * rules.mak-force-CFLAGS-for-all-objects-in-DSO.patch:
+    patch from upstream to fix FTBFS on some arches
+  * libcacard-dev: depend on libnss3-dev (Closes: #785798)
+  * libcacard-dev: do not depend on pkg-config
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 20 May 2015 14:21:09 +0300
+
 qemu (1:2.3+dfsg-3) unstable; urgency=high
 
   * fdc-force-the-fifo-access-to-be-in-bounds-CVE-2015-3456.patch

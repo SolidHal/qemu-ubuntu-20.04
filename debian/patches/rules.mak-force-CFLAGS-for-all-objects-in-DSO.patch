@@ -1,0 +1,52 @@
+From d24697e1824467f3921c84a94f011f43d6466403 Mon Sep 17 00:00:00 2001
+From: Fam Zheng <famz@redhat.com>
+Date: Thu, 7 May 2015 14:55:15 +0800
+Subject: [PATCH] rules.mak: Force CFLAGS for all objects in DSO
+
+Because of the trick of process-archive-undefs, all .mo objects, even
+with --enable-modules, are dependencies of executables.
+
+This breaks CFLAGS propogation because the compiling of module object
+will happen too early before building for DSO.
+
+With GCC 5, the linking would fail because .o doesn't have -fPIC. Also,
+BUILD_DSO will be missed. (module-common.o will have it, so the stamp
+symbol was still liked in .so).
+
+Fix the problem by forcing the CFLAGS on individual .o-cflags during
+unnest-vars.
+
+Reported-by: Alexander Graf <agraf@suse.de>
+Signed-off-by: Fam Zheng <famz@redhat.com>
+Cc: qemu-stable@nongnu.org # 2.3
+Message-Id: <1430981715-31465-1-git-send-email-famz@redhat.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+---
+ rules.mak | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/rules.mak b/rules.mak
+index 3a05627..aec27f8 100644
+--- a/rules.mak
++++ b/rules.mak
+@@ -102,7 +102,8 @@ endif
+ %.o: %.dtrace
+ 	$(call quiet-command,dtrace -o $@ -G -s $<, "  GEN   $(TARGET_DIR)$@")
+ 
+-%$(DSOSUF): CFLAGS += -fPIC -DBUILD_DSO
++DSO_OBJ_CFLAGS := -fPIC -DBUILD_DSO
++module-common.o: CFLAGS += $(DSO_OBJ_CFLAGS)
+ %$(DSOSUF): LDFLAGS += $(LDFLAGS_SHARED)
+ %$(DSOSUF): %.mo
+ 	$(call LINK,$^)
+@@ -351,6 +352,7 @@ define unnest-vars
+         # For non-module build, add -m to -y
+         $(if $(CONFIG_MODULES),
+              $(foreach o,$($v),
++                   $(eval $($o-objs): CFLAGS += $(DSO_OBJ_CFLAGS))
+                    $(eval $o: $($o-objs)))
+              $(eval $(patsubst %-m,%-y,$v) += $($v))
+              $(eval modules: $($v:%.mo=%$(DSOSUF))),
+-- 
+2.1.4
+

@@ -551,7 +551,7 @@ Package: libcacard-dev
 Section: libdevel
 Multi-Arch: same
 Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
-Depends: ${misc:Depends}, pkg-config, libcacard0 (= ${binary:Version})
+Depends: ${misc:Depends}, libcacard0 (= ${binary:Version}), libnss3-dev
 Description: Virtual Common Access Card (CAC) Emulator (development files)
  This emulator is designed to provide emulation of actual smart cards to a
  virtual card reader running in a guest virtual machine. The emulated smart
