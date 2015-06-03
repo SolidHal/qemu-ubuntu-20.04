@@ -1,0 +1,47 @@
+From 33aa30cafcce053b833f9fe09fbb88e2f54b93aa Mon Sep 17 00:00:00 2001
+From: Gerd Hoffmann <kraxel@redhat.com>
+Date: Tue, 26 May 2015 13:12:54 +0200
+Subject: kbd: add brazil kbd keys to x11 evdev map
+Bug-Debian: http://bugs.debian.org/772422
+
+This patch adds the two extra brazilian keys to the evdev keymap for
+X11.  This patch gets the two keys going with the vnc, gtk and sdl1
+UIs.
+
+The SDL2 library complains it doesn't know these keys, so the SDL2
+library must be fixed before we can update ui/sdl2-keymap.h
+
+Cc: qemu-stable@nongnu.org
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+Reviewed-by: Markus Armbruster <armbru@redhat.com>
+Reviewed-by: Daniel P. Berrange <berrange@redhat.com>
+Reviewed-by: Michael Tokarev <mjt@tls.msk.ru>
+---
+ ui/x_keymap.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ui/x_keymap.c b/ui/x_keymap.c
+index b9b0944..1a77317 100644
+--- a/ui/x_keymap.c
++++ b/ui/x_keymap.c
+@@ -94,7 +94,7 @@ static const uint8_t x_keycode_to_pc_keycode[115] = {
+  */
+ 
+ static const uint8_t evdev_keycode_to_pc_keycode[61] = {
+-    0,         /*  97 EVDEV - RO   ("Internet" Keyboards) */
++    0x73,      /*  97 EVDEV - RO   ("Internet" Keyboards) */
+     0,         /*  98 EVDEV - KATA (Katakana) */
+     0,         /*  99 EVDEV - HIRA (Hiragana) */
+     0x79,      /* 100 EVDEV - HENK (Henkan) */
+@@ -126,7 +126,7 @@ static const uint8_t evdev_keycode_to_pc_keycode[61] = {
+     0,         /* 126 EVDEV - I126 ("Internet" Keyboards) */
+     0,         /* 127 EVDEV - PAUS */
+     0,         /* 128 EVDEV - ???? */
+-    0,         /* 129 EVDEV - I129 ("Internet" Keyboards) */
++    0x7e,      /* 129 EVDEV - KP_COMMA (brazilian) */
+     0xf1,      /* 130 EVDEV - HNGL (Korean Hangul Latin toggle) */
+     0xf2,      /* 131 EVDEV - HJCV (Korean Hangul Hanja toggle) */
+     0x7d,      /* 132 AE13 (Yen)*/
+-- 
+2.1.4
+

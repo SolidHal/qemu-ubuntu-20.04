@@ -1,3 +1,14 @@
+qemu (1:2.3+dfsg-5) unstable; urgency=high
+
+  * slirp-use-less-predictable-directory-name-in-tmp-CVE-2015-4037.patch
+    (Closes: CVE-2015-4037)
+  * 11 patches for XEN PCI pass-through issues
+    (Closes: #787547 CVE-2015-4103 CVE-2015-4104 CVE-2015-4105 CVE-2015-4106)
+  * kbd-add-brazil-kbd-keys-*.patch, adding two keys found on Brazilian
+    keyboards (Closes: #772422)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 03 Jun 2015 17:18:58 +0300
+
 qemu (1:2.3+dfsg-4) unstable; urgency=medium
 
   * rules.mak-force-CFLAGS-for-all-objects-in-DSO.patch:

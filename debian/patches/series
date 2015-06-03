@@ -5,3 +5,18 @@ mjt-set-oem-in-rsdt-like-slic.diff
 qemu-options-trivial-spelling-fix-messsage.patch
 fdc-force-the-fifo-access-to-be-in-bounds-CVE-2015-3456.patch
 rules.mak-force-CFLAGS-for-all-objects-in-DSO.patch
+slirp-use-less-predictable-directory-name-in-tmp-CVE-2015-4037.patch
+# Xen PCI pass-through issues CVE-2015-4103..4106 (XSA-128..131), #787547
+xen-pt/01-xen-properly-gate-host-writes-of-modified-PCI-CFG-contents-CVE-2015-4103.patch
+xen-pt/02-xen-dont-allow-guest-to-control-MSI-mask-register-CVE-2015-4104.patch
+xen-pt/03-xen-MSI-X-limit-error-messages-CVE-2015-4105.patch
+xen-pt/04-xen-MSI-dont-open-code-pass-through-of-enable-bit-mod-CVE-2015-4106.patch
+xen-pt/05-xen-pt-consolidate-PM-capability-emu_mask-CVE-2015-4106.patch
+xen-pt/06-xen-pt-correctly-handle-PM-status-bit-CVE-2015-4106.patch
+xen-pt/07-xen-pt-split-out-calculation-of-throughable-mask-CVE-2015-4106.patch
+xen-pt/08-xen-pt-mark-all-PCIe-capability-bits-read-only-CVE-2015-4106.patch
+xen-pt/09-xen-pt-mark-reserved-bits-in-PCI-config-space-fields-CVE-2015-4106.patch
+xen-pt/10-xen-pt-add-a-few-PCI-config-space-field-descriptions-CVE-2015-4106.patch
+xen-pt/11-xen-pt-unknown-PCI-config-space-fields-should-be-readonly-CVE-2015-4106.patch
+kbd-add-brazil-kbd-keys-to-qemu.patch
+kbd-add-brazil-kbd-keys-to-x11-evdev-map.patch

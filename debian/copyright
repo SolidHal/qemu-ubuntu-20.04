@@ -1,14 +1,3163 @@
-Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Planet Venus
-Upstream-Contact: John Doe <jdoe@example.com>
-Source: http://www.example.com/code/venus
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 
 Files: *
-Copyright: 2008, John Doe <jdoe@example.com>
-           2007, Jane Smith <jsmith@example.org>
-           2007, Joe Average <joe@example.org>
-           2007, J. Random User <jr@users.example.com>
-License: PSF-2
- [LICENSE TEXT]
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
 
+Files: .pc/fdc-force-the-fifo-access-to-be-in-bounds-CVE-2015-3456.patch/*
+Copyright: 2008, 2013, Herv\xC3 Poussineau
+  2003-2005, 2007, Jocelyn Mayer
+License: Expat
 
+Files: .pc/mjt-set-oem-in-rsdt-like-slic.diff/*
+Copyright: 2013, Red Hat Inc
+  2008-2010, Kevin OConnor <kevin@koconnor.net>
+  2006, Fabrice Bellard
+License: GPL-2+
+
+Files: .pc/mjt-set-oem-in-rsdt-like-slic.diff/hw/acpi/*
+Copyright: 2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: .pc/use-fixed-data-path.patch/*
+Copyright: 2009, 2010, 2012, Red Hat, Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: .pc/xen/02-xen-dont-allow-guest-to-control-MSI-mask-register-CVE-2015-4104.patch/hw/*
+Copyright: 2009, 2010, Isaku Yamahata <yamahata at valinux co jp>
+License: GPL-2+
+
+Files: accel.c
+Copyright: 2014, Red Hat Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: audio/*
+Copyright: 2002-2005, Vassili Karpov (malc)
+License: Expat
+
+Files: audio/coreaudio.c
+Copyright: 2005, 2008, Mike Kronenberg
+License: Expat
+
+Files: audio/esdaudio.c
+Copyright: 2006, Frederick Reeve (brushed upmalc)
+License: Expat
+
+Files: audio/mixeng.c
+  audio/rate_template.h
+Copyright: 2004, 2005, Vassili Karpov (malc)
+  1998, Fabrice Bellard
+License: Expat
+
+Files: audio/spiceaudio.c
+Copyright: 2010, 2013, Red Hat, Inc
+License: GPL
+
+Files: backends/baum.c
+Copyright: 2008, Samuel Thibault
+License: Expat
+
+Files: backends/msmouse.c
+Copyright: 2008, Lubomir Rintel
+License: Expat
+
+Files: backends/testdev.c
+Copyright: 2009-2014, Red Hat, Inc
+License: Expat
+
+Files: balloon.c
+Copyright: 2011, Red Hat, Inc
+  2011, Amit Shah <amit.shah@redhat.com>
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: block/accounting.c
+Copyright: 2011, Christoph Hellwig
+License: Expat
+
+Files: block/blkdebug.c
+  block/qcow2-cache.c
+Copyright: 2010-2013, 2015, Kevin Wolf <kwolf@redhat.com>
+License: Expat
+
+Files: block/bochs.c
+  block/parallels.c
+Copyright: 2005, 2007, Alex Beregszaszi
+License: Expat
+
+Files: block/cloop.c
+  block/dmg.c
+  block/vvfat.c
+Copyright: 2004, 2005, Johannes E. Schindelin
+License: Expat
+
+Files: block/curl.c
+Copyright: 2009, 2015, Alexander Graf <agraf@suse.de>
+License: Expat
+
+Files: block/iscsi.c
+Copyright: 2012-2014, Peter Lieven <pl@kamp.de>
+  2010, 2011, Ronnie Sahlberg <ronniesahlberg@gmail.com>
+License: Expat
+
+Files: block/nbd-client.c
+  block/nbd.c
+Copyright: 2008, Bull S.A.S
+  2007, Anthony Liguori <anthony@codemonkey.ws>
+License: Expat
+
+Files: block/nfs.c
+Copyright: 2014, Peter Lieven <pl@kamp.de>
+License: Expat
+
+Files: block/raw_bsd.c
+Copyright: 2010, Blue Swirl <blauwirbel@gmail.com>
+  2010, 2013, Red Hat, Inc
+  2009, Anthony Liguori <aliguori@us.ibm.com>
+License: Expat
+
+Files: block/sheepdog.c
+Copyright: 2009, 2010, Nippon Telegraph and Telephone Corporation
+License: GPL-2
+
+Files: block/ssh.c
+Copyright: 2013, Red Hat Inc., Richard W.M. Jones <rjones@redhat.com>
+License: Expat
+
+Files: block/vdi.c
+Copyright: 2006-2012, Stefan Weil
+License: GPL
+
+Files: block/vmdk.c
+Copyright: 2005, Filip Navara
+  2004, Fabrice Bellard
+License: Expat
+
+Files: block/vpc.c
+Copyright: 2009, Kevin Wolf <kwolf@suse.de>
+  2005, Alex Beregszaszi
+License: Expat
+
+Files: blockjob.c
+Copyright: 2012, Red Hat, Inc
+  2011, IBM Corp
+License: Expat
+
+Files: bootdevice.c
+Copyright: 2014, HUAWEI TECHNOLOGIES CO., LTD
+License: Expat
+
+Files: bsd-user/bsd-mman.h
+Copyright: 1982, 1986, 1993, 
+License: BSD-3-clause
+
+Files: bsd-user/errno_defs.h
+Copyright: UNIX System Laboratories, Inc / 1982, 1986, 1989, 1993
+License: BSD-3-clause
+
+Files: bsd-user/main.c
+  bsd-user/mmap.c
+  bsd-user/signal.c
+  bsd-user/syscall.c
+Copyright: 2003-2008, Fabrice Bellard
+License: GPL-2+
+
+Files: bsd-user/qemu.h
+  bsd-user/strace.c
+Copyright: no-info-found
+License: GPL-2+
+
+Files: bsd-user/syscall_defs.h
+Copyright: UNIX System Laboratories, Inc / 1982, 1986, 1989, 1991, 1993
+License: BSD-3-clause
+
+Files: bt-host.c
+  bt-vhci.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: coroutine-gthread.c
+Copyright: 2011, Aneesh Kumar K.V <aneesh.kumar@linux.vnet.ibm.com>
+  2006, Anthony Liguori <anthony@codemonkey.ws>
+License: LGPL-2.0+
+
+Files: coroutine-sigaltstack.c
+Copyright: 2012, Alex Barcelo <abarcelo@ac.upc.edu>
+  2011, Kevin Wolf <kwolf@redhat.com>
+  2006, Anthony Liguori <anthony@codemonkey.ws>
+  1999-2006, Ralf S. Engelschall <rse@engelschall.com>
+License: LGPL-2.1+
+
+Files: coroutine-ucontext.c
+Copyright: 2011, Kevin Wolf <kwolf@redhat.com>
+  2006, Anthony Liguori <anthony@codemonkey.ws>
+License: LGPL-2.0+
+
+Files: coroutine-win32.c
+  qemu-coroutine-lock.c
+Copyright: 2010-2013, 2015, Kevin Wolf <kwolf@redhat.com>
+License: Expat
+
+Files: cpu-exec.c
+  cputlb.c
+  exec.c
+  gdbstub.c
+  qemu-log.c
+  softmmu_template.h
+  thunk.c
+  translate-all.c
+  translate-all.h
+  user-exec.c
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: disas/*
+Copyright: 1991, 1994-2009, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: disas/arm-a64.cc
+Copyright: 2011-2013, Linaro Limited
+License: GPL-2+
+
+Files: disas/arm.c
+Copyright: 1994-2004, 
+License: GPL-2+
+
+Files: disas/hppa.c
+Copyright: 1989-1996, 1998-2001, 2003, 
+License: GPL-2+
+
+Files: disas/i386.c
+Copyright: 1988, 1989, 1991-1999, 
+License: GPL-2+
+
+Files: disas/ia64.c
+Copyright: 1998-2000, 2002, Free Software Foundation, Inc
+  1998-2000, 2002, 2005, 2006, 
+License: GPL-2+
+
+Files: disas/libvixl/*
+Copyright: 2013, 2014, ARM Limited
+License: BSD-3-clause
+
+Files: disas/lm32.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: disas/microblaze.c
+Copyright: 2001, Xilinx, Inc.
+  1993, 1999, 2000, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: disas/mips.c
+Copyright: 1989, 1991-2003, 
+License: GPL-2+
+
+Files: disas/ppc.c
+Copyright: 1994, 1995, 1999-2007, 
+License: GPL-2+
+
+Files: disas/sh4.c
+Copyright: 1993-1995, 1997, 1998, 2000-2004, 
+License: GPL-2+
+
+Files: disas/sparc.c
+Copyright: 1989, 1991-1997, 2000, 2002, 
+License: GPL-2+
+
+Files: disas/tci.c
+Copyright: 2006, 2007, 2009, 2011, Stefan Weil
+License: GPL-2+
+
+Files: hw/acpi/*
+Copyright: 2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: hw/acpi/aml-build.c
+  hw/acpi/bios-linker-loader.c
+Copyright: 2009, 2012, 2013, 2015, Red Hat Inc
+License: GPL-2+
+
+Files: hw/acpi/ich9.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009, Isaku Yamahata <yamahata at valinux co jp>
+  2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: hw/acpi/pcihp.c
+Copyright: 2013, Red Hat Inc, Michael S. Tsirkin (mst@redhat.com)
+  2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: hw/arm/allwinner-a10.c
+  hw/arm/cubieboard.c
+Copyright: 2013, Li Guang
+License: GPL-2+
+
+Files: hw/arm/digic.c
+  hw/arm/digic_boards.c
+Copyright: 2013, Antony Pavlov <antonynpavlov@gmail.com>
+License: GPL-2+
+
+Files: hw/arm/exynos4210.c
+  hw/arm/exynos4_boards.c
+Copyright: 2011, Samsung Electronics Co., Ltd.
+License: GPL-2+
+
+Files: hw/arm/netduino2.c
+  hw/arm/stm32f205_soc.c
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: hw/arm/nseries.c
+  hw/arm/omap2.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/arm/omap1.c
+  hw/arm/palm.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/arm/omap_sx1.c
+Copyright: 2008, 
+  2007, Vladimir Ananiev <vovan888@gmail.com>
+  2006, 2007, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL-2+
+
+Files: hw/arm/strongarm.c
+Copyright: 2011, Dmitry Eremin-Solenikov
+  2008, Citrix Systems, Inc
+  2006, Openedhand Ltd
+  2003, 2004, Fabrice Bellard
+License: GPL or GPL-2
+
+Files: hw/arm/vexpress.c
+Copyright: 2011, Linaro Limited
+  2010, 2011, B Labs Ltd
+License: GPL or GPL-2
+
+Files: hw/arm/xilinx_zynq.c
+Copyright: 2012, Peter A.G. Crosthwaite (peter.croshtwaite@petalogix.com)
+  2012, Petalogix Pty Ltd
+  2010, Xilinx
+License: GPL-2+
+
+Files: hw/audio/ac97.c
+Copyright: 2006, InnoTek Systemberatung GmbH
+License: GPL or GPL
+
+Files: hw/audio/adlib.c
+  hw/audio/gus.c
+Copyright: 2002-2005, Vassili Karpov (malc)
+License: Expat
+
+Files: hw/audio/cs4231.c
+  hw/audio/cs4231a.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/audio/es1370.c
+Copyright: 2005, Vassili Karpov (malc)
+  1998-2001, 2003, Thomas Sailer (t.sailer@alumni.ethz.ch)
+License: Expat
+
+Files: hw/audio/fmopl.c
+Copyright: 1999, 2000, Tatsuyuki Satoh , MultiArcadeMachineEmurator development
+License: LGPL-2.1+
+
+Files: hw/audio/gusemu.h
+  hw/audio/gusemu_hal.c
+  hw/audio/gusemu_mixer.c
+  hw/audio/gustate.h
+Copyright: 2000-2007, Tibor "TS" Schütz
+License: Expat
+
+Files: hw/audio/hda-codec-common.h
+  hw/audio/hda-codec.c
+  hw/audio/intel-hda.c
+Copyright: 2010, 2013, Red Hat, Inc
+License: GPL
+
+Files: hw/audio/milkymist-ac97.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/audio/pcspk.c
+Copyright: 2006, Joachim Henke
+License: Expat
+
+Files: hw/audio/sb16.c
+Copyright: 2003-2005, Vassili Karpov (malc) / CREATIVE TECHNOLOGY LTD, 1992.";
+License: Expat
+
+Files: hw/block/cdrom.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/block/fdc.c
+Copyright: 2008, 2013, Herv\xC3 Poussineau
+  2003-2005, 2007, Jocelyn Mayer
+License: Expat
+
+Files: hw/block/hd-geometry.c
+Copyright: 2009, 2010, 2012, Red Hat, Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/block/m25p80.c
+Copyright: 2012, Peter A. G. Crosthwaite <peter.crosthwaite@petalogix.com>
+  2012, PetaLogix
+  2011, Edgar E. Iglesias <edgar.iglesias@gmail.com>
+License: GPL
+
+Files: hw/block/onenand.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/block/pflash_cfi01.c
+Copyright: 2006, Thorsten Zitterell
+  2005, Jocelyn Mayer
+License: LGPL-2+
+
+Files: hw/block/pflash_cfi02.c
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: hw/block/xen_disk.c
+Copyright: Gerd Hoffmann <kraxel@redhat.com>
+License: GPL or GPL
+
+Files: hw/bt/*
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/bt/hci.c
+Copyright: 2008, Andrzej Zaborowski <balrog@zabor.org>
+  2007, OpenMoko, Inc
+License: GPL-2+
+
+Files: hw/bt/hid.c
+Copyright: 2007, 2008, OpenMoko, Inc
+License: GPL
+
+Files: hw/bt/l2cap.c
+  hw/bt/sdp.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL-2+
+
+Files: hw/char/*
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/char/cadence_uart.c
+Copyright: 2012, Peter A.G. Crosthwaite (peter.crosthwaite@petalogix.com)
+  2012, PetaLogix Pty Ltd
+  2010, 2011, Xilinx Inc
+License: GPL-2+
+
+Files: hw/char/debugcon.c
+Copyright: 2008, Citrix Systems, Inc / Intel Corporation; author: H. Peter Anvin / 2003-2004, Fabrice Bellard
+License: Expat
+
+Files: hw/char/digic-uart.c
+Copyright: 2013, Antony Pavlov <antonynpavlov@gmail.com>
+License: GPL-2+
+
+Files: hw/char/escc.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/char/etraxfs_ser.c
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: hw/char/exynos4210_uart.c
+Copyright: 2011, 2012, Samsung Electronics Co Ltd
+License: GPL-2+
+
+Files: hw/char/grlib_apbuart.c
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: hw/char/omap_uart.c
+Copyright: 2007-2009, Nokia Corporation
+  2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/char/parallel.c
+Copyright: 2007, Marko Kohtala
+  2003-2005, Fabrice Bellard
+License: Expat
+
+Files: hw/char/serial-isa.c
+  hw/char/serial-pci.c
+  hw/char/serial.c
+Copyright: 2008, Citrix Systems, Inc
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: hw/char/sh_serial.c
+Copyright: 2007, Magnus Damm
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: hw/char/stm32f2xx_usart.c
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: hw/char/xen_console.c
+Copyright: Red Hat 2007, / International Business Machines Corp., 2005
+License: GPL
+
+Files: hw/char/xilinx_uartlite.c
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/core/fw-path-provider.c
+Copyright: no-info-found
+License: GPL-2+
+
+Files: hw/core/irq.c
+Copyright: 2007, CodeSourcery
+License: Expat
+
+Files: hw/core/loader.c
+Copyright: 2008, Semihalf
+  2006, Fabrice Bellard
+  2000-2005, 
+License: Expat or GPL-2+
+
+Files: hw/core/nmi.c
+Copyright: IBM Corp., 2014
+License: GPL-2+
+
+Files: hw/core/platform-bus.c
+Copyright: 2011, 2014, Freescale Semiconductor, Inc.
+License: LGPL-2+
+
+Files: hw/core/qdev.c
+  hw/core/sysbus.c
+Copyright: 2005-2007, 2009, CodeSourcery
+License: LGPL-2+
+
+Files: hw/core/uboot_image.h
+Copyright: 2000-2005, 
+License: GPL-2+
+
+Files: hw/cpu/*
+Copyright: 2011-2013, Linaro Limited
+License: GPL-2+
+
+Files: hw/cpu/icc_bus.c
+Copyright: 2013, Red Hat, Inc
+License: LGPL-2+
+
+Files: hw/cris/*
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: hw/display/blizzard.c
+  hw/display/blizzard_template.h
+  hw/display/omap_dss.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/display/cg3.c
+Copyright: 2013, Mark Cave-Ayland
+  2012, Bob Breuer
+License: Expat
+
+Files: hw/display/cirrus_vga.c
+Copyright: 2004, Makoto Suzuki (suzu)
+  2004, Fabrice Bellard
+License: Expat
+
+Files: hw/display/exynos4210_fimd.c
+Copyright: 2000-2012, Samsung Electronics Co., Ltd
+License: GPL-2+
+
+Files: hw/display/g364fb.c
+Copyright: 2007-2011, Herve Poussineau
+License: GPL-2+
+
+Files: hw/display/jazz_led.c
+Copyright: 2007-2012, Herve Poussineau
+License: Expat
+
+Files: hw/display/milkymist-tmu2.c
+Copyright: 2010, Sebastien Bourdeauducq
+  2010, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/display/milkymist-vgafb.c
+  hw/display/milkymist-vgafb_template.h
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/display/omap_lcd_template.h
+Copyright: 2006, Andrzej Zaborowski <balrog@zabor.org>
+License: BSD-2-clause
+
+Files: hw/display/omap_lcdc.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL-2+
+
+Files: hw/display/qxl-logger.c
+  hw/display/qxl-render.c
+  hw/display/qxl.c
+Copyright: 2010, 2013, Red Hat, Inc
+License: GPL
+
+Files: hw/display/sm501.c
+  hw/display/sm501_template.h
+Copyright: 2008, Shin-ichiro KAWASAKI
+License: Expat
+
+Files: hw/display/tc6393xb_template.h
+Copyright: 2007, Herv\xC3 Poussineau
+License: GPL-2+
+
+Files: hw/display/vmware_vga.c
+Copyright: 2005, 2007, Andrzej Zaborowski <balrog@zabor.org>
+License: Expat
+
+Files: hw/display/xenfb.c
+Copyright: IBM, Corp. 2005-2006, / Red Hat, Inc. 2006-2008
+License: GPL
+
+Files: hw/dma/etraxfs_dma.c
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: hw/dma/i82374.c
+Copyright: 2007, 2008, 2010, Herv\xC3 Poussineau
+License: Expat
+
+Files: hw/dma/i8257.c
+Copyright: 2002-2005, Vassili Karpov (malc)
+License: Expat
+
+Files: hw/dma/omap_dma.c
+Copyright: 2007, 2008, Lauro Ramos Venancio <lauro.venancio@indt.org.br>
+  2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL-2+
+
+Files: hw/dma/pl330.c
+Copyright: 2012, Peter A.G. Crosthwaite (peter.crosthwaite@petalogix.com)
+  2012, PetaLogix Pty Ltd
+  2009, Samsung Electronics
+License: GPL-2
+
+Files: hw/dma/puv3_dma.c
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: hw/dma/rc4030.c
+Copyright: 2007-2012, Herve Poussineau
+License: Expat
+
+Files: hw/dma/soc_dma.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/dma/xilinx_axidma.c
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/gpio/*
+Copyright: 2007-2009, Nokia Corporation
+  2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/gpio/mpc8xxx.c
+Copyright: 2011, 2014, Freescale Semiconductor, Inc.
+License: LGPL-2+
+
+Files: hw/gpio/puv3_gpio.c
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: hw/gpio/zaurus.c
+Copyright: 2006-2008, Openedhand Ltd
+License: GPL
+
+Files: hw/i2c/exynos4210_i2c.c
+Copyright: 2011, 2012, Samsung Electronics Co Ltd
+License: GPL-2+
+
+Files: hw/i2c/omap_i2c.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL-2+
+
+Files: hw/i2c/pm_smbus.c
+Copyright: 2006, Fabrice Bellard
+License: LGPL-2
+
+Files: hw/i2c/smbus_eeprom.c
+Copyright: 2007, Arastra, Inc
+License: Expat
+
+Files: hw/i2c/smbus_ich9.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009, Isaku Yamahata <yamahata at valinux co jp>
+  2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: hw/i2c/versatile_i2c.c
+Copyright: 2012, Oskar Andero <oskar.andero@gmail.com>
+  2006, 2007, CodeSourcery
+License: GPL-2+
+
+Files: hw/i386/acpi-build.c
+Copyright: 2013, Red Hat Inc
+  2008-2010, Kevin OConnor <kevin@koconnor.net>
+  2006, Fabrice Bellard
+License: GPL-2+
+
+Files: hw/i386/acpi-defs.h
+Copyright: no-info-found
+License: GPL-2+
+
+Files: hw/i386/intel_iommu.c
+Copyright: 2014, Le Tan, <tamlokveer@gmail.com>
+  2013, Knut Omang, Oracle <knut.omang@oracle.com>
+License: GPL-2+
+
+Files: hw/i386/intel_iommu_internal.h
+Copyright: 2014, Le Tan, <tamlokveer@gmail.com>
+  2013, Knut Omang, Oracle <knut.omang@oracle.com>
+  2006-2008, Intel Corporation
+License: GPL-2+
+
+Files: hw/i386/kvm/i8254.c
+Copyright: 2011, 2012, Jan Kiszka, Siemens AG
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: hw/i386/pc_q35.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009-2011, 
+  2003, 2004, 2006, Fabrice Bellard
+License: Expat
+
+Files: hw/i386/pc_sysfw.c
+Copyright: 2011, 2012, Intel Corporation
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: hw/i386/xen/*
+Copyright: Citrix Systems Inc
+License: BSD-2-clause
+
+Files: hw/i386/xen/xen_platform.c
+Copyright: 2006, XenSource
+  2003, 2004, Intel Corp
+License: Expat
+
+Files: hw/ide/*
+Copyright: 2006, Openedhand Ltd
+  2003, 2005, Fabrice Bellard
+License: Expat
+
+Files: hw/ide/ahci.c
+  hw/ide/ahci.h
+Copyright: 2010, qiaochong@loongson.cn
+  2010, Sebastian Herbszt <herbszt@gmx.de>
+  2010, Roland Elek <elek.roland@gmail.com>
+  2010, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: hw/ide/ich.c
+Copyright: 2010, Sebastian Herbszt <herbszt@gmx.de>
+  2010, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: hw/ide/qdev.c
+Copyright: 2009, Gerd Hoffmann <kraxel@redhat.com>
+License: LGPL-2+
+
+Files: hw/ide/via.c
+Copyright: 2010, Huacai Chen <zltjiangshi@gmail.com>
+  2006, Openedhand Ltd
+  2003, Fabrice Bellard
+License: Expat
+
+Files: hw/input/hid.c
+Copyright: 2007, OpenMoko, Inc. (andrew@openedhand.com)
+  2005, Fabrice Bellard
+License: Expat
+
+Files: hw/input/lm832x.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/input/milkymist-softusb.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/input/tsc2005.c
+  hw/input/tsc210x.c
+Copyright: 2007-2009, Nokia Corporation
+  2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/input/vmmouse.c
+Copyright: 2007, Anthony Liguori <anthony@codemonkey.ws>
+License: Expat
+
+Files: hw/intc/allwinner-a10-pic.c
+Copyright: 2013, Li Guang
+License: GPL-2+
+
+Files: hw/intc/apic.c
+  hw/intc/ioapic.c
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: hw/intc/apic_common.c
+Copyright: 2011, Jan Kiszka, Siemens AG
+  2004, 2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: hw/intc/arm_gic_common.c
+  hw/intc/arm_gic_kvm.c
+  hw/intc/gic_internal.h
+Copyright: 2011-2013, Linaro Limited
+License: GPL-2+
+
+Files: hw/intc/etraxfs_pic.c
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: hw/intc/exynos4210_combiner.c
+  hw/intc/exynos4210_gic.c
+Copyright: 2000-2012, Samsung Electronics Co., Ltd
+License: GPL-2+
+
+Files: hw/intc/grlib_irqmp.c
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: hw/intc/heathrow_pic.c
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/intc/i8259.c
+  hw/intc/slavio_intctl.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/intc/i8259_common.c
+Copyright: 2011, 2012, Jan Kiszka, Siemens AG
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: hw/intc/ioapic_common.c
+Copyright: 2011, Jan Kiszka, Siemens AG
+  2009, Xiantao Zhang, Intel
+  2004, 2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: hw/intc/lm32_pic.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/intc/omap_intc.c
+Copyright: 2007-2009, Nokia Corporation
+  2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/intc/openpic.c
+Copyright: 2003-2007, Jocelyn Mayer
+License: Expat
+
+Files: hw/intc/openpic_kvm.c
+Copyright: 2013, Freescale Semiconductor, Inc
+License: Expat
+
+Files: hw/intc/puv3_intc.c
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: hw/intc/xics.c
+  hw/intc/xics_kvm.c
+Copyright: 2010-2013, David Gibson, IBM Corporation
+License: Expat
+
+Files: hw/intc/xilinx_intc.c
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/isa/*
+Copyright: 2009, Gerd Hoffmann <kraxel@redhat.com>
+License: LGPL-2+
+
+Files: hw/isa/apm.c
+Copyright: 2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: hw/isa/i82378.c
+Copyright: 2010, 2011, Herv\xC3 Poussineau
+License: LGPL-2+
+
+Files: hw/isa/lpc_ich9.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009-2011, 
+  2003, 2004, 2006, Fabrice Bellard
+License: Expat
+
+Files: hw/isa/pc87312.c
+Copyright: 2011, 2012, Andreas Färber
+  2010-2012, Herve Poussineau
+License: Expat
+
+Files: hw/isa/piix4.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/lm32/*
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/mem/*
+Copyright: 2014, Red Hat Inc / ProfitBricks GmbH 2012
+License: LGPL-2+
+
+Files: hw/microblaze/*
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/microblaze/boot.c
+Copyright: 2012, Peter Crosthwaite <peter.crosthwaite@petalogix.com>
+  2012, PetaLogix
+  2009, Edgar E. Iglesias
+License: Expat
+
+Files: hw/microblaze/petalogix_ml605_mmu.c
+Copyright: 2011, PetaLogix
+  2011, Michal Simek <monstr@monstr.eu>
+  2009, Edgar E. Iglesias
+License: Expat
+
+Files: hw/mips/*
+Copyright: no-info-found
+License: Expat
+
+Files: hw/mips/gt64xxx_pci.c
+  hw/mips/mips_malta.c
+Copyright: 2006, 2007, Aurelien Jarno
+License: Expat
+
+Files: hw/mips/mips_jazz.c
+Copyright: 2007, 2008, 2010, Herv\xC3 Poussineau
+License: Expat
+
+Files: hw/mips/mips_mipssim.c
+Copyright: 2007, Thiemo Seufer
+License: Expat
+
+Files: hw/misc/*
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/misc/applesmc.c
+Copyright: 2007, Alexander Graf
+License: LGPL-2+
+
+Files: hw/misc/debugexit.c
+Copyright: no-info-found
+License: GPL
+
+Files: hw/misc/eccmemctl.c
+Copyright: 2007, Robert Reif
+License: Expat
+
+Files: hw/misc/edu.c
+Copyright: 2012-2015, Jiri Slaby
+License: Expat
+
+Files: hw/misc/exynos4210_pmu.c
+Copyright: 2011, 2012, Samsung Electronics Co Ltd
+License: GPL-2+
+
+Files: hw/misc/macio/*
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/misc/macio/mac_dbdma.c
+Copyright: 2009, Laurent Vivier
+  2007, Jocelyn Mayer
+  2005-2007, Fabrice Bellard
+  1998-2004, Samuel Rydh (samuel@ibrium.se)
+  1996, Paul Mackerras
+License: Expat
+
+Files: hw/misc/milkymist-hpdmc.c
+  hw/misc/milkymist-pfpu.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/misc/omap_clk.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL-2+
+
+Files: hw/misc/pc-testdev.c
+Copyright: 2012, Avi Kivity, Gerd Hoffmann, Marcelo Tosatti
+License: Expat
+
+Files: hw/misc/pci-testdev.c
+Copyright: 2009, 2012, 2013, 2015, Red Hat Inc
+License: GPL-2+
+
+Files: hw/misc/puv3_pm.c
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: hw/misc/sga.c
+Copyright: 2011, Glauber Costa, Red Hat Inc
+License: Expat
+
+Files: hw/misc/slavio_misc.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/misc/stm32f2xx_syscfg.c
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: hw/misc/vmport.c
+Copyright: 2007, 2008, 2010, Herv\xC3 Poussineau
+License: Expat
+
+Files: hw/misc/zynq_slcr.c
+Copyright: 2012, PetaLogix Pty Ltd
+  2011, Michal Simek <monstr@monstr.eu>
+License: GPL-2+
+
+Files: hw/moxie/*
+Copyright: 2008-2010, 2013, Anthony Green
+License: Expat
+
+Files: hw/net/allwinner_emac.c
+Copyright: 2014, Beniamino Galvani <b.galvani@gmail.com>
+License: GPL-2
+
+Files: hw/net/cadence_gem.c
+Copyright: 2011, Xilinx, Inc
+License: Expat
+
+Files: hw/net/dp8393x.c
+Copyright: 2007-2011, Herve Poussineau
+License: GPL-2+
+
+Files: hw/net/e1000.c
+Copyright: 2008, Qumranet
+  2007, Dan Aloni
+  2004, Antony T Curtis
+License: LGPL-2+
+
+Files: hw/net/eepro100.c
+Copyright: 2006-2012, Stefan Weil
+License: GPL
+
+Files: hw/net/etraxfs_eth.c
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: hw/net/fsl_etsec/*
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: hw/net/lance.c
+  hw/net/pcnet-pci.c
+  hw/net/pcnet.c
+Copyright: 2004, Antony T Curtis
+License: Expat
+
+Files: hw/net/milkymist-minimac2.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/net/ne2000-isa.c
+  hw/net/ne2000.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/net/opencores_eth.c
+Copyright: 2011, 2012, Max Filippov, Open Source and Linux Lab
+License: BSD-3-clause
+
+Files: hw/net/rtl8139.c
+Copyright: 2006, Igor Kovalenko
+License: Expat
+
+Files: hw/net/spapr_llan.c
+Copyright: 2010-2013, David Gibson, IBM Corporation
+License: Expat
+
+Files: hw/net/vmxnet3.h
+Copyright: 2012, Ravello Systems LTD (http://ravellosystems.com) / from Linux kernel v3.2.8 / 2008-2009, VMware, Inc.
+License: GPL-2
+
+Files: hw/net/xen_nic.c
+Copyright: Gerd Hoffmann <kraxel@redhat.com>
+License: GPL or GPL
+
+Files: hw/net/xgmac.c
+Copyright: 2011, Calxeda, Inc
+License: Expat
+
+Files: hw/net/xilinx_axienet.c
+  hw/net/xilinx_ethlite.c
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/nvram/*
+Copyright: 2010-2013, David Gibson, IBM Corporation
+License: Expat
+
+Files: hw/nvram/ds1225y.c
+Copyright: 2007, 2008, 2010, Herv\xC3 Poussineau
+License: Expat
+
+Files: hw/nvram/eeprom93xx.c
+Copyright: 2006, 2007, 2009, 2011, Stefan Weil
+License: GPL-2+
+
+Files: hw/nvram/fw_cfg.c
+Copyright: 2008, Gleb Natapov
+License: Expat
+
+Files: hw/nvram/mac_nvram.c
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/openrisc/*
+Copyright: 2011, 2012, Jia Liu <proljc@gmail.com>
+License: LGPL-2+
+
+Files: hw/pci-bridge/dec.c
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/pci-bridge/i82801b11.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009-2011, 
+  2006, Fabrice Bellard
+License: Expat or LGPL-2+
+
+Files: hw/pci-bridge/ioh3420.c
+  hw/pci-bridge/xio3130_downstream.c
+  hw/pci-bridge/xio3130_upstream.c
+Copyright: 2009, 2010, Isaku Yamahata <yamahata at valinux co jp>
+License: GPL-2+
+
+Files: hw/pci-bridge/pci_bridge_dev.c
+Copyright: 2011, Red Hat Inc. Author: Michael S. Tsirkin <mst@redhat.com>
+License: GPL-2+
+
+Files: hw/pci-host/apb.c
+Copyright: 2012, 2013, Artyom Tarasenko
+  2006, Fabrice Bellard
+License: Expat
+
+Files: hw/pci-host/gpex.c
+Copyright: 2009, 2015, Alexander Graf <agraf@suse.de>
+License: Expat
+
+Files: hw/pci-host/grackle.c
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/pci-host/pam.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2011, Isaku Yamahata <yamahata at valinux co jp>
+  2006, Fabrice Bellard
+License: Expat
+
+Files: hw/pci-host/ppce500.c
+Copyright: for that material belongs to the original owners / 2009, Freescale Semiconductor, Inc.
+License: GPL-2+
+
+Files: hw/pci-host/prep.c
+Copyright: 2011-2013, Andreas Färber
+  2006, Fabrice Bellard
+License: Expat
+
+Files: hw/pci-host/q35.c
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009-2011, 
+  2003, 2004, 2006, Fabrice Bellard
+License: Expat
+
+Files: hw/pci/*
+Copyright: 2009, 2010, Isaku Yamahata <yamahata at valinux co jp>
+License: GPL-2+
+
+Files: hw/pci/pci.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/ppc/*
+Copyright: 2003-2007, Jocelyn Mayer
+License: Expat
+
+Files: hw/ppc/e500.c
+Copyright: for that material belongs to the original owners / 2009, Freescale Semiconductor, Inc.
+License: GPL-2+
+
+Files: hw/ppc/e500plat.c
+  hw/ppc/mpc8544ds.c
+Copyright: 2012, Freescale Semiconductor, Inc
+License: GPL-2+
+
+Files: hw/ppc/mac.h
+  hw/ppc/mac_newworld.c
+  hw/ppc/mac_oldworld.c
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/ppc/mpc8544_guts.c
+Copyright: 2011, Freescale Semiconductor, Inc.
+License: GPL-2+
+
+Files: hw/ppc/ppc4xx_pci.c
+Copyright: IBM Corp. 2008
+License: GPL-2
+
+Files: hw/ppc/ppc_booke.c
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: hw/ppc/ppce500_spin.c
+Copyright: 2011, 2014, Freescale Semiconductor, Inc.
+License: LGPL-2+
+
+Files: hw/ppc/spapr.c
+Copyright: 2010, David Gibson, IBM Corporation
+  2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: hw/ppc/spapr_events.c
+  hw/ppc/spapr_rtas.c
+Copyright: 2010-2013, David Gibson, IBM Corporation
+License: Expat
+
+Files: hw/ppc/spapr_iommu.c
+Copyright: 2010, David Gibson, IBM Corporation <dwg@au1.ibm.com>
+License: LGPL-2+
+
+Files: hw/ppc/spapr_pci.c
+Copyright: 2011, David Gibson, IBM Corporation
+  2011, Alexey Kardashevskiy, IBM Corporation
+License: Expat
+
+Files: hw/ppc/spapr_pci_vfio.c
+Copyright: 2011-2014, Alexey Kardashevskiy, IBM Corporation
+License: GPL-2+
+
+Files: hw/ppc/spapr_rtc.c
+Copyright: 2014, David Gibson, Red Hat
+  2010, 2011, David Gibson, IBM Corporation
+License: Expat
+
+Files: hw/ppc/spapr_vio.c
+Copyright: 2010, David Gibson, IBM Corporation <dwg@au1.ibm.com>
+  2009, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: hw/ppc/virtex_ml507.c
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/s390x/s390-virtio-bus.c
+  hw/s390x/s390-virtio-bus.h
+Copyright: 2009, 2013, 2015, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: hw/s390x/s390-virtio.c
+Copyright: 2009, Alexander Graf <agraf@suse.de> / IBM Corp 2012
+License: GPL or LGPL-2+
+
+Files: hw/scsi/esp-pci.c
+  hw/scsi/esp.c
+Copyright: 2012, Herve Poussineau
+  2005, 2006, Fabrice Bellard
+License: Expat
+
+Files: hw/scsi/megasas.c
+Copyright: 2009-2012, Hannes Reinecke, SUSE Labs
+License: LGPL-2+
+
+Files: hw/scsi/mfi.h
+Copyright: 2007, Rajesh Prabhakaran
+  2007, LSI Corp
+  2006, IronPort Systems
+License: BSD-2-clause
+
+Files: hw/scsi/spapr_vscsi.c
+Copyright: 2010, 2011, Benjamin Herrenschmidt, IBM Corporation
+License: Expat
+
+Files: hw/scsi/viosrp.h
+Copyright: 2003, IBM Corporation
+License: GPL-2+
+
+Files: hw/scsi/vmw_pvscsi.h
+Copyright: 2008, 2009, VMware, Inc.
+License: GPL-2
+
+Files: hw/sd/*
+Copyright: 2000-2012, Samsung Electronics Co., Ltd
+License: GPL-2+
+
+Files: hw/sd/milkymist-memcard.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/sd/omap_mmc.c
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: hw/sd/sd.c
+Copyright: 2007, CodeSourcery
+  2006, Andrzej Zaborowski <balrog@zabor.org>
+License: BSD-2-clause
+
+Files: hw/sh4/r2d.c
+Copyright: 2008, Paul Mundt
+  2007, Magnus Damm
+License: Expat
+
+Files: hw/sh4/sh7750.c
+Copyright: 2007, Magnus Damm
+  2005, Samuel Tardieu
+License: Expat
+
+Files: hw/sh4/sh_pci.c
+Copyright: 2008, Takashi YOSHII
+License: Expat
+
+Files: hw/sh4/shix.c
+Copyright: 2005, Samuel Tardieu
+License: Expat
+
+Files: hw/sparc/leon3.c
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: hw/ssi/*
+Copyright: 2012, Peter A. G. Crosthwaite
+License: Expat
+
+Files: hw/ssi/omap_spi.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/ssi/xilinx_spi.c
+Copyright: 2012, Peter A. G. Crosthwaite <peter.crosthwaite@petalogix.com>
+  2012, PetaLogix
+  2010, Edgar E. Iglesias
+License: Expat
+
+Files: hw/timer/*
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/timer/a9gtimer.c
+Copyright: 2013, Xilinx Inc
+License: GPL-2+
+
+Files: hw/timer/allwinner-a10-pit.c
+Copyright: 2013, Li Guang
+License: GPL-2+
+
+Files: hw/timer/arm_mptimer.c
+Copyright: 2011, Linaro Limited
+  2006, 2007, CodeSourcery
+License: GPL-2+
+
+Files: hw/timer/cadence_ttc.c
+Copyright: 2012, Peter A.G. Crosthwaite (peter.crosthwaite@petalogix.com)
+  2012, PetaLogix Pty Ltd
+  2010, 2011, Xilinx Inc
+License: GPL-2+
+
+Files: hw/timer/digic-timer.c
+Copyright: 2013, Antony Pavlov <antonynpavlov@gmail.com>
+License: GPL-2+
+
+Files: hw/timer/etraxfs_timer.c
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: hw/timer/exynos4210_mct.c
+  hw/timer/exynos4210_pwm.c
+  hw/timer/exynos4210_rtc.c
+Copyright: 2000-2012, Samsung Electronics Co., Ltd
+License: GPL-2+
+
+Files: hw/timer/grlib_gptimer.c
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: hw/timer/hpet.c
+Copyright: 2008, IBM Corporation
+  2007, Alexander Graf
+License: LGPL-2+
+
+Files: hw/timer/i8254.c
+  hw/timer/mc146818rtc.c
+  hw/timer/slavio_timer.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/timer/i8254_common.c
+Copyright: 2011, 2012, Jan Kiszka, Siemens AG
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: hw/timer/lm32_timer.c
+  hw/timer/milkymist-sysctl.c
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: hw/timer/m48t59.c
+Copyright: 2008, 2013, Herv\xC3 Poussineau
+  2003-2005, 2007, Jocelyn Mayer
+License: Expat
+
+Files: hw/timer/pl031.c
+Copyright: 2007, CodeSourcery
+License: GPL-2
+
+Files: hw/timer/puv3_ost.c
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: hw/timer/stm32f2xx_timer.c
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: hw/timer/xilinx_timer.c
+Copyright: 2009-2011, Edgar E. Iglesias
+License: Expat
+
+Files: hw/tpm/tpm_passthrough.c
+Copyright: 2011, IAIK, Graz University of Technology
+  2010-2013, IBM Corporation
+License: LGPL-2+
+
+Files: hw/tricore/*
+Copyright: 2012-2014, Bastian Koppelmann C-Lab/University Paderborn
+License: LGPL-2+
+
+Files: hw/unicore32/*
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: hw/usb/combined-packet.c
+Copyright: 2012, Red Hat, Inc
+License: LGPL
+
+Files: hw/usb/core.c
+  hw/usb/dev-hub.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: hw/usb/dev-audio.c
+  hw/usb/dev-network.c
+Copyright: 2008, Andrzej Zaborowski
+  2006, Thomas Sailer
+License: Expat
+
+Files: hw/usb/dev-bluetooth.c
+Copyright: 2008, Andrzej Zaborowski <balrog@zabor.org>
+  2007, OpenMoko, Inc
+License: GPL
+
+Files: hw/usb/dev-hid.c
+Copyright: 2007, OpenMoko, Inc. (andrew@openedhand.com)
+  2005, Fabrice Bellard
+License: Expat
+
+Files: hw/usb/dev-wacom.c
+Copyright: 2006, Openedhand Ltd
+  2003, 2005, Fabrice Bellard
+License: Expat
+
+Files: hw/usb/hcd-ehci-pci.c
+  hw/usb/hcd-ehci-sysbus.c
+  hw/usb/hcd-ehci.h
+Copyright: no-info-found
+License: LGPL
+
+Files: hw/usb/hcd-ehci.c
+Copyright: 2011, 2012, Red Hat, Inc
+  2008, Emutex Ltd. (address@hidden)
+License: LGPL
+
+Files: hw/usb/hcd-musb.c
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: hw/usb/hcd-ohci.c
+Copyright: 2006, Openedhand Ltd
+  2006, CodeSourcery
+  2004, Gianni Tedesco
+License: LGPL-2+
+
+Files: hw/usb/hcd-uhci.c
+Copyright: 2008, Max Krasnyansky
+  2005, Fabrice Bellard
+License: Expat
+
+Files: hw/usb/hcd-xhci.c
+Copyright: 2011, Securiforest
+License: LGPL-2+
+
+Files: hw/usb/host-legacy.c
+  hw/usb/host-stub.c
+  hw/usb/host.h
+Copyright: 2008, TJ <linux@tjworld.net>
+  2008, Max Krasnyansky
+  2005, Fabrice Bellard
+License: Expat
+
+Files: hw/usb/host-libusb.c
+Copyright: 2012, Gerd Hoffmann <kraxel@redhat.com>
+  2008, TJ <linux@tjworld.net>
+  2008, Max Krasnyansky
+  2005, Fabrice Bellard
+License: Expat
+
+Files: hw/usb/libhw.c
+Copyright: no-info-found
+License: Expat
+
+Files: hw/usb/quirks-pl2303-ids.h
+Copyright: no-info-found
+License: GPL-2+
+
+Files: hw/usb/quirks.c
+Copyright: 2011, 2012, Red Hat, Inc
+License: GPL-2+
+
+Files: hw/usb/quirks.h
+Copyright: 2012, Red Hat, Inc
+  2005, Craig Shelley (craig@microtron.org.uk)
+License: GPL-2+
+
+Files: hw/usb/redirect.c
+Copyright: 2009-2014, Red Hat, Inc
+License: Expat
+
+Files: hw/virtio/virtio-bus.c
+Copyright: 2012, : GreenSocs Ltd
+License: GPL-2+
+
+Files: hw/virtio/virtio-mmio.c
+Copyright: 2011-2013, Linaro Limited
+License: GPL-2+
+
+Files: hw/watchdog/*
+Copyright: 2009, 2012, 2013, 2015, Red Hat Inc
+License: GPL-2+
+
+Files: hw/xen/xen_backend.c
+Copyright: 2008, Gerd Hoffmann <kraxel@redhat.com>
+License: GPL or GPL
+
+Files: hw/xenpv/xen_machine_pv.c
+Copyright: 2007, Red Hat
+License: Expat
+
+Files: hw/xtensa/*
+Copyright: 2011, 2012, Max Filippov, Open Source and Linux Lab
+License: BSD-3-clause
+
+Files: include/block/*
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/block/accounting.h
+Copyright: 2011, Christoph Hellwig
+License: Expat
+
+Files: include/block/blockjob.h
+Copyright: 2012, Red Hat, Inc
+  2011, IBM Corp
+License: Expat
+
+Files: include/block/coroutine_int.h
+Copyright: 2010-2013, 2015, Kevin Wolf <kwolf@redhat.com>
+License: Expat
+
+Files: include/block/nbd.h
+Copyright: 2005, Anthony Liguori <anthony@codemonkey.ws>
+License: GPL
+
+Files: include/block/scsi.h
+Copyright: 1998, 1999, Free Software Foundation, Inc
+License: LGPL-2.1+
+
+Files: include/exec/cpu-all.h
+  include/exec/cpu-defs.h
+  include/exec/cpu_ldst_template.h
+  include/exec/cputlb.h
+  include/exec/exec-all.h
+  include/exec/ioport.h
+  include/exec/spinlock.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: include/exec/cpu_ldst.h
+Copyright: no-info-found
+License: LGPL-2+
+
+Files: include/exec/cpu_ldst_useronly_template.h
+Copyright: 2015, Linaro Limited
+License: LGPL-2+
+
+Files: include/exec/user/*
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: include/hw/acpi/acpi.h
+  include/hw/acpi/ich9.h
+Copyright: 2009, Isaku Yamahata <yamahata at valinux co jp>
+License: LGPL-2+
+
+Files: include/hw/acpi/pcihp.h
+Copyright: 2013, Red Hat Inc, Michael S. Tsirkin (mst@redhat.com)
+  2006, Fabrice Bellard
+License: GPL or LGPL-2
+
+Files: include/hw/arm/digic.h
+Copyright: 2013, Antony Pavlov <antonynpavlov@gmail.com>
+License: GPL-2+
+
+Files: include/hw/arm/exynos4210.h
+Copyright: 2011, Samsung Electronics Co., Ltd.
+License: GPL-2+
+
+Files: include/hw/arm/omap.h
+Copyright: 2006-2008, Andrzej Zaborowski <balrog@zabor.org>
+License: GPL
+
+Files: include/hw/arm/soc_dma.h
+Copyright: 2007-2009, Nokia Corporation
+License: GPL
+
+Files: include/hw/arm/stm32f205_soc.h
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: include/hw/audio/*
+Copyright: 2006, Joachim Henke
+License: Expat
+
+Files: include/hw/bt.h
+Copyright: 2007, OpenMoko, Inc
+  2002-2006, Marcel Holtmann <marcel@holtmann.org>
+  2002, 2003, Maxim Krasnyansky <maxk@qualcomm.com>
+  2000, 2001, Qualcomm Incorporated
+License: GPL-2+
+
+Files: include/hw/char/digic-uart.h
+Copyright: 2013, Antony Pavlov <antonynpavlov@gmail.com>
+License: GPL-2+
+
+Files: include/hw/char/serial.h
+Copyright: 2008, Citrix Systems, Inc
+  2003, 2004, Fabrice Bellard
+License: Expat
+
+Files: include/hw/char/stm32f2xx_usart.h
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: include/hw/cpu/*
+Copyright: 2011-2013, Linaro Limited
+License: GPL-2+
+
+Files: include/hw/cpu/icc_bus.h
+Copyright: 2013, Red Hat, Inc
+License: LGPL-2+
+
+Files: include/hw/cris/*
+Copyright: 2007-2010, Edgar E. Iglesias, Axis Communications AB
+License: Expat
+
+Files: include/hw/fw-path-provider.h
+Copyright: no-info-found
+License: GPL-2+
+
+Files: include/hw/i2c/smbus.h
+Copyright: 2007, Arastra, Inc
+License: Expat
+
+Files: include/hw/i386/apic_internal.h
+Copyright: 2011, Jan Kiszka, Siemens AG
+  2004, 2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: include/hw/i386/intel_iommu.h
+Copyright: 2014, Le Tan, <tamlokveer@gmail.com>
+  2013, Knut Omang, Oracle <knut.omang@oracle.com>
+License: GPL-2+
+
+Files: include/hw/i386/ioapic.h
+Copyright: 2011, Jan Kiszka, Siemens AG
+License: LGPL-2+
+
+Files: include/hw/i386/ioapic_internal.h
+Copyright: 2011, Jan Kiszka, Siemens AG
+  2009, Xiantao Zhang, Intel
+  2004, 2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: include/hw/i386/topology.h
+Copyright: 2012-2014, Red Hat Inc
+License: Expat
+
+Files: include/hw/input/*
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/hw/input/adb.h
+Copyright: 2007, Jocelyn Mayer
+  2004-2007, Fabrice Bellard
+License: Expat
+
+Files: include/hw/intc/*
+Copyright: 2011-2013, Linaro Limited
+License: GPL-2+
+
+Files: include/hw/isa/i8259_internal.h
+Copyright: 2011, Jan Kiszka, Siemens AG
+License: Expat
+
+Files: include/hw/isa/pc87312.h
+Copyright: 2011, 2012, Andreas Färber
+  2010-2012, Herve Poussineau
+License: Expat
+
+Files: include/hw/misc/*
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: include/hw/net/*
+Copyright: 2014, Beniamino Galvani <b.galvani@gmail.com>
+  2013, Maxime Ripard <maxime.ripard@free-electrons.com>
+  2012, Stefan Roese <sr@denx.de>
+  1997, Sten Wang
+License: GPL-2
+
+Files: include/hw/nmi.h
+Copyright: IBM Corp., 2014
+License: GPL-2+
+
+Files: include/hw/nvram/eeprom93xx.h
+Copyright: 2006, 2007, 2009, 2011, Stefan Weil
+License: GPL-2+
+
+Files: include/hw/pci-host/gpex.h
+Copyright: 2015, Alexander Graf <agraf@suse.de>
+License: GPL-2+
+
+Files: include/hw/pci-host/pam.h
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2011, Isaku Yamahata <yamahata at valinux co jp>
+  2006, Fabrice Bellard
+License: Expat
+
+Files: include/hw/pci-host/q35.h
+Copyright: 2012, Jason Baron <jbaron@redhat.com>
+  2009, Isaku Yamahata <yamahata at valinux co jp>
+License: GPL-2+
+
+Files: include/hw/pci-host/spapr.h
+Copyright: 2011, Alexey Kardashevskiy <aik@au1.ibm.com>
+License: LGPL-2+
+
+Files: include/hw/pci/msi.h
+  include/hw/pci/pcie.h
+  include/hw/pci/pcie_aer.h
+  include/hw/pci/pcie_host.h
+  include/hw/pci/pcie_port.h
+Copyright: 2009, 2010, Isaku Yamahata <yamahata at valinux co jp>
+License: GPL-2+
+
+Files: include/hw/pci/pci_bridge.h
+Copyright: 2009, Isaku Yamahata <yamahata at valinux co jp>
+  2004, Fabrice Bellard
+License: GPL-2+
+
+Files: include/hw/pci/pci_host.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/hw/platform-bus.h
+Copyright: 2011, 2014, Freescale Semiconductor, Inc.
+License: LGPL-2+
+
+Files: include/hw/ppc/mac_dbdma.h
+Copyright: 2009, Laurent Vivier
+License: Expat
+
+Files: include/hw/ppc/ppc4xx.h
+Copyright: 2003-2007, Jocelyn Mayer
+License: Expat
+
+Files: include/hw/ppc/spapr_vio.h
+Copyright: 2010, David Gibson, IBM Corporation <david@gibson.dropbear.id.au>
+  2009, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: include/hw/ppc/xics.h
+Copyright: 2010-2013, David Gibson, IBM Corporation
+License: Expat
+
+Files: include/hw/sd.h
+Copyright: 2006, Andrzej Zaborowski <balrog@zabor.org>
+License: BSD-2-clause
+
+Files: include/hw/sparc/grlib.h
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: include/hw/timer/a9gtimer.h
+Copyright: 2013, Xilinx Inc
+License: GPL-2+
+
+Files: include/hw/timer/arm_mptimer.h
+Copyright: 2011, Linaro Limited
+  2006, 2007, CodeSourcery
+License: GPL-2+
+
+Files: include/hw/timer/digic-timer.h
+Copyright: 2013, Antony Pavlov <antonynpavlov@gmail.com>
+License: GPL-2+
+
+Files: include/hw/timer/i8254.h
+  include/hw/timer/mc146818rtc_regs.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/hw/timer/i8254_internal.h
+Copyright: 2011, Jan Kiszka, Siemens AG
+License: Expat
+
+Files: include/hw/timer/stm32f2xx_timer.h
+Copyright: 2014, Alistair Francis <alistair@alistair23.me>
+License: Expat
+
+Files: include/hw/unicore32/*
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: include/hw/usb.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/hw/virtio/virtio-access.h
+Copyright: IBM, Corp. 2013
+License: GPL-2+
+
+Files: include/hw/virtio/virtio-bus.h
+Copyright: 2012, : GreenSocs Ltd
+License: GPL-2+
+
+Files: include/libdecnumber/*
+Copyright: 1991, 1994-2009, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: include/migration/qemu-file.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/migration/vmstate.h
+Copyright: 2009-2014, Red Hat, Inc
+License: Expat
+
+Files: include/net/*
+Copyright: 2009, 2010, 2012, Red Hat, Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/net/checksum.h
+Copyright: 2008, Gerd Hoffmann <kraxel@redhat.com>
+License: GPL
+
+Files: include/net/slirp.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/qemu-io.h
+Copyright: 2000-2005, Silicon Graphics, Inc
+License: GPL
+
+Files: include/qemu/acl.h
+Copyright: 2009-2014, Red Hat, Inc
+License: Expat
+
+Files: include/qemu/crc32c.h
+Copyright: 2013, Red Hat, Inc.
+  2008, Herbert Xu <herbert@gondor.apana.org.au>
+  2004, Cisco Systems, Inc
+License: GPL-2+
+
+Files: include/qemu/host-utils.h
+Copyright: 2007, Thiemo Seufer
+  2007, Jocelyn Mayer
+License: Expat
+
+Files: include/qemu/main-loop.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/qemu/option.h
+  include/qemu/option_int.h
+Copyright: 2009, Kevin Wolf <kwolf@redhat.com>
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/qemu/queue.h
+Copyright: 1991, 1993, 
+License: BSD-3-clause
+
+Files: include/qemu/rcu.h
+Copyright: no-info-found
+License: LGPL-2.1+
+
+Files: include/qemu/rcu_queue.h
+Copyright: 2013, Mike D. Day, IBM Corporation
+License: LGPL-2.1+
+
+Files: include/qemu/throttle.h
+Copyright: Nodalink, SARL. 2013
+License: GPL
+
+Files: include/qemu/tls.h
+Copyright: 2011, Red Hat, Inc
+  2011, Linaro Limited
+License: GPL-2+
+
+Files: include/qemu/uri.h
+Copyright: 2007, 2009, 2010, Red Hat, Inc
+  1998-2003, Daniel Veillard.
+License: Expat or LGPL-2.1+
+
+Files: include/qom/*
+Copyright: 2012-2014, SUSE LINUX Products GmbH
+License: GPL-2+
+
+Files: include/standard-headers/*
+Copyright: no-info-found
+License: BSD-3-clause
+
+Files: include/standard-headers/asm-s390/*
+Copyright: IBM Corp. 2013
+License: GPL-2
+
+Files: include/standard-headers/asm-s390/kvm_virtio.h
+Copyright: IBM Corp. 2008
+License: GPL-2
+
+Files: include/standard-headers/linux/virtio_console.h
+Copyright: Red Hat, Inc., 2009, 2010, 2011, / Amit Shah <amit.shah@redhat.com>, 2009, 2010, 2011
+License: BSD-3-clause
+
+Files: include/standard-headers/linux/virtio_pci.h
+Copyright: IBM Corp. 2007
+License: BSD-3-clause
+
+Files: include/standard-headers/linux/virtio_ring.h
+Copyright: Rusty Russell IBM Corporation 2007.
+License: BSD-3-clause
+
+Files: include/standard-headers/linux/virtio_scsi.h
+Copyright: no-info-found
+License: BSD-2-clause
+
+Files: include/standard-headers/linux/virtio_types.h
+Copyright: 2014, Red Hat, Inc
+License: BSD-3-clause
+
+Files: include/sysemu/accel.h
+Copyright: 2012-2014, Red Hat Inc
+License: Expat
+
+Files: include/sysemu/os-posix.h
+  include/sysemu/os-win32.h
+Copyright: 2010, Jes Sorensen <Jes.Sorensen@redhat.com>
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: include/sysemu/tpm_backend_int.h
+Copyright: 2012-2014, IBM Corporation
+License: LGPL-2+
+
+Files: include/sysemu/watchdog.h
+Copyright: 2009, 2012, 2013, 2015, Red Hat Inc
+License: GPL-2+
+
+Files: include/ui/qemu-spice.h
+  include/ui/spice-display.h
+Copyright: 2010, 2013, Red Hat, Inc
+License: GPL
+
+Files: libdecnumber/*
+Copyright: 1991, 1994-2009, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: libdecnumber/dpd/decimal128Local.h
+Copyright: 2007, 2009, Free Software Foundation, Inc
+License: GPL-3.1
+ Please fill license GPL-3.1 from header of libdecnumber/dpd/decimal128Local.h
+
+Files: linux-headers/asm-arm/*
+Copyright: 2012, - Virtual Open Systems and Columbia University
+License: GPL-2
+
+Files: linux-headers/asm-arm64/*
+Copyright: 2012,2013, - ARM Ltd / 2012, - Virtual Open Systems and Columbia University
+License: GPL-2
+
+Files: linux-headers/asm-powerpc/*
+Copyright: IBM Corp. 2007
+License: GPL-2
+
+Files: linux-headers/asm-powerpc/epapr_hcalls.h
+Copyright: 2008-2011, Freescale Semiconductor, Inc
+License: BSD-3-clause
+
+Files: linux-headers/asm-powerpc/kvm_para.h
+Copyright: IBM Corp. 2008
+License: GPL-2
+
+Files: linux-headers/asm-s390/*
+Copyright: IBM Corp. 2008
+License: GPL-2
+
+Files: linux-headers/linux/vfio.h
+Copyright: 2012, Red Hat, Inc.
+License: GPL-2
+
+Files: linux-user/aarch64/target_cpu.h
+Copyright: 2009, 2013, 2015, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: linux-user/aarch64/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/alpha/target_cpu.h
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: linux-user/alpha/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/arm/nwfpe/*
+Copyright: Rebel.COM, 1998,1999
+License: GPL-2+
+
+Files: linux-user/arm/nwfpe/fpa11.h
+  linux-user/arm/nwfpe/fpsr.h
+Copyright: Rebel.com, 1998-1999
+License: GPL-2+
+
+Files: linux-user/arm/nwfpe/fpa11_cpdt.c
+Copyright: Philip Blundell, 1998, / Rebel.com, 1998-1999
+License: GPL-2+
+
+Files: linux-user/arm/nwfpe/fpa11_cprt.c
+Copyright: Rebel.COM, 1998,1999, / Philip Blundell, 1999
+License: GPL-2+
+
+Files: linux-user/arm/target_cpu.h
+  linux-user/arm/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/cris/target_cpu.h
+Copyright: 2007, 2008, 2010, AXIS Communications AB
+License: LGPL-2+
+
+Files: linux-user/cris/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/flatload.c
+Copyright: 2006, CodeSourcery
+  2002, SnapGear,Paul Dale <pauli@snapgear.com>
+  2002, Greg Ungerer <gerg@snapgear.com>
+  2000-2003, David McCullough <davidm@snapgear.com>
+  2000, 2001, Lineo,David McCullough <davidm@lineo.com>
+  1998, Kenneth Albanowski <kjahds@kjahds.com>
+  1991, 1992, 1996, Linus Torvalds
+License: GPL-2+
+
+Files: linux-user/i386/target_cpu.h
+  linux-user/i386/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/m68k-sim.c
+Copyright: 2005, CodeSourcery, LLC. WrittenPaul Brook
+License: GPL-2+
+
+Files: linux-user/m68k/target_cpu.h
+Copyright: 2005-2007, 2009, CodeSourcery
+License: LGPL-2+
+
+Files: linux-user/m68k/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/main.c
+  linux-user/mmap.c
+  linux-user/signal.c
+  linux-user/syscall.c
+  linux-user/vm86.c
+Copyright: 2003-2008, Fabrice Bellard
+License: GPL-2+
+
+Files: linux-user/microblaze/target_cpu.h
+Copyright: 2009, Edgar E. Iglesias
+License: LGPL-2+
+
+Files: linux-user/microblaze/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/mips/target_cpu.h
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: linux-user/mips/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/mips64/target_cpu.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/openrisc/target_cpu.h
+Copyright: 2011, 2012, Jia Liu <proljc@gmail.com>
+License: LGPL-2+
+
+Files: linux-user/openrisc/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/ppc/syscall.h
+  linux-user/ppc/target_cpu.h
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: linux-user/ppc/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/s390x/target_cpu.h
+Copyright: 2009, Ulrich Hecht
+License: GPL or LGPL-2+
+
+Files: linux-user/s390x/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/sh4/target_cpu.h
+Copyright: 2005, Samuel Tardieu
+License: LGPL-2+
+
+Files: linux-user/sh4/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/sparc/target_cpu.h
+Copyright: 2003-2005, Fabrice Bellard
+  2003, Thomas M. Ogrisegg <tom@fnord.at>
+License: LGPL-2+
+
+Files: linux-user/sparc/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/sparc64/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/uname.c
+Copyright: 2009, Loïc Minier
+License: GPL-2+
+
+Files: linux-user/unicore32/*
+Copyright: 2010, 2011, GUAN Xue-tao
+License: GPL-2
+
+Files: linux-user/unicore32/target_cpu.h
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: linux-user/unicore32/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: linux-user/x86_64/target_structs.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: migration/qemu-file-buf.c
+Copyright: 2014, IBM Corp
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: nbd.c
+  qemu-nbd.c
+Copyright: 2005, Anthony Liguori <anthony@codemonkey.ws>
+License: GPL
+
+Files: net/checksum.c
+Copyright: 2008, Gerd Hoffmann <kraxel@redhat.com>
+License: GPL
+
+Files: net/l2tpv3.c
+Copyright: 2012-2014, Cisco Systems
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: net/netmap.c
+Copyright: 2012, 2013, Luigi Rizzo
+License: Expat
+
+Files: net/queue.c
+  net/tap-linux.c
+  net/tap.c
+  net/tap_int.h
+Copyright: 2009, 2010, 2012, Red Hat, Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: net/tap-linux.h
+Copyright: 1999, 2000, Maxim Krasnyansky <max_mk@yahoo.com>
+License: GPL-2+
+
+Files: net/tap-win32.c
+Copyright: James Yonan, 2003-2004, / Damion K. Wilson, 2003, and is released under the
+License: GPL-2+
+
+Files: numa.c
+Copyright: 2014, Fujitsu Ltd
+License: Expat
+
+Files: os-posix.c
+  os-win32.c
+Copyright: 2009, 2010, 2012, Red Hat, Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: pc-bios/*
+Copyright: Novell Inc, 2009
+License: GPL-2+
+
+Files: qdev-monitor.c
+Copyright: 2005-2007, 2009, CodeSourcery
+License: LGPL-2+
+
+Files: qemu-coroutine-io.c
+Copyright: 2011, Red Hat, Inc
+  2009, 2010, Nippon Telegraph and Telephone Corporation
+License: Expat
+
+Files: qemu-img.c
+Copyright: 2004-2008, Fabrice Bellard\n"
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: qemu-options.h
+Copyright: 2010, Jes Sorensen <Jes.Sorensen@redhat.com>
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: qom/cpu.c
+Copyright: 2012-2014, SUSE LINUX Products GmbH
+License: GPL-2+
+
+Files: scripts/acpi_extract.py
+  scripts/acpi_extract_preprocess.py
+Copyright: 2011, Red Hat, Inc., Michael S. Tsirkin <mst@redhat.com>
+License: GPL-2+
+
+Files: scripts/analyze-migration.py
+Copyright: 2009, 2013, 2015, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: scripts/feature_to_c.sh
+  scripts/texi2pod.pl
+Copyright: 1991, 1994-2009, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: scripts/ordereddict.py
+Copyright: 2009, Raymond Hettinger
+License: Expat
+
+Files: scripts/refresh-pxe-roms.sh
+Copyright: 2011, 2012, Red Hat, Inc
+License: GPL-2+
+
+Files: scripts/vmstate-static-checker.py
+Copyright: 2014, Red Hat, Inc
+  2014, Amit Shah <amit.shah@redhat.com>
+License: GPL-2+
+
+Files: slirp/*
+Copyright: 1982, 1986, 1993, 
+License: BSD-3-clause
+
+Files: slirp/arp_table.c
+Copyright: 2010-2013, AdaCore
+License: Expat
+
+Files: slirp/bootp.c
+  slirp/slirp.c
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: slirp/cksum.c
+Copyright: 1988, 1992, 1993, 
+License: BSD-3-clause
+
+Files: slirp/dnssearch.c
+Copyright: 2012, Klaus Stengel
+License: Expat
+
+Files: slirp/ip_icmp.c
+  slirp/mbuf.h
+Copyright: 1982, 1986, 1988, 1993, 
+License: BSD-3-clause
+
+Files: slirp/ip_input.c
+Copyright: for the / 1995, Danny Gasparovski / 1982, 1986, 1988, 1993
+License: BSD-3-clause
+
+Files: slirp/ip_output.c
+  slirp/tcp_output.c
+  slirp/tcp_subr.c
+Copyright: for the / 1995, Danny Gasparovski / 1982, 1986, 1988, 1990, 1993
+License: BSD-3-clause
+
+Files: slirp/tcp_input.c
+  slirp/udp.c
+Copyright: 1982, 1986, 1988, 1990, 1993, 1994, / 1995, Danny Gasparovski / for the
+License: BSD-3-clause
+
+Files: slirp/tcp_timer.c
+Copyright: 1982, 1986, 1988, 1990, 1993, 
+License: BSD-3-clause
+
+Files: slirp/tcp_var.h
+Copyright: 1982, 1986, 1993, 1994, 
+License: BSD-3-clause
+
+Files: slirp/tftp.c
+Copyright: 2004, Magnus Damm <damm@opensource.se>
+License: Expat
+
+Files: target-alpha/*
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-alpha/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-alpha/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2007, Jocelyn Mayer
+License: LGPL-2.1+
+
+Files: target-alpha/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-arm/arm-semi.c
+Copyright: 2005-2007, CodeSourcery
+License: GPL-2+
+
+Files: target-arm/arm_ldst.h
+  target-arm/op_helper.c
+Copyright: 2005-2007, 2012, CodeSourcery, LLC
+License: LGPL-2+
+
+Files: target-arm/cpu-qom.h
+  target-arm/cpu.c
+Copyright: 2012-2014, SUSE LINUX Products GmbH
+License: GPL-2+
+
+Files: target-arm/cpu.h
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-arm/cpu64.c
+  target-arm/internals.h
+Copyright: 2013, 2014, Linaro Ltd
+License: GPL-2+
+
+Files: target-arm/crypto_helper.c
+Copyright: 2013, 2014, Linaro Ltd <ard.biesheuvel@linaro.org>
+License: LGPL-2+
+
+Files: target-arm/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-arm/gdbstub64.c
+Copyright: 2013, SUSE LINUX Products GmbH
+License: LGPL-2+
+
+Files: target-arm/helper-a64.c
+  target-arm/helper-a64.h
+  target-arm/translate-a64.c
+Copyright: 2009, 2013, 2015, Alexander Graf <agraf@suse.de>
+License: LGPL-2+
+
+Files: target-arm/iwmmxt_helper.c
+Copyright: 2008, CodeSourcery
+  2007, OpenedHand, Ltd
+License: LGPL-2+
+
+Files: target-arm/psci.c
+Copyright: 2014, - Linaro
+License: GPL-2+
+
+Files: target-arm/translate.c
+Copyright: 2007, OpenedHand, Ltd
+  2005-2007, CodeSourcery
+  2003, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-cris/*
+Copyright: 2007, 2008, 2010, AXIS Communications AB
+License: LGPL-2+
+
+Files: target-cris/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-cris/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2008, AXIS Communications AB
+License: LGPL-2.1+
+
+Files: target-cris/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-cris/op_helper.c
+Copyright: 2007, AXIS Communications
+License: LGPL-2+
+
+Files: target-cris/opcode-cris.h
+Copyright: 1991, 1994-2009, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: target-i386/*
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-i386/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-i386/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-i386/ioport-user.c
+Copyright: 2003-2008, Fabrice Bellard
+License: GPL-2+
+
+Files: target-i386/ops_sse.h
+Copyright: 2008, Intel Corporation <andrew.zaborowski@intel.com>
+  2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-lm32/*
+Copyright: 2010-2014, Michael Walle <michael@walle.cc>
+License: LGPL-2+
+
+Files: target-lm32/cpu-qom.h
+  target-lm32/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-lm32/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-m68k/*
+Copyright: 2005-2007, 2009, CodeSourcery
+License: LGPL-2+
+
+Files: target-m68k/cpu-qom.h
+  target-m68k/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-m68k/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-m68k/m68k-semi.c
+Copyright: 2005-2007, CodeSourcery
+License: GPL-2+
+
+Files: target-microblaze/*
+Copyright: 2009-2012, PetaLogix Qld Pty Ltd
+  2009, Edgar E. Iglesias
+License: LGPL-2+
+
+Files: target-microblaze/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-microblaze/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2009-2012, PetaLogix Qld Pty Ltd
+  2009, Edgar E. Iglesias, Axis Communications AB
+  2009, Edgar E. Iglesias
+License: LGPL-2.1+
+
+Files: target-microblaze/cpu.h
+  target-microblaze/mmu.h
+Copyright: 2009, Edgar E. Iglesias
+License: LGPL-2+
+
+Files: target-microblaze/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-microblaze/helper.c
+  target-microblaze/op_helper.c
+Copyright: 2009-2012, PetaLogix Qld Pty Ltd
+  2009, Edgar E. Iglesias <edgar.iglesias@gmail.com>
+License: LGPL-2+
+
+Files: target-microblaze/microblaze-decode.h
+Copyright: 2009, Edgar E. Iglesias <edgar.iglesias@gmail.com>
+License: LGPL-2+
+
+Files: target-mips/cpu-qom.h
+  target-mips/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-mips/dsp_helper.c
+Copyright: 2011, 2012, Jia Liu <proljc@gmail.com>
+License: LGPL-2+
+
+Files: target-mips/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-mips/helper.c
+  target-mips/op_helper.c
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-mips/lmi_helper.c
+Copyright: 2011, Richard Henderson <rth@twiddle.net>
+License: LGPL-2+
+
+Files: target-mips/msa_helper.c
+Copyright: 2014, Imagination Technologies
+License: LGPL-2+
+
+Files: target-mips/translate.c
+Copyright: 2012, Jia Liu & Dongxue Zhang (MIPS ASE DSP support)
+  2009, CodeSourcery (MIPS16 and microMIPS support)
+  2006, Thiemo Seufer (MIPS32R2 support)
+  2006, Marius Groeger (FPU operations)
+  2004, 2005, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-mips/translate_init.c
+Copyright: 2007, Herve Poussineau
+  2004, 2005, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-moxie/*
+Copyright: 2008-2010, 2013, Anthony Green
+License: LGPL-2+
+
+Files: target-moxie/cpu.c
+Copyright: 2013, Anthony Green
+License: LGPL-2.1+
+
+Files: target-openrisc/*
+Copyright: 2011, 2012, Jia Liu <proljc@gmail.com>
+License: LGPL-2+
+
+Files: target-openrisc/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-ppc/*
+Copyright: 2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-ppc/cpu-models.c
+  target-ppc/cpu-models.h
+Copyright: 2013, SUSE LINUX Products GmbH
+  2011, Freescale Semiconductor, Inc
+  2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-ppc/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-ppc/dfp_helper.c
+Copyright: 2012-2014, IBM Corporation
+License: LGPL-2+
+
+Files: target-ppc/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-ppc/mmu-hash32.c
+  target-ppc/mmu-hash64.c
+  target-ppc/user_only_helper.c
+Copyright: 2013, David Gibson, IBM Corporation
+  2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-ppc/translate.c
+  target-ppc/translate_init.c
+Copyright: 2011, Freescale Semiconductor, Inc
+  2003-2007, Jocelyn Mayer
+License: LGPL-2+
+
+Files: target-s390x/*
+Copyright: 2009, Ulrich Hecht
+  2009, Alexander Graf
+License: LGPL-2+
+
+Files: target-s390x/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-s390x/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2012, IBM Corp
+  2011, Alexander Graf
+  2009, Ulrich Hecht
+License: GPL or LGPL-2.1+
+
+Files: target-s390x/cpu.h
+Copyright: 2009, Ulrich Hecht
+License: GPL or LGPL-2+
+
+Files: target-s390x/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-s390x/helper.c
+  target-s390x/translate.c
+Copyright: 2010, 2011, Alexander Graf
+  2009, Ulrich Hecht
+License: LGPL-2+
+
+Files: target-s390x/kvm.c
+Copyright: IBM Corp. 2012, / 2009, Alexander Graf <agraf@suse.de>
+License: GPL or LGPL-2+
+
+Files: target-s390x/machine.c
+Copyright: IBM Corp. 2014
+License: GPL-2+
+
+Files: target-s390x/mmu_helper.c
+Copyright: 2015, Thomas Huth, IBM Corporation
+  2011, Alexander Graf
+License: GPL-2+
+
+Files: target-sh4/*
+Copyright: 2005, Samuel Tardieu
+License: LGPL-2+
+
+Files: target-sh4/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-sh4/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2005, Samuel Tardieu
+License: LGPL-2.1+
+
+Files: target-sh4/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-sparc/*
+Copyright: 2003-2005, 2008, 2013, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-sparc/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: LGPL-2.1+
+
+Files: target-sparc/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: target-sparc/translate.c
+Copyright: 2003-2005, Fabrice Bellard
+  2003, Thomas M. Ogrisegg <tom@fnord.at>
+License: LGPL-2+
+
+Files: target-tricore/*
+Copyright: 2012-2014, Bastian Koppelmann C-Lab/University Paderborn
+License: LGPL-2+
+
+Files: target-unicore32/*
+Copyright: 2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: target-unicore32/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: GPL-2
+
+Files: target-unicore32/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2010-2012, Guan Xuetao
+License: GPL-2
+
+Files: target-xtensa/*
+Copyright: 2011, 2012, Max Filippov, Open Source and Linux Lab
+License: BSD-3-clause
+
+Files: target-xtensa/core-dc232b/*
+Copyright: 1991, 1994-2009, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: target-xtensa/core-dc233c/*
+Copyright: 1999-2010, Tensilica Inc
+License: Expat
+
+Files: target-xtensa/cpu-qom.h
+Copyright: 2012, SUSE LINUX Products GmbH
+License: BSD-3-clause
+
+Files: target-xtensa/cpu.c
+Copyright: 2012, SUSE LINUX Products GmbH
+  2011, Max Filippov, Open Source and Linux Lab
+License: BSD-3-clause
+
+Files: target-xtensa/gdbstub.c
+Copyright: 2013, SUSE LINUX Products GmbH
+  2003-2005, Fabrice Bellard
+License: LGPL-2+
+
+Files: tcg/arm/*
+Copyright: 2008, Fabrice Bellard
+  2008, Andrzej Zaborowski
+License: Expat
+
+Files: tcg/arm/tcg-target.c
+Copyright: 2008, Andrzej Zaborowski
+License: Expat
+
+Files: tcg/ia64/*
+Copyright: 2009, 2010, Aurelien Jarno <aurelien@aurel32.net>
+  2008, Fabrice Bellard
+License: Expat
+
+Files: tcg/mips/*
+Copyright: 2009, Aurelien Jarno <aurelien@aurel32.net>
+  2008, Fabrice Bellard
+  2008, 2009, Arnaud Patard <arnaud.patard@rtp-net.org>
+License: Expat
+
+Files: tcg/optimize.c
+Copyright: 2010, Samsung Electronics
+License: Expat
+
+Files: tcg/s390/*
+Copyright: 2010, Richard Henderson <rth@twiddle.net>
+  2009, Ulrich Hecht <uli@suse.de>
+  2009, Alexander Graf <agraf@suse.de>
+License: Expat
+
+Files: tcg/s390/tcg-target.h
+Copyright: 2009, Ulrich Hecht <uli@suse.de>
+License: Expat
+
+Files: tcg/tcg-be-ldst.h
+  tcg/tcg-be-null.h
+Copyright: no-info-found
+License: Expat
+
+Files: tcg/tci/*
+Copyright: 2009, 2011, Stefan Weil
+License: Expat
+
+Files: tci.c
+Copyright: 2006, 2007, 2009, 2011, Stefan Weil
+License: GPL-2+
+
+Files: tests/ahci-test.c
+Copyright: 2014, John Snow <jsnow@redhat.com>
+License: Expat
+
+Files: tests/fdc-test.c
+  tests/ide-test.c
+Copyright: 2010-2013, 2015, Kevin Wolf <kwolf@redhat.com>
+License: Expat
+
+Files: tests/image-fuzzer/*
+Copyright: 2014, Maria Kustova <maria.k@catit.be>
+License: GPL-2+
+
+Files: tests/libqos/ahci.c
+  tests/libqos/ahci.h
+Copyright: 2014, John Snow <jsnow@redhat.com>
+License: Expat
+
+Files: tests/multiboot/*
+Copyright: 2010-2013, 2015, Kevin Wolf <kwolf@redhat.com>
+License: Expat
+
+Files: tests/qemu-iotests/iotests.py
+Copyright: 2012, IBM Corp
+License: GPL-2+
+
+Files: tests/rcutorture.c
+Copyright: 2008, Paul E. McKenney, IBM Corporation
+License: GPL-2+
+
+Files: tests/tcg/linux-test.c
+  tests/tcg/test-i386.c
+Copyright: 2003-2008, Fabrice Bellard
+License: GPL-2+
+
+Files: tests/tcg/test-i386-fprem.c
+Copyright: 2012, Catalin Patulea
+  2003, Fabrice Bellard
+License: GPL-2+
+
+Files: tests/tcg/test-mmap.c
+Copyright: 2007, AXIS Communications AB
+License: GPL-2+
+
+Files: tests/test-cutils.c
+  tests/test-qdev-global-props.c
+  tests/test-vmstate.c
+  tests/test-x86-cpuid.c
+Copyright: 2012-2014, Red Hat Inc
+License: Expat
+
+Files: tests/test-rcu-list.c
+Copyright: 2013, Mike D. Day, IBM Corporation
+License: GPL-2+
+
+Files: ui/cocoa.m
+Copyright: 2005, 2008, Mike Kronenberg
+License: Expat
+
+Files: ui/console.c
+  ui/input-legacy.c
+  ui/sdl.c
+  ui/sdl2-2d.c
+  ui/sdl2-input.c
+  ui/sdl2.c
+  ui/x_keymap.c
+  ui/x_keymap.h
+Copyright: 2003-2008, Fabrice Bellard
+License: Expat
+
+Files: ui/curses.c
+  ui/curses_keys.h
+Copyright: 2005, 2007, Andrzej Zaborowski <balrog@zabor.org>
+License: Expat
+
+Files: ui/gtk.c
+Copyright: 2006, Anthony Liguori <anthony@codemonkey.ws> / IBM, Corp. 2012, / 2009-2010, Daniel P. Berrange <dan@berrange.com>
+License: LGPL-2.0+
+
+Files: ui/keymaps.c
+  ui/keymaps.h
+Copyright: 2004, Johannes Schindelin
+License: Expat
+
+Files: ui/spice-core.c
+  ui/spice-display.c
+  ui/spice-input.c
+Copyright: 2010, 2013, Red Hat, Inc
+License: GPL
+
+Files: ui/vnc-auth-sasl.c
+  ui/vnc-auth-sasl.h
+Copyright: 2009-2014, Red Hat, Inc
+License: Expat
+
+Files: ui/vnc-auth-vencrypt.c
+  ui/vnc-auth-vencrypt.h
+  ui/vnc-enc-hextile.c
+  ui/vnc-enc-zlib.c
+  ui/vnc-tls.c
+  ui/vnc-tls.h
+  ui/vnc.c
+  ui/vnc.h
+Copyright: 2009, Red Hat, Inc
+  2006, Fabrice Bellard
+  2006, Anthony Liguori <anthony@codemonkey.ws>
+License: Expat
+
+Files: ui/vnc-enc-tight.c
+  ui/vnc-palette.c
+  ui/vnc-palette.h
+Copyright: 2010, Corentin Chary <corentin.chary@gmail.com>
+  2000, 2001, Const Kaplinsky.
+  1999, AT&T Laboratories Cambridge.
+License: Expat
+
+Files: ui/vnc-enc-tight.h
+  ui/vnc-jobs.h
+Copyright: 2005, Rohit Kumar, Johannes E. Schindelin
+  2000-2002, Constantin Kaplinsky.
+  2000, Tridia Corporation.
+  1999, AT&T Laboratories Cambridge.
+License: Expat
+
+Files: ui/vnc-enc-zrle.c
+  ui/vnc-enc-zrle.h
+Copyright: 2010, Corentin Chary <corentin.chary@gmail.com>
+  2003, Sun Microsystems, Inc
+  2002, RealVNC Ltd.
+License: Expat
+
+Files: ui/vnc-enc-zywrle-template.c
+  ui/vnc-enc-zywrle.h
+Copyright: 2006, 
+License: BSD-3-clause
+
+Files: ui/vnc-jobs.c
+Copyright: 2010, Corentin Chary <corentin.chary@gmail.com>
+  2009, Red Hat, Inc
+  2006, Fabrice Bellard
+  2006, Anthony Liguori <anthony@codemonkey.ws>
+License: Expat
+
+Files: ui/vnc-ws.c
+  ui/vnc-ws.h
+Copyright: 2012, Tim Hardeck
+  2010, Joel Martin
+License: GPL-2+
+
+Files: util/acl.c
+  util/getauxval.c
+Copyright: 2009-2014, Red Hat, Inc
+License: Expat
+
+Files: util/aes.c
+Copyright: no-info-found
+License: BSD
+
+Files: util/bitops.c
+Copyright: 2008, IBM Corporation
+  2004, Red Hat, Inc.
+License: GPL-2+
+
+Files: util/crc32c.c
+Copyright: 2013, Red Hat, Inc.
+  2008, Herbert Xu <herbert@gondor.apana.org.au>
+  2004, Cisco Systems, Inc
+License: GPL-2+
+
+Files: util/fifo8.c
+Copyright: 2012, Peter A. G. Crosthwaite
+License: GPL-2+
+
+Files: util/host-utils.c
+Copyright: 2007, Aurelien Jarno
+  2003, Fabrice Bellard
+License: Expat
+
+Files: util/oslib-posix.c
+  util/oslib-win32.c
+  util/qemu-openpty.c
+Copyright: 2009, 2010, 2012, Red Hat, Inc
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: util/qemu-option.c
+Copyright: 2009, Kevin Wolf <kwolf@redhat.com>
+  2003-2008, Fabrice Bellard
+License: Expat
+
+Files: util/qemu-progress.c
+Copyright: 2011, Jes Sorensen <Jes.Sorensen@redhat.com>
+License: Expat
+
+Files: util/qemu-sockets.c
+Copyright: 2008, Gerd Hoffmann <kraxel@redhat.com>
+License: GPL or GPL
+
+Files: util/rcu.c
+Copyright: 2015, Red Hat, Inc
+  2009, Paul E. McKenney, IBM Corporation
+  2009, Mathieu Desnoyers <mathieu.desnoyers@efficios.com>
+License: LGPL-2.1+
+
+Files: util/throttle.c
+Copyright: Nodalink, SARL. 2013
+License: GPL
+
+Files: util/uri.c
+Copyright: 2007, 2009, 2010, Red Hat, Inc
+  1998-2003, Daniel Veillard.
+License: Expat or LGPL-2.1+
+
+License: BSD
+ The BSD License
+ .
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ .
+   * Redistributions of source code must retain the above copyright
+     notice, this list of conditions and the following disclaimer.
+ .
+   * Redistributions in binary form must reproduce the above copyright
+     notice, this list of conditions and the following disclaimer in the
+     documentation and/or other materials provided with the distribution. 
+ .
+   * Neither the name of foo nor the names of its
+     contributors may be used to endorse or promote products derived from
+     this software without specific prior written permission. 
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+ IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: BSD-2-clause
+ Please fill license BSD-2-clause from header of hw/display/omap_lcd_template.h
+
+License: BSD-3-clause
+ Please fill license BSD-3-clause from header of bsd-user/bsd-mman.h
+
+License: Expat
+ The MIT License
+ .
+ Permission is hereby granted, free of charge, to any person
+ obtaining a copy of this software and associated
+ documentation files (the "Software"), to deal in the Software
+ without restriction, including without limitation the rights to
+ use, copy, modify, merge, publish, distribute, sublicense,
+ and/or sell copies of the Software, and to permit persons to
+ whom the Software is furnished to do so, subject to the
+ following conditions:
+ .
+ The above copyright notice and this permission notice shall
+ be included in all copies or substantial portions of the
+ Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT
+ WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+ INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ MERCHANTABILITY, FITNESS FOR A PARTICULAR
+ PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+ SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ CONNECTION WITH THE SOFTWARE OR THE USE OR
+ OTHER DEALINGS IN THE SOFTWARE.
+
+License: GPL
+ Please fill license GPL or LGPL-2 from header of .pc/mjt-set-oem-in-rsdt-like-slic.diff/*
+
+License: GPL-2
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 dated June, 1991.
+ .
+ On Debian systems, the complete text of version 2 of the GNU General
+ Public License can be found in '/usr/share/common-licenses/GPL-2'.
+
+License: GPL-2+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; version 2 dated June, 1991, or (at
+ your option) any later version.
+ .
+ On Debian systems, the complete text of version 2 of the GNU General
+ Public License can be found in '/usr/share/common-licenses/GPL-2'.
+
+License: LGPL
+ Please fill license LGPL from header of hw/usb/combined-packet.c
+
+License: LGPL-2
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU Library General Public License as published by the
+ Free Software Foundation; version 2 of the License.
+ .
+ On Debian systems, the complete text of version 2 of the GNU Library
+ Public License can be found in `/usr/share/common-licenses/LGPL-2'.
+
+License: LGPL-2+
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU Library General Public License as published by the
+ Free Software Foundation; version 2 of the License, or (at
+ your option) any later version.
+ .
+ On Debian systems, the complete text of version 2 of the GNU Library
+ Public License can be found in `/usr/share/common-licenses/LGPL-2'.
+
+License: LGPL-2.0+
+ Please fill license LGPL-2.0+ from header of coroutine-gthread.c
+
+License: LGPL-2.1+
+ This program is free software; you can redistribute it and/or modify it
+ under the terms of the GNU Lesser General Public License as published by the
+ Free Software Foundation; version 2.1 of the License, or (at
+ your option) any later version.
+ .
+ On Debian systems, the complete text of version 2.1 of the GNU Lesser
+ Public License can be found in `/usr/share/common-licenses/LGPL-2.1'.

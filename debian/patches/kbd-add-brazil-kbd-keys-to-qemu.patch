@@ -1,0 +1,70 @@
+From b771f470f3e2f99f585eaae68147f0c849fd1f8d Mon Sep 17 00:00:00 2001
+From: Gerd Hoffmann <kraxel@redhat.com>
+Date: Tue, 26 May 2015 10:39:10 +0200
+Subject: kbd: add brazil kbd keys to qemu
+Bug-Debian: http://bugs.debian.org/772422
+
+The brazilian computer keyboard layout has two extra keys (compared to
+the usual 105-key intl ps/2 keyboard).  This patch makes these two keys
+known to qemu.
+
+For historic reasons qemu has two ways to specify a key:  A QKeyCode
+(name-based) or a number (ps/2 scancode based).  Therefore we have to
+update multiple places to make new keys known to qemu:
+
+  (1) The QKeyCode definition in qapi-schema.json
+  (2) The QKeyCode <-> number mapping table in ui/input-keymap.c
+
+This patch does just that.  With this patch applied you can send those
+two keys to the guest using the send-key monitor command.
+
+Cc: qemu-stable@nongnu.org
+Signed-off-by: Gerd Hoffmann <kraxel@redhat.com>
+Reviewed-by: Markus Armbruster <armbru@redhat.com>
+Reviewed-by: Daniel P. Berrange <berrange@redhat.com>
+Reviewed-by: Michael Tokarev <mjt@tls.msk.ru>
+---
+ qapi-schema.json  | 4 +++-
+ ui/input-keymap.c | 4 ++++
+ 2 files changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/qapi-schema.json b/qapi-schema.json
+index f97ffa1..25df463 100644
+--- a/qapi-schema.json
++++ b/qapi-schema.json
+@@ -2784,6 +2784,7 @@
+ # Since: 1.3.0
+ #
+ # 'unmapped' and 'pause' since 2.0
++# 'ro' and 'kp_comma' since 2.4
+ ##
+ { 'enum': 'QKeyCode',
+   'data': [ 'unmapped',
+@@ -2801,7 +2802,8 @@
+             'kp_9', 'less', 'f11', 'f12', 'print', 'home', 'pgup', 'pgdn', 'end',
+             'left', 'up', 'down', 'right', 'insert', 'delete', 'stop', 'again',
+             'props', 'undo', 'front', 'copy', 'open', 'paste', 'find', 'cut',
+-             'lf', 'help', 'meta_l', 'meta_r', 'compose', 'pause' ] }
++            'lf', 'help', 'meta_l', 'meta_r', 'compose', 'pause', 'ro',
++            'kp_comma' ] }
+ 
+ ##
+ # @KeyValue
+diff --git a/ui/input-keymap.c b/ui/input-keymap.c
+index 5d29935..7635cb0 100644
+--- a/ui/input-keymap.c
++++ b/ui/input-keymap.c
+@@ -128,6 +128,10 @@ static const int qcode_to_number[] = {
+ 
+     [Q_KEY_CODE_INSERT] = 0xd2,
+     [Q_KEY_CODE_DELETE] = 0xd3,
++
++    [Q_KEY_CODE_RO] = 0x73,
++    [Q_KEY_CODE_KP_COMMA] = 0x7e,
++
+     [Q_KEY_CODE_MAX] = 0,
+ };
+ 
+-- 
+2.1.4
+
