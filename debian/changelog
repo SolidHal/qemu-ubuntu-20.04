@@ -1,3 +1,9 @@
+qemu (1:2.3+dfsg-6a) unstable; urgency=medium
+
+  * fix d/copyright leftover in previous upload
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 11 Jun 2015 20:31:07 +0300
+
 qemu (1:2.3+dfsg-6) unstable; urgency=high
 
   * pcnet-force-buffer-access-to-be-in-bounds-CVE-2015-3209.patch
