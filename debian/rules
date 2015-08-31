@@ -188,6 +188,12 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 	  >> debian/qemu-system-x86.postinst.debhelper
 endif
 
+# remove now-unused target-x86_64.conf
+	for x in preinst postinst postrm; do \
+	  echo 'dpkg-maintscript-helper rm_conffile /etc/qemu/target-x86_64.conf 1:2.4+dfsg-1~ -- "$$@"' \
+            >> debian/qemu-system-x86.$$x.debhelper ; \
+	done
+
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
 # /usr/bin/kvm compat script.  This needs some more work for other arches
