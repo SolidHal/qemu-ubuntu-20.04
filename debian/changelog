@@ -1,3 +1,16 @@
+qemu (1:2.4+dfsg-2) unstable; urgency=high
+
+  * Add e1000-avoid-infinite-loop-in-transmit-CVE-2015-6815.patch.
+    CVE-2015-6815: net: e1000 infinite loop issue in processing transmit
+    descriptor.  (Closes: #798101 CVE-2015-6815)
+  * Add ide-fix-ATAPI-command-permissions-CVE-2015-6855.patch.
+    CVE-2015-6855: ide: qemu allows arbitrary commands to be sent to an ATAPI
+    device from guest, while illegal comands might have security impact,
+    f.e. WIN_READ_NATIVE_MAX results in divide by zero error.
+    (Closes: CVE-2015-6855)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 11 Sep 2015 19:54:07 +0300
+
 qemu (1:2.4+dfsg-1a) unstable; urgency=medium
 
   * new upstream (2.4.0) release

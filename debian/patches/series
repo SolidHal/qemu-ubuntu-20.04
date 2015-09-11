@@ -4,3 +4,5 @@ use-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
 
 vnc-fix-memory-corruption-CVE-2015-5225.patch
+e1000-avoid-infinite-loop-in-transmit-CVE-2015-6815.patch
+ide-fix-ATAPI-command-permissions-CVE-2015-6855.patch
