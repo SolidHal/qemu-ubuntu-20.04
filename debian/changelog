@@ -1,3 +1,19 @@
+qemu (1:2.4+dfsg-3) unstable; urgency=high
+
+  * ne2000-add-checks-to-validate-ring-buffer-pointers-CVE-2015-5279.patch
+    fix for Heap overflow vulnerability in ne2000_receive() function
+    (Closes: #799074 CVE-2015-5279)
+  * ne2000-avoid-infinite-loop-when-receiving-packets-CVE-2015-5278.patch
+    (Closes: #799073 CVE-2015-5278) 
+  * some binfmt reorg:
+   - extend aarch64 to include one more byte as other arches do
+   - set OSABI mask to 0xfc for i386, ppc*, s390x, sparc*, to recognize
+     OSABI=3 (GNU/Linux) in addition to NONE/SysV
+     (Closes: #784605 #794737)
+   - tighten sh4 & sh4eb, fixing OSABI mask to be \xfc not 0
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 15 Sep 2015 19:30:18 +0300
+
 qemu (1:2.4+dfsg-2) unstable; urgency=high
 
   * Add e1000-avoid-infinite-loop-in-transmit-CVE-2015-6815.patch.
