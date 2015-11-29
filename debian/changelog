@@ -1,3 +1,15 @@
+qemu (1:2.4+dfsg-5) unstable; urgency=medium
+
+  * trace-remove-malloc-tracing.patch from upstream.
+    (Closes: #802633)
+  * stop building libcacard, as it is now in its own separate
+    source package and has been removed from upstream qemu in 2.5.
+    Here we just stop producing libcacard binaries, but still use
+    embedded libcacard source to link with it statically.  In 2.5
+    we will switch to external libcacard. (Closes: #805410)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 29 Nov 2015 12:22:52 +0300
+
 qemu (1:2.4+dfsg-4) unstable; urgency=medium
 
   * applied 3 patches from upstream to fix virtio-net

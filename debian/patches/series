@@ -12,3 +12,4 @@ ne2000-avoid-infinite-loop-when-receiving-packets-CVE-2015-5278.patch
 virtio-introduce-virtqueue_unmap_sg-for-CVE-2015-7295.patch
 virtio-introduce-virtqueue_discard-for-CVE-2015-7295.patch
 virtio-net-correctly-drop-truncated-packets-CVE-2015-7295.patch
+trace-remove-malloc-tracing.patch

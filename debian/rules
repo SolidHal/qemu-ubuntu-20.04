@@ -257,8 +257,6 @@ ifeq ($(enable_linux_user),enable)
 
 endif	# enable_linux_user
 
-	rm -f debian/tmp/usr/lib/*/libcacard.la
-
 # install whole thing so --list-missing works right
 	dh_install --list-missing
 # install the rest for arch/indep as needed
