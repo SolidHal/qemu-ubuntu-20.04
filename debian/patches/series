@@ -2,14 +2,3 @@
 use-fixed-data-path.patch
 use-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
-
-vnc-fix-memory-corruption-CVE-2015-5225.patch
-e1000-avoid-infinite-loop-in-transmit-CVE-2015-6815.patch
-ide-fix-ATAPI-command-permissions-CVE-2015-6855.patch
-ne2000-add-checks-to-validate-ring-buffer-pointers-CVE-2015-5279.patch
-ne2000-avoid-infinite-loop-when-receiving-packets-CVE-2015-5278.patch
-
-virtio-introduce-virtqueue_unmap_sg-for-CVE-2015-7295.patch
-virtio-introduce-virtqueue_discard-for-CVE-2015-7295.patch
-virtio-net-correctly-drop-truncated-packets-CVE-2015-7295.patch
-trace-remove-malloc-tracing.patch

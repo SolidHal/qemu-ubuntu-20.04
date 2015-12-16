@@ -7,11 +7,6 @@
 
 set -e
 
-which uudecode >/dev/null || {
-    echo "error: missing sharutils package" >&2
-    exit 1
-}
-
 which debootstrap >/dev/null || {
     echo "error: missing debootstrap package" >&2
     exit 1
@@ -47,7 +42,7 @@ if [ $# -lt 4 ]; then
     exit 1
 fi
 
-SIZE=$1
+SIZE=$1 # In Mib
 DISTRO=$2
 URL=$3
 IMAGE=$4
@@ -67,30 +62,36 @@ cleanup()
 {
     echo Cleaning up... >&2
     umount -d $TMP_DIR || true
-    rm -f $IMAGE.ext2 $IMAGE
+    losetup -d $LOOP || true
+    rm -f $IMAGE
 }
 
 trap cleanup EXIT
 
-HEADS=16
-SECTORS=63
-# 512 bytes in a sector: cancel the 512 with one of the 1024s...
-CYLINDERS=$(( $SIZE * 1024 * 2 / ($HEADS * $SECTORS) ))
-
 # Create a filesystem: one track for partition table.
 if [ "$SPARSE" = "1" ]; then
-    dd bs=$(($SECTORS * 512)) if=/dev/zero of=$IMAGE.ext2 count=1 seek=$(($CYLINDERS * $HEADS - 2))
+    truncate -s ${SIZE}M "$IMAGE"
 else
-    dd bs=$(($SECTORS * 512)) if=/dev/zero of=$IMAGE.ext2 count=$(($CYLINDERS * $HEADS - 1))
+    dd bs=1M count=$SIZE if=/dev/zero of=$IMAGE
 fi
 
-mke2fs -q -m1 -F $IMAGE.ext2
+SECT=63	# first sector of a partition
+
+# Partition so one partition covers entire disk.
+echo "$SECT," | sfdisk -uS -L $IMAGE
+
+# Find an unused loop device and set it up.
+LOOP=`losetup -f`
+losetup -o $(($SECT*512)) $LOOP $IMAGE
+
+# Create filesystem.
+mke2fs -q -m1 $LOOP
 
 TMP_DIR="$(mktemp -d /tmp/mount.XXXXXX)" || \
          { echo >&2 "Failed to create temporary directory"; exit 1; }
 
 # Mount it.
-mount -o loop $IMAGE.ext2 $TMP_DIR
+mount $LOOP $TMP_DIR
 
 # Do debian install on it.
 debootstrap --variant=minbase $DISTRO $TMP_DIR $URL
@@ -126,40 +127,6 @@ if [ $# -gt 0 ]; then
     cp -a "$@" $TMP_DIR/root/
 fi
 umount -d $TMP_DIR
-
-# Create file with partition table.
-uudecode -o- << "EOF" | gunzip > $IMAGE
-begin 664 partition-table.gz
-M'XL("*_<##\"`W!A<G1I=&EO;BUT86)L90#LT#$-`"`0!,&']D6A`D6XP1T&
-M"%B@))FIMKGF(OA9C;%;EENYZO.Z3P\"````!P``__\:!0````#__QH%````
-M`/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%
-M`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#_
-M_QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0``
-M``#__QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:
-M!0````#__QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`````
-M__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`
-M````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%`````/__
-M&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%````
-M`/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%
-M`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#_
-M_QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0``
-M``#__QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:
-M!0````#__QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`````
-M__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%`````/__&@4`
-M````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%`````/__
-M&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%````
-M`/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#__QH%
-M`````/__&@4`````__\:!0````#__QH%`````/__&@4`````__\:!0````#_
-M_QH%`````/__&@4`````__\:!0````#__QH%`````/__0@``````__\#`%&_
-&<90`?@``
-`
-end
-EOF
-dd if=$IMAGE.ext2 of=$IMAGE seek=$((`stat -c%s $IMAGE` / 512)) bs=512
-rm $IMAGE.ext2
-
-# Repartition so one partition covers entire disk.
-echo '63,' | sfdisk -uS -H$HEADS -S$SECTORS -C$CYLINDERS $IMAGE
 
 trap "" EXIT
 

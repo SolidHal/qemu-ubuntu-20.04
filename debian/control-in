@@ -39,7 +39,7 @@ Build-Depends: debhelper (>= 9),
  libcurl4-gnutls-dev,
 # --enable-fdt
  libfdt-dev,
-# --enable-vnc-tls
+# --enable-gnutls
  gnutls-dev,
 # gtk ui is almost the same as sdl but adds bloat
 # --disable-gtk
@@ -55,8 +55,8 @@ Build-Depends: debhelper (>= 9),
 # numa is not enabled: #682853
 ## --enable-numa	i386|amd64|ia64|mips*|powerpc*|ppc64|x32
 # libnuma-dev,
-# --enable-smartcard-nss
- libnss3-dev (>> 3.13.3), libtool-bin,
+# --enable-smartcard
+ libcacard-dev,
 # --with-system-pixman
  libpixman-1-dev,
 # audio-drv-list += pa

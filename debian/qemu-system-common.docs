@@ -3,7 +3,6 @@ docs/blkverify.txt
 docs/bootindex.txt
 docs/ccid.txt
 docs/ich9-ehci-uhci.cfg
-docs/libcacard.txt
 docs/live-block-ops.txt
 #docs/memory.txt
 #docs/migration.txt
@@ -11,7 +10,7 @@ docs/q35-chipset.cfg
 #docs/qapi-code-gen.txt
 docs/qdev-device-use.txt
 docs/qemupciserial.inf
-docs/qmp/
+docs/qmp-*
 docs/specs/
 docs/tracing.txt
 docs/usb2.txt
