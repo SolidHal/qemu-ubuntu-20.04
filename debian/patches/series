@@ -2,3 +2,9 @@
 use-fixed-data-path.patch
 use-data-path.patch
 mjt-set-oem-in-rsdt-like-slic.diff
+ehci-make-idt-processing-more-robust-CVE-2015-8558.patch
+virtio-9p-use-accessor-to-get-thread_pool.patch
+xenfb-avoid-reading-twice-the-same-fields-from-the-shared-page-CVE-2015-8550.patch
+xen-blkif-avoid-double-access-to-src-nr_segments-CVE-2015-8550.patch
+net-ne2000-fix-bounds-check-in-ioport-operations-CVE-2015-8743.patch
+ide-ahci-reset-ncq-object-to-unused-on-error-CVE-2016-1568.patch

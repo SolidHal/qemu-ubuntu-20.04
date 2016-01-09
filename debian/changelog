@@ -1,3 +1,18 @@
+qemu (1:2.5+dfsg-2) unstable; urgency=high
+
+  * ehci-make-idt-processing-more-robust-CVE-2015-8558.patch
+    (Closes: #808144, CVE-2015-8558)
+  * virtio-9p-use-accessor-to-get-thread_pool.patch (Closes: #808357)
+  * two upstream patches from xsa-155 fixing unsafe shared memory access in xen
+    (Closes: #809229, CVE-2015-8550)
+  * net-ne2000-fix-bounds-check-in-ioport-operations-CVE-2015-8743.patch
+    (Closes: #810519, CVE-2015-8743)
+  * ide-ahci-reset-ncq-object-to-unused-on-error-CVE-2016-1568.patch
+    (Closes: #810527, CVE-2016-1568)
+  * changed build-depends from libpng12-dev to libpng-dev (Closes: #810205)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 09 Jan 2016 21:40:43 +0300
+
 qemu (1:2.5+dfsg-1) unstable; urgency=medium
 
   * new upstream release

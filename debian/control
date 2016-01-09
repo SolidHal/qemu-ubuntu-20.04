@@ -98,7 +98,7 @@ Build-Depends: debhelper (>= 9),
 # --enable-vnc-jpeg
  libjpeg-dev,
 # --enable-vnc-png
- libpng12-dev,
+ libpng-dev,
 # --enable-kvm		linux-*
 # --enable-vhost-net	linux-*	# is it really linux-specific?
 ##--enable-glusterfs todo
