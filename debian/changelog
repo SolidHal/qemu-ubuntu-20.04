@@ -1,3 +1,18 @@
+qemu (1:2.5+dfsg-3) unstable; urgency=high
+
+  [ Aurelien Jarno ]
+  * debian/copyright: fix a spelling error reported by lintian: dependecy -> dependency.
+
+  [ Michael Tokarev ]
+  * net-vmxnet3-avoid-memory-leakage-in-activate_device-CVE-2015-8567-CVE-2015-8568.patch
+    (Closes: #808145, CVE-2015-8567, CVE-2015-8568)
+  * scsi-initialise-info-object-with-appropriate-size-CVE-2015-8613.patch
+    (Closes: #809232, CVE-2015-8613)
+  * net-rocker-fix-an-incorrect-array-bounds-check-CVE-2015-8701.patch
+    (Closes: #809313, CVE-2015-8701)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 10 Jan 2016 10:59:46 +0300
+
 qemu (1:2.5+dfsg-2) unstable; urgency=high
 
   * ehci-make-idt-processing-more-robust-CVE-2015-8558.patch

@@ -8,3 +8,6 @@ xenfb-avoid-reading-twice-the-same-fields-from-the-shared-page-CVE-2015-8550.pat
 xen-blkif-avoid-double-access-to-src-nr_segments-CVE-2015-8550.patch
 net-ne2000-fix-bounds-check-in-ioport-operations-CVE-2015-8743.patch
 ide-ahci-reset-ncq-object-to-unused-on-error-CVE-2016-1568.patch
+net-vmxnet3-avoid-memory-leakage-in-activate_device-CVE-2015-8567-CVE-2015-8568.patch
+scsi-initialise-info-object-with-appropriate-size-CVE-2015-8613.patch
+net-rocker-fix-an-incorrect-array-bounds-check-CVE-2015-8701.patch

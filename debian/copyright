@@ -22,7 +22,7 @@ The upstream source was downloaded from:
     (*.dtb, *.bin, *rom, openbios-*, palcode-clipper) in the original upstream 
     git repository have been removed starting from Debian package version 
     0.6.0.dfsg.1-1. Those roms which are free can be found in split packages 
-    of their own, represented accordingly in the dependecy relationships.
+    of their own, represented accordingly in the dependency relationships.
 
 Upstream Author:
 
