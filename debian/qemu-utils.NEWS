@@ -10,6 +10,6 @@ qemu (1:2.2+dfsg-6exp) unstable; urgency=medium
      ssh
    If you use any of these, please install qemu-block-extra package in
    addition to qemu-system-* or qemu-utils package, because without it
-   these block backends wont work anymore.
+   these block backends won't work anymore.
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 27 Apr 2015 09:29:55 +0300

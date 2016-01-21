@@ -1,0 +1,43 @@
+From: Michael Tokarev <mjt@tls.msk.ru>
+Date: Tue, 29 Dec 2015 12:39:44 +0300
+Subject: [PATCH 1/2] unicore32: convert get_sp_from_cpustate from macro to inline
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+Bug-Debian: https://bugs.debian.org/805826
+
+All other architectures define get_sp_from_cpustate as an inline function,
+only unicore32 uses a #define.  With this, some usages are impossible, for
+example, enabling sigaltstack in linux-user/syscall.c results in
+
+linux-user/syscall.c: In function ‘do_syscall’:
+linux-user/syscall.c:8299:39: error: dereferencing ‘void *’ pointer [-Werror]
+  get_sp_from_cpustate(arg1, arg2, get_sp_from_cpustate((CPUArchState *)cpu_env));
+                                       ^
+linux-user/syscall.c:8299:39: error: request for member ‘regs’ in something not a structure or union
+
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+---
+ linux-user/unicore32/target_signal.h | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/linux-user/unicore32/target_signal.h b/linux-user/unicore32/target_signal.h
+index 8b255c4..7c44238 100644
+--- a/linux-user/unicore32/target_signal.h
++++ b/linux-user/unicore32/target_signal.h
+@@ -21,6 +21,10 @@ typedef struct target_sigaltstack {
+ #define TARGET_SS_ONSTACK               1
+ #define TARGET_SS_DISABLE               2
+ 
+-#define get_sp_from_cpustate(cpustate)  (cpustate->regs[29])
++static inline abi_ulong get_sp_from_cpustate(CPUUniCore32State *state)
++{
++    return state->regs[29];
++}
++
+ 
+ #endif /* TARGET_SIGNAL_H */
+-- 
+2.1.4
+
