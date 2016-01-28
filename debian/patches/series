@@ -16,3 +16,5 @@ fw_cfg-add-check-to-validate-current-entry-value-CVE-2016-1714.patch
 unicore32-convert-get_sp_from_cpustate-from-macro-to-inline.patch
 linux-user-enable-sigaltstack-for-all-architectures.patch
 i386-avoid-null-pointer-dereference-CVE-2016-1922.patch
+e1000-eliminate-infinite-loops-on-out-of-bounds-start-CVE-2016-1981.patch
+hmp-fix-sendkey-out-of-bounds-write-CVE-2015-8619.patch

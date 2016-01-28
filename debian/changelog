@@ -1,12 +1,23 @@
+qemu (1:2.5+dfsg-5) unstable; urgency=medium
+
+  * fix misspellings in previous debian/changelog entry
+  * e1000-eliminate-infinite-loops-on-out-of-bounds-start-CVE-2016-1981.patch
+    (Closes: #812307, CVE-2016-1981)
+  * hmp-fix-sendkey-out-of-bounds-write-CVE-2015-8619.patch
+    (Closes: #809237, CVE-2015-8619)
+  * use `command -v' instead of `type' to check for command existance
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 28 Jan 2016 18:39:21 +0300
+
 qemu (1:2.5+dfsg-4) unstable; urgency=medium
 
   * change misspelling of won't in NEWS (lintian)
-  * two patches from upstream to enable sigaltstack syscal (linux-user)
+  * two patches from upstream to enable sigaltstack syscall (linux-user)
     (Closes: #805826)
   * word-wrapped last entry in debian/changelog
   * use type to find out whenever update-binfmts is available
   * fw_cfg-add-check-to-validate-current-entry-value-CVE-2016-1714.patch
-    (Partial) patch targetted 2.3 which fixes the read side of the issue
+    (Partial) patch targeted 2.3 which fixes the read side of the issue
     (Closes: CVE-2016-1714)
   * i386-avoid-null-pointer-dereference-CVE-2016-1922.patch
     (Closes: #811201, CVE-2016-1922)
