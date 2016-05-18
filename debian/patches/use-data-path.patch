@@ -20,7 +20,7 @@ This patch is debian-specific.
 
 --- a/vl.c
 +++ b/vl.c
-@@ -124,7 +124,11 @@
+@@ -123,7 +123,11 @@ int main(int argc, char **argv)
  #define MAX_VIRTIO_CONSOLES 1
  #define MAX_SCLP_CONSOLES 1
  
@@ -33,8 +33,8 @@ This patch is debian-specific.
  static int data_dir_idx;
  const char *bios_name = NULL;
  enum vga_retrace_method vga_retrace_method = VGA_RETRACE_DUMB;
-@@ -4046,9 +4050,12 @@
-         }
+@@ -4115,9 +4119,12 @@ int main(int argc, char **argv, char **e
+         qemu_set_log(0);
      }
  
 -    /* If all else fails use the install path specified when building. */

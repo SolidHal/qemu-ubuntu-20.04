@@ -153,7 +153,11 @@ define inst-system
 	    mv debian/tmp/usr/bin/qemu-system-$$t debian/qemu-system-$1/usr/bin/; \
 	    echo ".so man1/qemu-system.1" > debian/qemu-system-$1/usr/share/man/man1/qemu-system-$$t.1; \
 	done
-	echo sysarch:$1=${sysarch_$1} > debian/qemu-system-$1.substvars
+	echo sysarch:$1=\
+$(if $(wordlist 10,20,${sysarch_$1}),\
+$(wordlist 1,8,${sysarch_$1})\$${Newline}   $(wordlist 9,20,${sysarch_$1}),\
+${sysarch_$1}) \
+> debian/qemu-system-$1.substvars
 	echo sysprovides:$1=${addprefix qemu-system-,${filter-out $1,${sysarch_$1}}} | \
 	  sed -e 's/ /, /g' -e 'y/_/-/' >> debian/qemu-system-$1.substvars
 	dh_link -pqemu-system-$1 usr/share/doc/qemu-system-common usr/share/doc/qemu-system-$1/common

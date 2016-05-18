@@ -1,20 +1,8 @@
 02_kfreebsd.patch
 use-fixed-data-path.patch
 use-data-path.patch
-mjt-set-oem-in-rsdt-like-slic.diff
-ehci-make-idt-processing-more-robust-CVE-2015-8558.patch
-virtio-9p-use-accessor-to-get-thread_pool.patch
-xenfb-avoid-reading-twice-the-same-fields-from-the-shared-page-CVE-2015-8550.patch
-xen-blkif-avoid-double-access-to-src-nr_segments-CVE-2015-8550.patch
-net-ne2000-fix-bounds-check-in-ioport-operations-CVE-2015-8743.patch
-ide-ahci-reset-ncq-object-to-unused-on-error-CVE-2016-1568.patch
-net-vmxnet3-avoid-memory-leakage-in-activate_device-CVE-2015-8567-CVE-2015-8568.patch
-scsi-initialise-info-object-with-appropriate-size-CVE-2015-8613.patch
-net-rocker-fix-an-incorrect-array-bounds-check-CVE-2015-8701.patch
-fw_cfg-add-check-to-validate-current-entry-value-CVE-2016-1714.patch
-# #805826, two patches are needed:
-unicore32-convert-get_sp_from_cpustate-from-macro-to-inline.patch
-linux-user-enable-sigaltstack-for-all-architectures.patch
-i386-avoid-null-pointer-dereference-CVE-2016-1922.patch
-e1000-eliminate-infinite-loops-on-out-of-bounds-start-CVE-2016-1981.patch
-hmp-fix-sendkey-out-of-bounds-write-CVE-2015-8619.patch
+fix-some-typos-found-by-codespell.patch
+s390x-virtio-ccw-fix-spelling.patch
+hw-ipmi-fix-spelling.patch
+docs-specify-spell-fix.patch
+fsdev-spelling-fix.patch

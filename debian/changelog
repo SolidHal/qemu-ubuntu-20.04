@@ -1,3 +1,33 @@
+qemu (1:2.6+dfsg-1) unstable; urgency=medium
+
+  * new upstream release
+   Closes: #799115
+   Closes: #822369, #823588
+   Closes: #813698
+   Closes: #807006
+   Closes: #805827
+   Closes: #813585
+   Closes: #823830 CVE-2016-3710 CVE-2016-3712
+   Closes: #813193 CVE-2016-2198
+   Closes: #813194 CVE-2016-2197
+   Closes: #815008 CVE-2016-2392
+   Closes: #815009 CVE-2016-2391
+   Closes: #815680 CVE-2016-2538
+   Closes: #821038 CVE-2016-4001
+   Closes: #822344 CVE-2016-4037
+   Closes: #817181 CVE-2016-2841
+   Closes: #817182 CVE-2016-2857
+   Closes: #817183 CVE-2016-2858
+   - removed all patches applied upstream
+   - removed mjt-set-oem-in-rsdt-like-slic.diff, feature has been
+     implemented in upstream differently
+   - refreshed local patches
+  * do not recommend sharutils for qemu-utils anymore (Closes: #820449)
+  * typo fix in qemu-system-misc description (Closes: #822883)
+  * allow qemu-debootstrap to create mips64el chroot (Closes: #817234)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 18 May 2016 14:44:14 +0300
+
 qemu (1:2.5+dfsg-5) unstable; urgency=medium
 
   * fix misspellings in previous debian/changelog entry
@@ -5,7 +35,7 @@ qemu (1:2.5+dfsg-5) unstable; urgency=medium
     (Closes: #812307, CVE-2016-1981)
   * hmp-fix-sendkey-out-of-bounds-write-CVE-2015-8619.patch
     (Closes: #809237, CVE-2015-8619)
-  * use `command -v' instead of `type' to check for command existance
+  * use `command -v' instead of `type' to check for command existence
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 28 Jan 2016 18:39:21 +0300
 

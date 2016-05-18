@@ -27,8 +27,8 @@ and it will still work.
  {
 --- a/vl.c
 +++ b/vl.c
-@@ -3997,14 +3997,6 @@ int main(int argc, char **argv, char **e
-         }
+@@ -4115,14 +4115,6 @@ int main(int argc, char **argv, char **e
+         qemu_set_log(0);
      }
  
 -    /* If no data_dir is specified then try to find it relative to the

@@ -131,7 +131,7 @@ fi
 
 qemu_arch=""
 case "$deb_arch" in
-  alpha|arm|armeb|i386|m68k|mips|mipsel|ppc64|sh4|sh4eb|sparc|sparc64|s390x)
+  alpha|arm|armeb|i386|m68k|mips|mipsel|mips64el|ppc64|sh4|sh4eb|sparc|sparc64|s390x)
     qemu_arch="$deb_arch"
   ;;
   amd64)
