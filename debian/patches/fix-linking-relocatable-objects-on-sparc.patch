@@ -1,0 +1,79 @@
+From 6969ec6cfd1293efd16bf9c7c7063b44bc6880ce Mon Sep 17 00:00:00 2001
+From: James Clarke <jrtc27@jrtc27.com>
+Date: Mon, 6 Jun 2016 12:02:50 +0100
+Subject: Fix linking relocatable objects on Sparc
+Bug-Debian: http://bugs.debian.org/807006
+
+On Sparc, gcc implicitly passes --relax to the linker, but -r is
+incompatible with this. Therefore, if --no-relax is supported, it should
+be passed to the linker.
+
+Signed-off-by: James Clarke <jrtc27@jrtc27.com>
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+---
+ configure | 21 +++++++++++++++++++++
+ rules.mak |  2 +-
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/configure b/configure
+index 6d01d96..3ad0b63 100755
+--- a/configure
++++ b/configure
+@@ -31,6 +31,7 @@ TMPCXX="${TMPDIR1}/${TMPB}.cxx"
+ TMPL="${TMPDIR1}/${TMPB}.lo"
+ TMPA="${TMPDIR1}/lib${TMPB}.la"
+ TMPE="${TMPDIR1}/${TMPB}.exe"
++TMPMO="${TMPDIR1}/${TMPB}.mo"
+ 
+ rm -f config.log
+ 
+@@ -4526,6 +4527,25 @@ if compile_prog "" "" ; then
+     have_fsxattr=yes
+ fi
+ 
++#################################################
++# Sparc implicitly links with --relax, which is
++# incompatible with -r, so --no-relax should be
++# given. It does no harm to give it on other
++# platforms too.
++
++# Note: the prototype is needed since QEMU_CFLAGS
++#       contains -Wmissing-prototypes
++cat > $TMPC << EOF
++extern int foo(void);
++int foo(void) { return 0; }
++EOF
++if ! compile_object ""; then
++  error_exit "Failed to compile object file for LD_REL_FLAGS test"
++fi
++if do_cc -nostdlib -Wl,-r -Wl,--no-relax -o $TMPMO $TMPO; then
++  LD_REL_FLAGS="-Wl,--no-relax"
++fi
++
+ ##########################################
+ # End of CC checks
+ # After here, no more $cc or $ld runs
+@@ -5529,6 +5549,7 @@ else
+ fi
+ echo "LDFLAGS=$LDFLAGS" >> $config_host_mak
+ echo "LDFLAGS_NOPIE=$LDFLAGS_NOPIE" >> $config_host_mak
++echo "LD_REL_FLAGS=$LD_REL_FLAGS" >> $config_host_mak
+ echo "LIBS+=$LIBS" >> $config_host_mak
+ echo "LIBS_TOOLS+=$libs_tools" >> $config_host_mak
+ echo "EXESUF=$EXESUF" >> $config_host_mak
+diff --git a/rules.mak b/rules.mak
+index 4a8f464..dca5718 100644
+--- a/rules.mak
++++ b/rules.mak
+@@ -95,7 +95,7 @@ module-common.o: CFLAGS += $(DSO_OBJ_CFLAGS)
+ 	$(if $(findstring /,$@),$(call quiet-command,cp $@ $(subst /,-,$@), "  CP    $(subst /,-,$@)"))
+ 
+ 
+-LD_REL := $(CC) -nostdlib -Wl,-r
++LD_REL := $(CC) -nostdlib -Wl,-r $(LD_REL_FLAGS)
+ 
+ %.mo:
+ 	$(call quiet-command,$(LD_REL) -o $@ $^,"  LD -r $(TARGET_DIR)$@")
+-- 
+2.1.4
+
