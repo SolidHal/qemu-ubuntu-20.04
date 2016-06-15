@@ -22,3 +22,8 @@ scsi-megasas-check-read_queue_head-index-value-CVE-2016-5107.patch
 block-iscsi-avoid-potential-overflow-of-acb-task-cdb-CVE-2016-5126.patch
 scsi-esp-check-TI-buffer-index-before-read-write-CVE-2016-5338.patch
 scsi-megasas-null-terminate-bios-version-buffer-CVE-2016-5337.patch
+vmsvga-move-fifo-sanity-checks-to-vmsvga_fifo_length-CVE-2016-4454.patch
+vmsvga-add-more-fifo-checks-CVE-2016-4454.patch
+vmsvga-shadow-fifo-registers-CVE-2016-4454.patch
+vmsvga-don-t-process-more-than-1024-fifo-commands-at-once-CVE-2016-4453.patch
+scsi-check-buffer-length-before-reading-scsi-command-CVE-2016-5238.patch

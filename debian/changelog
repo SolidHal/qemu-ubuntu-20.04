@@ -1,3 +1,19 @@
+qemu (1:2.6+dfsg-3) unstable; urgency=high
+
+  * more security fixes picked from upstream:
+   - CVE-2016-4454 fix (vmsvga) (Closes: CVE-2016-4454)
+    vmsvga-add-more-fifo-checks-CVE-2016-4454.patch
+    vmsvga-move-fifo-sanity-checks-to-vmsvga_fifo_length-CVE-2016-4454.patch
+    vmsvga-shadow-fifo-registers-CVE-2016-4454.patch
+   - vmsvga-don-t-process-more-than-1024-fifo-commands-at-once-CVE-2016-4453.patch
+    (Closes: CVE-2016-4453)
+   - scsi-check-buffer-length-before-reading-scsi-command-CVE-2016-5238.patch
+    (Closes: #826152, CVE-2016-5238)
+  * set urgency to high due to the amount of
+    security fixes accumulated so far
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 15 Jun 2016 08:54:12 +0300
+
 qemu (1:2.6+dfsg-2) unstable; urgency=medium
 
   * add missing log entries for previous upload,
