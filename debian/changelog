@@ -1,3 +1,24 @@
+qemu (1:2.7+dfsg-1) UNRELEASED; urgency=medium
+
+  * Acknowledge the previous NMU. Thank you Andrew!
+  * New upstream release, 2.7 (Closes: #748043, #839292)
+    Closes: #838850, CVE-2016-7161
+    Closes: #473240 (qcow encryption support has been removed)
+  * removed patches which went upstream, refreshed use-data-path.patch
+  * renamed remaining patches to include CVE#s and added Bug-Debian headers
+  * added Depends on lsb-base to qemu-guest-agent (Closes: #840740)
+  * update binfmt registration for mipsn32 (Closes: #829243)
+    Thank you Adam Borowski for investigation and the patch
+  * replace CVE-2016-7156 (#837339) patch with actual code from upstream
+  * scsi-mptsas-use-g_new0-to-allocate-MPTSASRequest-obj-CVE-2016-7423.patch
+    (Closes: #838145, CVE-2016-7423)
+  * virtio-add-check-for-descriptor-s-mapped-address-CVE-2016-7422.patch
+    (Closes: #838146, CVE-2016-7422)
+  * scsi-pvscsi-limit-process-IO-loop-to-ring-size-CVE-2016-7421.patch
+    (Closes: #838147, CVE-2016-7421)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 14 Oct 2016 13:31:40 +0300
+
 qemu (1:2.6+dfsg-3.1) unstable; urgency=high
 
   * Non-maintainer upload.
