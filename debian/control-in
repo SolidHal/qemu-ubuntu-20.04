@@ -338,7 +338,7 @@ Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 2.0.0+dfsg-7~),
 # ubuntu/openbios-sparc is in universe
-:debian: openbios-sparc (>= 1.1+svn1229)
+:debian: openbios-sparc (> 1.1+svn1395-1~)
 Recommends: qemu-utils,
 # sparc64 uses vgabios-stdvga and bootroms
  seabios, ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)

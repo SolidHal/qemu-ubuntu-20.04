@@ -1,4 +1,15 @@
-qemu (1:2.7+dfsg-1) UNRELEASED; urgency=medium
+qemu (1:2.7+dfsg-2) unstable; urgency=medium
+
+  * fix distribution field in previous changelog entry
+  * add depends: on seabios >= 1.9 with linuxboot_dma.bin
+    (Closes: #840853, #841060, #842161)
+  * add more links for openbios-sparc to qemu-system-sparc,
+    bump dependency (Closes: #827456)
+  * include license for qemu logo files (Closes: #785362)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 26 Oct 2016 20:04:15 +0300
+
+qemu (1:2.7+dfsg-1) unstable; urgency=medium
 
   * Acknowledge the previous NMU. Thank you Andrew!
   * New upstream release, 2.7 (Closes: #748043, #839292)
