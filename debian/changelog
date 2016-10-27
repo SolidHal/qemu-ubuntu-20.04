@@ -1,3 +1,12 @@
+qemu (1:2.7+dfsg-3) unstable; urgency=medium
+
+  * add PIE.patch to change loadable modules linker flags, from Adrian
+    (Closes: #837574)
+  * linux-user-fix-s390x-safe-syscall-for-z900.patch - fix FTBFS on s390x
+  * mention CVE-2016-7466 for 2.7+dfsg-1 (Closes: #838687, CVE-2016-7466)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 27 Oct 2016 19:38:01 +0300
+
 qemu (1:2.7+dfsg-2) unstable; urgency=medium
 
   * fix distribution field in previous changelog entry
@@ -27,6 +36,8 @@ qemu (1:2.7+dfsg-1) unstable; urgency=medium
     (Closes: #838146, CVE-2016-7422)
   * scsi-pvscsi-limit-process-IO-loop-to-ring-size-CVE-2016-7421.patch
     (Closes: #838147, CVE-2016-7421)
+  * usb-xhci-fix-memory-leak-in-usb_xhci_exit-CVE-2016-7466.patch
+    (Closes: #838687, CVE-2016-7466)
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 14 Oct 2016 13:31:40 +0300
 
