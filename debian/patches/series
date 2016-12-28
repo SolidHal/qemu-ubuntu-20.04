@@ -1,16 +1,5 @@
 02_kfreebsd.patch
 use-fixed-data-path.patch
 use-data-path.patch
-PIE.patch
 linux-user-fix-s390x-safe-syscall-for-z900.patch
-hw-dma-omap-spelling-fix-endianness.patch
-arm-spelling-fix-mismatch.patch
-scsi-pvscsi-check-page-count-while-initialising-descriptor-rings-CVE-2016-7155.patch
-scsi-pvscsi-limit-loop-to-fetch-SG-list-CVE-2016-7156.patch
-net-vmxnet-initialise-local-tx-descriptor-CVE-2016-6836.patch
-scsi-mptconfig-fix-an-assert-expression-CVE-2016-7157.patch
-scsi-mptconfig-fix-misuse-of-MPTSAS_CONFIG_PACK-CVE-2016-7157.patch
-usb-xhci-fix-memory-leak-in-usb_xhci_exit-CVE-2016-7466.patch
-scsi-mptsas-use-g_new0-to-allocate-MPTSASRequest-obj-CVE-2016-7423.patch
-virtio-add-check-for-descriptor-s-mapped-address-CVE-2016-7422.patch
-scsi-pvscsi-limit-process-IO-loop-to-ring-size-CVE-2016-7421.patch
+doc-don-t-mention-memory-it-is-m.patch

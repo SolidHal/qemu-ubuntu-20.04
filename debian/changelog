@@ -1,3 +1,51 @@
+qemu (1:2.8+dfsg-1) unstable; urgency=medium
+
+  * new upstream release
+   Closes: #837191, CVE-2016-7156
+   Closes: #837316, CVE-2016-7170
+   Closes: #839835, CVE-2016-7908
+   Closes: #839834, CVE-2016-7909
+   Closes: #840228, CVE-2016-7994
+   Closes: #840236, CVE-2016-7995
+   Closes: #840343, CVE-2016-8576
+   Closes: #840341, CVE-2016-8577
+   Closes: #840340, CVE-2016-8578
+   Closes: #840948, CVE-2016-8668
+   Closes: #840945, CVE-2016-8669
+   Closes: #841950, CVE-2016-8909
+   Closes: #841955, CVE-2016-8910
+   Closes: #842463, CVE-2016-9102 CVE-2016-9103 CVE-2016-9104
+                    CVE-2016-9105 CVE-2016-9106
+   Closes: #846797, CVE-2016-9776
+   Closes: #847381, CVE-2016-9845
+   Closes: #847382, CVE-2017-9846
+   Closes: #847953, CVE-2016-9907
+   Closes: #847400, CVE-2016-9908
+   Closes: #847951, CVE-2016-9911
+   Closes: #847391, CVE-2016-9912
+   Closes: #847496, CVE-2016-9913 CVE-2016-9914 CVE-2016-9915 CVE-2016-9916
+   Closes: #847960, CVE-2016-9921 CVE-2016-9922
+   Closes: #847957, CVE-2016-9923
+   Closes: #819755, #833162
+   Hopefully closes: #844361
+  * remove unicore32 linux-user target, removed upstream
+  * remove all patches which were applied upstream (most of them)
+  * actually fix #841060
+  * doc-don-t-mention-memory-it-is-m.patch, Closes: #833619
+  * don't pass --enable-uuid (always enabled)
+  * build-depend on libncursesw5-dev, not libncurses5-dev
+  * install trace-events-all in qemu-system-common
+  * do not install qemu-tech.html (not provided by upstream anymore)
+  * switch from sdl1 to gtk3 (Closes: #839695)
+  * enable virtio gpu (virglrenderer) and opengl support (Closes: #813658)
+  * strip out -ldrm out of OPENGL_LIBS, since libdrm is actually not needed
+  * enable nfs support (libnfs-dev), in qemu-block-extra
+  * enable glusterfs support (glusterfs-common), in qemu-block-extra
+    (Closes: #775431)
+  * enable numa support (libnuma-dev) (Closes: #758189)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 28 Dec 2016 15:31:37 +0300
+
 qemu (1:2.7+dfsg-3) unstable; urgency=medium
 
   * add PIE.patch to change loadable modules linker flags, from Adrian

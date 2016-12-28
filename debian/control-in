@@ -20,8 +20,8 @@ Build-Depends: debhelper (>= 9),
  acpica-tools,
 # --enable-linux-aio	linux-*
  libaio-dev [linux-any],
-# --audio-drv-list=pa,alsa,sdl,oss	linux-*
-# --audio-drv-list=pa,oss,sdl		kfreebsd-*
+# --audio-drv-list=pa,alsa,oss	linux-*
+# --audio-drv-list=pa,oss		kfreebsd-*
  libasound2-dev [linux-any],
 # for virtfs
 # --enable-attr
@@ -41,22 +41,25 @@ Build-Depends: debhelper (>= 9),
  libfdt-dev,
 # --enable-gnutls
  gnutls-dev,
-# gtk ui is almost the same as sdl but adds bloat
-# --disable-gtk
-## --with-gtkabi=2.0
-# libgtk2.0-dev, libvte-dev (>> 0.18.0~),
-# vte is used together with gtk
-# --disable-vte
+# gtk display (see also sdl display)
+# --enable-gtk --with-gtkabi=3.0 --enable-vte
+ libgtk-3-dev, libvte-2.91-dev,
+# opengl for sdl2 and gtk3
+# --enable-opengl
+# libegl1-mesa-dev is here b/c libepoxy-dev includes header from it
+ libdrm-dev, libgbm-dev, libepoxy-dev, libx11-dev, libegl1-mesa-dev,
+# virglrenderer: virtio gpu support for guest
+# --enable-virglrenderer
+ libvirglrenderer-dev,
 # libiscsi is debian-only since ubuntu/libiscsi is in universe
 :debian:# --enable-libiscsi
 :debian: libiscsi-dev (>> 1.9.0~),
 # --enable-curses
- libncurses5-dev,
-:debian:# numa is not enabled: #682853
-:debian:## --enable-numa	i386|amd64|ia64|mips*|powerpc*|ppc64|x32
-:debian:# libnuma-dev,
-:ubuntu:# --enable-numa i386|amd64|ia64|mips|mipsel|powerpc|powerpcspe|x32|ppc64|ppc64el|arm64|sparc|hppa
-:ubuntu: libnuma-dev [i386 amd64 ia64 mips mipsel powerpc powerpcspe x32 ppc64 ppc64el arm64 sparc hppa],
+ libncursesw5-dev,
+:debian:# --enable-libnfs
+:debian: libnfs-dev (>> 1.9.3),
+# --enable-numa i386|amd64|ia64|mips|mipsel|powerpc|powerpcspe|x32|ppc64|ppc64el|arm64|sparc|hppa
+ libnuma-dev   [i386 amd64 ia64 mips mipsel powerpc powerpcspe x32 ppc64 ppc64el arm64 sparc hppa],
 # --enable-smartcard
  libcacard-dev,
 # --with-system-pixman
@@ -65,11 +68,14 @@ Build-Depends: debhelper (>= 9),
  libpulse-dev,
 # --enable-rbd		linux-*
  librados-dev [linux-any], librbd-dev [linux-any],
+# --enable-glusterfs
+ glusterfs-common,
 # --enable-vnc-sasl
  libsasl2-dev,
+# sdl display (see also gtk display)
 # note: libsdl2-dev is in universe on ubuntu
-# --enable-sdl --with-sdlabi=1.2
- libsdl1.2-dev (>> 1.2.1),
+# --disable-sdl --with-sdlabi=1.2
+# libsdl1.2-dev (>> 1.2.1),
 # --enable-seccomp	linux-amd64|linux-i386
  libseccomp-dev (>> 2.1.0) [linux-amd64 linux-i386],
 # --enable-spice	linux-amd64|linux-i386
@@ -85,13 +91,11 @@ Build-Depends: debhelper (>= 9),
 # vde is debian-only since ubuntu/vde2 is in universe
 :debian:# --enable-vde
 :debian: libvdeplug-dev,
-# needed for sdl
- libx11-dev,
 # --enable-xen	linux-amd64|linux-i386
  libxen-dev [linux-amd64 linux-i386],
 # XXX need to check minimum linux-headers requiriment
  linux-libc-dev (>= 2.6.34) [linux-any],
-# --enable-uuid
+## always enabled: --enable-uuid
  uuid-dev,
 # --enable-xfsctl	linux-*
  xfslibs-dev [linux-any],
@@ -105,10 +109,7 @@ Build-Depends: debhelper (>= 9),
  libpng-dev,
 # --enable-kvm		linux-*
 # --enable-vhost-net	linux-*	# is it really linux-specific?
-##--enable-glusterfs todo
 ##--enable-lzo todo
-##--enable-libnfs todo
-##:debian: libnfs-dev (>> 1.9.4)
 ##--enable-netmap todo bsd
 ##--enable-quorum todo needs gcrypt
 ##--enable-xen-pci-passthrough todo
@@ -249,7 +250,8 @@ Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 2.0.0+dfsg-7~)
 Recommends: qemu-utils,
 # aarch64 arm uses bootroms
- ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
+ ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~),
+ qemu-efi
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
 Provides: ${sysprovides:arm}
 Breaks: qemu-system (<< 1.3.0+dfsg-5),
@@ -338,7 +340,7 @@ Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 2.0.0+dfsg-7~),
 # ubuntu/openbios-sparc is in universe
-:debian: openbios-sparc (> 1.1+svn1395-1~)
+:debian: openbios-sparc (>> 1.1+svn1395-1~)
 Recommends: qemu-utils,
 # sparc64 uses vgabios-stdvga and bootroms
  seabios, ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
@@ -371,7 +373,7 @@ Package: qemu-system-x86
 Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 2.0.0+dfsg-7~),
- seabios (>= 1.7.5~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
+ seabios (>= 1.9.3-2~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
 Recommends: qemu-utils,
 :ubuntu: cpu-checker
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
