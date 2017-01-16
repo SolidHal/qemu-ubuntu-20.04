@@ -252,16 +252,28 @@ endif
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
-# /usr/bin/kvm compat script.  This needs some more work for other arches
-# How about a manpage for it?
-ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-	dh_install -pqemu-kvm debian/kvm /usr/bin/
-	dh_install -pqemu-kvm debian/kvm.1 /usr/share/man/man1/
+# /usr/bin/kvm compat script.
+ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386 x32),)
+	install -D -m755 debian/kvm.x86 debian/qemu-kvm/usr/bin/kvm
+	install -D -m644 debian/kvm.1 debian/qemu-kvm/usr/share/man/man1/kvm.1
 ifeq ($(VENDOR),UBUNTU)
 # on ubuntu there was kvm-spice package/binary which was used in libvirt xml
 	dh_link -pqemu-kvm usr/bin/kvm usr/bin/kvm-spice \
 		usr/bin/qemu-system-x86_64 usr/bin/qemu-system-x86_64-spice
+	dh_installmodules -pqemu-system-x86
 endif
+endif
+ifneq ($(filter $(DEB_HOST_ARCH),arm64),)
+	install -D -m755 debian/kvm.arm64 debian/qemu-kvm/usr/bin/kvm
+endif
+ifneq ($(filter $(DEB_HOST_ARCH),armhf armel),)
+	install -D -m755 debian/kvm.arm32 debian/qemu-kvm/usr/bin/kvm
+endif
+ifneq ($(filter $(DEB_HOST_ARCH),ppc64 ppc64el powerpc),)
+	install -D -m755 debian/kvm.powerpc debian/qemu-kvm/usr/bin/kvm
+endif
+ifneq ($(filter $(DEB_HOST_ARCH),s390 s390x),)
+	install -D -m755 debian/kvm.s390x debian/qemu-kvm/usr/bin/kvm
 endif
 ifeq ($(VENDOR),UBUNTU)
 # apport hook is ubuntu-specific

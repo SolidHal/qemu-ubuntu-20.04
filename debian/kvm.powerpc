@@ -1,0 +1,13 @@
+#!/bin/sh
+set -f
+
+SMT=$(/usr/sbin/ppc64_cpu --smt 2>&1 | grep "SMT=[248]")
+if [ -n "$SMT" ]
+then
+  if grep -q -e '^cpu\s*:\s*POWER8'  /proc/cpuinfo; then
+    echo "Error: You must disable SMT if you want to run QEMU/KVM on Power8 based ppc64le architecture"
+    echo "In order to disable SMT, run: # ppc64_cpu --smt=off"
+  fi
+fi
+
+exec qemu-system-ppc64 -enable-kvm "$@"
