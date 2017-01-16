@@ -217,6 +217,7 @@ Multi-Arch: foreign
 Replaces: qemu-system-data (<< 1:3.1+dfsg-1~), qemu-utils (<< 1:3.1+dfsg-3~)
 Breaks:   qemu-system-data (<< 1:3.1+dfsg-1~), qemu-utils (<< 1:3.1+dfsg-3~)
 Depends: ${misc:Depends}, ${shlibs:Depends},
+:ubuntu: qemu-block-extra (= ${binary:Version}),
 :ubuntu: powerpc-utils [ppc64el],
 # to fix wrong acl for newly created device node on ubuntu:
 :ubuntu: acl
