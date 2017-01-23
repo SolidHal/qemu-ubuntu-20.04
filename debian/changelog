@@ -1,3 +1,28 @@
+qemu (1:2.8+dfsg-2) unstable; urgency=medium
+
+  * Revert "update binfmt registration for mipsn32"
+    Reopens: #829243
+    Closes: #843032
+    Will re-enable it for stretch+1, since for now upgrades
+    from jessie are broken (jessie comes with 3.16 kernel),
+    and there's no easy fix for this
+  * Revert "enable virtio gpu (virglrenderer) and opengl support"
+    Revert "switch from sdl1 to gtk3"
+    Revert other gtk2/drm/vte/virgl-related changes
+    Reopens: #813658, #839695
+    The change were too close to stretch release and too large,
+    bringing too much graphics stuff for headless servers,
+    will re-think this for stretch+1.
+    sdl1 back: Closes: #851509
+    virtio-3d bugs: Closes: #849798, #852119
+  * mention closing of #769983 (multi-threaded linux-user) by 2.7
+  * mention closing of #842455, CVE-2016-9101 by 2.8
+  * audio-ac97-add-exit-function-CVE-2017-5525.patch (Closes: #852021)
+  * audio-es1370-add-exit-function-CVE-2017-5526.patch (Closes: #851910)
+  * watchdog-6300esb-add-exit-function-CVE-2016-10155.patch (Closes: #852232)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 23 Jan 2017 14:06:54 +0300
+
 qemu (1:2.8+dfsg-1) unstable; urgency=medium
 
   * new upstream release
@@ -26,6 +51,7 @@ qemu (1:2.8+dfsg-1) unstable; urgency=medium
    Closes: #847496, CVE-2016-9913 CVE-2016-9914 CVE-2016-9915 CVE-2016-9916
    Closes: #847960, CVE-2016-9921 CVE-2016-9922
    Closes: #847957, CVE-2016-9923
+   Closes: #842455, CVE-2016-9101 (git2634ab7fe29b3f75d0865b719caf8f310d634aae)
    Closes: #819755, #833162
    Hopefully closes: #844361
   * remove unicore32 linux-user target, removed upstream
@@ -72,6 +98,7 @@ qemu (1:2.7+dfsg-1) unstable; urgency=medium
   * New upstream release, 2.7 (Closes: #748043, #839292)
     Closes: #838850, CVE-2016-7161
     Closes: #473240 (qcow encryption support has been removed)
+    Closes: #769983 (multi-threaded linux-user)
   * removed patches which went upstream, refreshed use-data-path.patch
   * renamed remaining patches to include CVE#s and added Bug-Debian headers
   * added Depends on lsb-base to qemu-guest-agent (Closes: #840740)

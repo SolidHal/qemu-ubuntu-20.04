@@ -3,3 +3,6 @@ use-fixed-data-path.patch
 use-data-path.patch
 linux-user-fix-s390x-safe-syscall-for-z900.patch
 doc-don-t-mention-memory-it-is-m.patch
+audio-ac97-add-exit-function-CVE-2017-5525.patch
+audio-es1370-add-exit-function-CVE-2017-5526.patch
+watchdog-6300esb-add-exit-function-CVE-2016-10155.patch
