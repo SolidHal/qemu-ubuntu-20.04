@@ -111,6 +111,9 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+which debootstrap >/dev/null 2>/dev/null ||
+  die "debootstrap isn't found in \$PATH, is debootstrap package installed?"
+
 needs_qemu="yes"
 if [ "$deb_arch" = "$system_arch" ]; then
     warn "Target architecture is the same as host architecture; disabling QEMU support"

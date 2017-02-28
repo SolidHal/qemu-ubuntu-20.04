@@ -1,0 +1,34 @@
+From: David Hildenbrand <david@redhat.com>
+Date: Mon, 30 Jan 2017 15:50:25 +0100
+Subject: target/s390x: use "qemu" cpu model in user mode
+Commit-Id: d8923bc75479cd3fdcc72b7647f4877f91950b01
+Bug-Debian: http://bugs.debian.org/854893
+
+"any" does not exist, therefore resulting in a misleading error message.
+
+Reported-by: Stefan Weil <sw@weilnetz.de>
+Signed-off-by: David Hildenbrand <david@redhat.com>
+Message-Id: <20170130145025.26475-1-david@redhat.com>
+Reviewed-by: Stefan Weil <sw@weilnetz.de>
+Reviewed-by: Alexander Graf <agraf@suse.de>
+Cc: qemu-stable@nongnu.org
+---
+ linux-user/main.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/linux-user/main.c b/linux-user/main.c
+index 3004958..e588f58 100644
+--- a/linux-user/main.c
++++ b/linux-user/main.c
+@@ -4322,6 +4322,8 @@ int main(int argc, char **argv, char **envp)
+ # endif
+ #elif defined TARGET_SH4
+         cpu_model = TYPE_SH7785_CPU;
++#elif defined TARGET_S390X
++        cpu_model = "qemu";
+ #else
+         cpu_model = "any";
+ #endif
+-- 
+2.1.4
+
