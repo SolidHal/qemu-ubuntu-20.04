@@ -341,7 +341,7 @@ Package: qemu-system-x86
 Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 2.0.0+dfsg-7~),
- seabios (>= 1.9.3-2~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
+ seabios (>= 1.10.2-1~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
 Recommends: qemu-utils,
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
  kmod [linux-any], sgabios, ovmf

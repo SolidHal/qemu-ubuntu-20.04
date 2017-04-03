@@ -307,6 +307,7 @@ debian/control: debian/control-in debian/rules
 	sed -e 's/^:$(shell echo ${VENDOR} | tr '[A-Z]' '[a-z]')://' \
 		-e '/^:[a-z]*:/D' $< >> $@.tmp
 	mv -f $@.tmp $@
+	chmod -w $@
 endif
 
 get-orig-source:

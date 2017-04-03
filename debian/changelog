@@ -1,3 +1,37 @@
+qemu (1:2.8+dfsg-4) unstable; urgency=high
+
+  * usb-ohci-limit-the-number-of-link-eds-CVE-2017-6505.patch
+    Closes: #856969, CVE-2017-6505
+  * linux-user-fix-apt-get-update-on-linux-user-hppa.patch
+    Closes: #846084
+  * update to 2.8.1 upstream stable/bugfix release
+    (v2.8.1.diff from upstream, except of seabios blob bits).
+    Closes: #857744, CVE-2016-9603
+    Patches dropped because they're included in 2.8.1 release:
+     9pfs-symlink-attack-fixes-CVE-2016-9602.patch
+     char-fix-ctrl-a-b-not-working.patch
+     cirrus-add-blit_is_unsafe-to-cirrus_bitblt_cputovideo-CVE-2017-2620.patch
+     cirrus-fix-oob-access-issue-CVE-2017-2615.patch
+     cirrus-ignore-source-pitch-as-needed-in-blit_is_unsafe.patch
+     linux-user-fix-s390x-safe-syscall-for-z900.patch
+     nbd_client-fix-drop_sync-CVE-2017-2630.patch
+     s390x-use-qemu-cpu-model-in-user-mode.patch
+     sd-sdhci-check-data-length-during-dma_memory_read-CVE-2017-5667.patch
+     virtio-crypto-fix-possible-integer-and-heap-overflow-CVE-2017-5931.patch
+     vmxnet3-fix-memory-corruption-on-vlan-header-stripping-CVE-2017-6058.patch
+  * bump seabios dependency to 1.10.2 due to ahci fix in 2.8.1
+  * 9pfs-fix-file-descriptor-leak-CVE-2017-7377.patch
+    (Closes: #859854, CVE-2017-7377)
+  * dma-rc4030-limit-interval-timer-reload-value-CVE-2016-8667.patch
+    Closes: #840950, CVE-2016-8667
+  * make d/control un-writable to stop users from changing a generated file
+  * two patches from upstream to fix user-mode network with IPv6
+    slirp-make-RA-build-more-flexible.patch
+    slirp-send-RDNSS-in-RA-only-if-host-has-an-IPv6-DNS.patch
+    (Closes: #844566)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 03 Apr 2017 16:28:49 +0300
+
 qemu (1:2.8+dfsg-3) unstable; urgency=high
 
   * urgency high due to security fixes
