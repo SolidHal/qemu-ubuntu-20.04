@@ -1,3 +1,21 @@
+qemu (1:2.8+dfsg-5) unstable; urgency=high
+
+  * Security fix release
+  * 9pfs-local-set-path-of-export-root-to-dot-CVE-2017-7471.patch
+    Closes: #860785, CVE-2017-7471
+  * 9pfs-xattr-fix-memory-leak-in-v9fs_list_xattr-CVE-2017-8086.patch
+    Closes: #861348, CVE-2017-8086
+  * vmw_pvscsi-check-message-ring-page-count-at-init-CVE-2017-8112.patch
+    Closes: #861351, CVE-2017-8112
+  * scsi-avoid-an-off-by-one-error-in-megasas_mmio_write-CVE-2017-8380.patch
+    Closes: #862282, CVE-2017-8380
+  * input-limit-kbd-queue-depth-CVE-2017-8379.patch
+    Closes: #862289, CVE-2017-8379
+  * audio-release-capture-buffers-CVE-2017-8309.patch
+    Closes: #862280, CVE-2017-8309
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 17 May 2017 09:01:24 +0300
+
 qemu (1:2.8+dfsg-4) unstable; urgency=high
 
   * usb-ohci-limit-the-number-of-link-eds-CVE-2017-6505.patch
