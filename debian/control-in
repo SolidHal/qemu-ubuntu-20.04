@@ -47,7 +47,6 @@ Build-Depends: debhelper (>= 9),
 # libgtk2.0-dev, libvte-dev (>> 0.18.0~),
 # vte is used together with gtk
 # --disable-vte
-# libiscsi is debian-only since ubuntu/libiscsi is in universe
 # --enable-libiscsi
  libiscsi-dev (>> 1.9.0~),
 # --enable-curses

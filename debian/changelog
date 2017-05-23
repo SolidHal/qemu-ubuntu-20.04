@@ -1,3 +1,12 @@
+qemu (1:2.8+dfsg-6) unstable; urgency=high
+
+  * 9pfs-local-forbid-client-access-to-metadata-CVE-2017-7493.patch
+    Closes: CVE-2017-7493
+  * group all 9p patches together
+  * drop obsolete comment about libiscsi on ubuntu from d/control
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 23 May 2017 09:58:03 +0300
+
 qemu (1:2.8+dfsg-5) unstable; urgency=high
 
   * Security fix release
