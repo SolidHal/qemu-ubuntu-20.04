@@ -29,3 +29,16 @@ vmw_pvscsi-check-message-ring-page-count-at-init-CVE-2017-8112.patch
 scsi-avoid-an-off-by-one-error-in-megasas_mmio_write-CVE-2017-8380.patch
 input-limit-kbd-queue-depth-CVE-2017-8379.patch
 audio-release-capture-buffers-CVE-2017-8309.patch
+net-e1000e-fix-an-infinite-loop-issue-CVE-2017-9310.patch
+usb-ohci-fix-error-return-code-in-servicing-iso-td-CVE-2017-9330.patch
+ide-core-add-cleanup-function.patch
+ide-ahci-call-cleanup-function-in-ahci-unit-CVE-2017-9373.patch
+#xhci-guard-xhci_kick_epctx-against-recursive-calls-CVE-2017-9375.patch
+usb-ehci-fix-memory-leak-in-ehci-CVE-2017-9374.patch
+nbd-ignore-SIGPIPE-CVE-2017-10664.patch
+nbd-fully-initialize-client-in-case-of-failed-negotiation-CVE-2017-9524.patch
+nbd-fix-regression-on-resiliency-to-port-scan-CVE-2017-9524.patch
+xen-disk-don-t-leak-stack-data-via-response-ring-CVE-2017-10911.patch
+slirp-check-len-against-dhcp-options-array-end-CVE-2017-11434.patch
+exec-use-qemu_ram_ptr_length-to-access-guest-ram-CVE-2017-11334.patch
+usb-redir-fix-stack-overflow-in-usbredir_log_data-CVE-2017-10806.patch
