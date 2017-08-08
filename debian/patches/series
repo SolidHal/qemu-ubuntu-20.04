@@ -11,5 +11,6 @@ hostmem-dont-use-mbind-if-host-nodes-is-empty.patch
 net-use-peer-when-purging-queue-in-qemu_flush_or_purge_queue_packets.patch
 
 # ubuntu patches
+ubuntu/enable-svm-by-default.patch
 ubuntu/define-ubuntu-machine-types.patch
 ubuntu/pre-bionic-256k-ipxe-efi-roms.patch
