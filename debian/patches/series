@@ -9,3 +9,6 @@ aio-posix-dont-duplicate-fd-handler-deletion-in-fdmon_io_uring_destroy.patch
 aio-posix-disable-fdmon-io_uring-when-GSource-is-used.patch
 hostmem-dont-use-mbind-if-host-nodes-is-empty.patch
 net-use-peer-when-purging-queue-in-qemu_flush_or_purge_queue_packets.patch
+
+# ubuntu patches
+ubuntu/define-ubuntu-machine-types.patch
