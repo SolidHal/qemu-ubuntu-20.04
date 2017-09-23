@@ -1,3 +1,56 @@
+qemu (1:2.10.0+dfsg-1) unstable; urgency=medium
+
+  * remove blobs, to DFSG'ify it again (there's still
+    no source for some blobs included in upstream tarball)
+    There's no way to revert to 2-number version due to prev. upload
+  * update from upstream git (no changes but include date & commit-id):
+    multiboot-validate-multiboot-header-address-values-CVE-2017-14167.patch
+  * update previous changelog entry (fix bug/closes refs):
+    Closes: #873851, CVE-2017-13672
+    Closes: #874606, CVE-2017-14167
+    Closes: #873875, CVE-2017-13711
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 23 Sep 2017 18:35:29 +0300
+
+qemu (1:2.10.0-1) unstable; urgency=medium
+
+  * new upstream release, 2.10
+    Closes: #865754, CVE-2017-9503
+    Closes: #864219, CVE-2017-9375
+    Closes: #869945
+    Closed in this upstream release:
+     #865755, CVE-2017-9524
+     #863840, CVE-2017-9310
+     #863943, CVE-2017-9330
+     #864216, CVE-2017-9373
+     #864568, CVE-2017-9374
+     #869171, CVE-2017-11434
+     #869173, CVE-2017-11334
+     #869706, CVE-2017-10911
+     #867751, CVE-2017-10806
+     #866674, CVE-2017-10664
+     #873849, CVE-2017-12809
+  * dropped all fixes, applied upstream
+  * dropped 02_kfreebsd.patch - apparently not relevant anymore
+  * dropped +dfsg, use upstream tarball directly: we do not use
+    binaries shipped there, and even for those, upstream tarball
+    contains the sources
+  * refreshed list of targets:
+      qemu-or32, qemu-system-or32 => qemu-or1k, qemu-system-or1k
+      +qemu-nios2, qemu-system-nios2
+      +qemu-hppa
+  * added hppa binfmt entry
+  * refreshed docs lists for various packages
+  * new (security) patches:
+    vga-stop-passing-pointers-to-vga_draw_line-functions-CVE-2017-13672.patch
+    Closes: #873851, CVE-2017-13672
+    multiboot-validate-multiboot-header-address-values-CVE-2017-14167.patch
+    Closes: #874606, CVE-2017-14167
+    slirp-fix-clearing-ifq_so-from-pending-packets-CVE-2017-13711.patch
+    Closes: #873875, CVE-2017-13711
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 23 Sep 2017 16:47:02 +0300
+
 qemu (1:2.8+dfsg-7) unstable; urgency=medium
 
   * uploading to unstable all fixes which went to stretch-security

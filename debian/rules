@@ -57,7 +57,7 @@ ifeq (${enable_system},enable)
 # list of system (softmmu) targets, from ./configure
 system_targets = \
  i386 x86_64 alpha aarch64 arm cris lm32 m68k microblaze microblazeel \
- mips mipsel mips64 mips64el moxie or32 ppc ppcemb ppc64 sh4 sh4eb \
+ mips mipsel mips64 mips64el moxie nios2 or1k ppc ppcemb ppc64 sh4 sh4eb \
  sparc sparc64 s390x tricore xtensa xtensaeb unicore32
 
 # qemu-system subpackages, from d/control
@@ -80,8 +80,8 @@ ifeq (${enable_linux_user},enable)
 
 # list of linux-user targets, from ./configure
 user_targets = \
- i386 x86_64 alpha aarch64 arm armeb cris m68k microblaze microblazeel \
- mips mipsel mips64 mips64el mipsn32 mipsn32el or32 \
+ i386 x86_64 alpha aarch64 arm armeb cris hppa m68k microblaze microblazeel \
+ mips mipsel mips64 mips64el mipsn32 mipsn32el nios2 or1k \
  ppc ppc64 ppc64abi32 ppc64le sh4 sh4eb sparc sparc64 sparc32plus \
  s390x tilegx
 
