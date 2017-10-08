@@ -1,5 +1,5 @@
 use-fixed-data-path.patch
 use-data-path.patch
-vga-stop-passing-pointers-to-vga_draw_line-functions-CVE-2017-13672.patch
-multiboot-validate-multiboot-header-address-values-CVE-2017-14167.patch
-slirp-fix-clearing-ifq_so-from-pending-packets-CVE-2017-13711.patch
+qemu-2.10.1.diff
+9pfs-use-g_malloc0-to-allocate-space-for-xattr-CVE-2017-15038.patch
+remove-trailing-whitespace-from-qemu-options.hx.patch

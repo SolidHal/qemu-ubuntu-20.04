@@ -1,0 +1,35 @@
+From: Michael Tokarev <mjt@tls.msk.ru>
+Date: Sat, 23 Sep 2017 19:31:59 +0300
+Subject: remove trailing whitespace from qemu-options.hx
+Commit-Id: a295d244e575c4e44432e26bfd4634a8dcbf48d7
+Bug-Debian: http://bugs.debian.org/875711
+
+Remove trailing whitespace in qemu-options documentation, as it causes
+reproducibility issues depending on the echo implementation used by
+the Makefile.
+
+Reported-By: Vagrant Cascadian <vagrant@debian.org>
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+---
+ qemu-options.hx | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/qemu-options.hx b/qemu-options.hx
+index 77859a248c..39225ae6c3 100644
+--- a/qemu-options.hx
++++ b/qemu-options.hx
+@@ -284,8 +284,8 @@ Set default value of @var{driver}'s property @var{prop} to @var{value}, e.g.:
+ qemu-system-i386 -global ide-hd.physical_block_size=4096 disk-image.img
+ @end example
+ 
+-In particular, you can use this to set driver properties for devices which are 
+-created automatically by the machine model. To create a device which is not 
++In particular, you can use this to set driver properties for devices which are
++created automatically by the machine model. To create a device which is not
+ created automatically and set properties on it, use -@option{device}.
+ 
+ -global @var{driver}.@var{prop}=@var{value} is shorthand for -global
+-- 
+2.11.0
+

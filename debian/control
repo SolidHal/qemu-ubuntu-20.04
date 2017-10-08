@@ -67,8 +67,8 @@ Build-Depends: debhelper (>= 9),
 # --enable-vnc-sasl
  libsasl2-dev,
 # note: libsdl2-dev is in universe on ubuntu
-# --enable-sdl --with-sdlabi=1.2
- libsdl1.2-dev (>> 1.2.1),
+# --enable-sdl --with-sdlabi=2.0
+ libsdl2-dev,
 # --enable-seccomp	linux-amd64|linux-i386
  libseccomp-dev (>> 2.1.0) [linux-amd64 linux-i386],
 # --enable-spice	linux-amd64|linux-i386
@@ -88,8 +88,6 @@ Build-Depends: debhelper (>= 9),
  libx11-dev,
 # --enable-xen	linux-amd64|linux-i386
  libxen-dev [linux-amd64 linux-i386],
-# XXX need to check minimum linux-headers requiriment
- linux-libc-dev (>= 2.6.34) [linux-any],
 ## always enabled: --enable-uuid
  uuid-dev,
 # --enable-xfsctl	linux-*

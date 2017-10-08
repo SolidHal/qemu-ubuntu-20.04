@@ -281,7 +281,6 @@ endif
 	dh_strip ${ai}
 	dh_compress ${ai}
 	dh_fixperms ${ai}
-	dh_makeshlibs ${ai}
 	dh_shlibdeps ${ai}
 	dh_installdeb ${ai}
 ifeq ($(enable_linux_user),enable)

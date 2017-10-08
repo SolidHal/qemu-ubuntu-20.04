@@ -1,3 +1,22 @@
+qemu (1:2.10.0+dfsg-2) unstable; urgency=medium
+
+  * update to upstream 2.10.1 point release
+    Closes: #877160
+    Closes: CVE-2017-13673
+  * remove 3 patches included upstream:
+    multiboot-validate-multiboot-header-address-values-CVE-2017-14167.patch
+    vga-stop-passing-pointers-to-vga_draw_line-functions-CVE-2017-13672.patch
+    slirp-fix-clearing-ifq_so-from-pending-packets-CVE-2017-13711.patch
+  * 9pfs-use-g_malloc0-to-allocate-space-for-xattr-CVE-2017-15038.patch
+    Closes: #877890, CVE-2017-15038
+  * remove-trailing-whitespace-from-qemu-options.hx.patch
+    Closes: #875711
+  * drop dh_makeshlibs call (was for libcacard)
+  * drop linux-libc-dev build-dependency (it gets pulled by libc-dev)
+  * switch from sdl1 to sdl2 (Closes: #870025)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 08 Oct 2017 12:51:09 +0300
+
 qemu (1:2.10.0+dfsg-1) unstable; urgency=medium
 
   * remove blobs, to DFSG'ify it again (there's still
@@ -10,7 +29,7 @@ qemu (1:2.10.0+dfsg-1) unstable; urgency=medium
     Closes: #874606, CVE-2017-14167
     Closes: #873875, CVE-2017-13711
 
- -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 23 Sep 2017 18:35:29 +0300
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 25 Sep 2017 09:46:53 +0300
 
 qemu (1:2.10.0-1) unstable; urgency=medium
 
@@ -18,6 +37,9 @@ qemu (1:2.10.0-1) unstable; urgency=medium
     Closes: #865754, CVE-2017-9503
     Closes: #864219, CVE-2017-9375
     Closes: #869945
+    Closes: #867978
+    Closes: #871648, #871702, #872257
+    Closes: #851694
     Closed in this upstream release:
      #865755, CVE-2017-9524
      #863840, CVE-2017-9310

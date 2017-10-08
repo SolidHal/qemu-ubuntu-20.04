@@ -1,0 +1,1581 @@
+diff --git a/VERSION b/VERSION
+index 10c2c0c3d6..8bbb6e406a 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-2.10.0
++2.10.1
+diff --git a/accel/tcg/cputlb.c b/accel/tcg/cputlb.c
+index 85635ae8ad..140d73a308 100644
+--- a/accel/tcg/cputlb.c
++++ b/accel/tcg/cputlb.c
+@@ -763,7 +763,7 @@ static uint64_t io_readx(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
+ 
+     cpu->mem_io_vaddr = addr;
+ 
+-    if (mr->global_locking) {
++    if (mr->global_locking && !qemu_mutex_iothread_locked()) {
+         qemu_mutex_lock_iothread();
+         locked = true;
+     }
+@@ -791,7 +791,7 @@ static void io_writex(CPUArchState *env, CPUIOTLBEntry *iotlbentry,
+     cpu->mem_io_vaddr = addr;
+     cpu->mem_io_pc = retaddr;
+ 
+-    if (mr->global_locking) {
++    if (mr->global_locking && !qemu_mutex_iothread_locked()) {
+         qemu_mutex_lock_iothread();
+         locked = true;
+     }
+diff --git a/block/nbd-client.c b/block/nbd-client.c
+index 25bcaa2346..ea728fffc8 100644
+--- a/block/nbd-client.c
++++ b/block/nbd-client.c
+@@ -144,12 +144,12 @@ static int nbd_co_send_request(BlockDriverState *bs,
+     request->handle = INDEX_TO_HANDLE(s, i);
+ 
+     if (s->quit) {
+-        qemu_co_mutex_unlock(&s->send_mutex);
+-        return -EIO;
++        rc = -EIO;
++        goto err;
+     }
+     if (!s->ioc) {
+-        qemu_co_mutex_unlock(&s->send_mutex);
+-        return -EPIPE;
++        rc = -EPIPE;
++        goto err;
+     }
+ 
+     if (qiov) {
+@@ -166,8 +166,13 @@ static int nbd_co_send_request(BlockDriverState *bs,
+     } else {
+         rc = nbd_send_request(s->ioc, request);
+     }
++
++err:
+     if (rc < 0) {
+         s->quit = true;
++        s->requests[i].coroutine = NULL;
++        s->in_flight--;
++        qemu_co_queue_next(&s->free_sema);
+     }
+     qemu_co_mutex_unlock(&s->send_mutex);
+     return rc;
+@@ -201,13 +206,6 @@ static void nbd_co_receive_reply(NBDClientSession *s,
+         /* Tell the read handler to read another header.  */
+         s->reply.handle = 0;
+     }
+-}
+-
+-static void nbd_coroutine_end(BlockDriverState *bs,
+-                              NBDRequest *request)
+-{
+-    NBDClientSession *s = nbd_get_client_session(bs);
+-    int i = HANDLE_TO_INDEX(s, request->handle);
+ 
+     s->requests[i].coroutine = NULL;
+ 
+@@ -243,7 +241,6 @@ int nbd_client_co_preadv(BlockDriverState *bs, uint64_t offset,
+     } else {
+         nbd_co_receive_reply(client, &request, &reply, qiov);
+     }
+-    nbd_coroutine_end(bs, &request);
+     return -reply.error;
+ }
+ 
+@@ -272,7 +269,6 @@ int nbd_client_co_pwritev(BlockDriverState *bs, uint64_t offset,
+     } else {
+         nbd_co_receive_reply(client, &request, &reply, NULL);
+     }
+-    nbd_coroutine_end(bs, &request);
+     return -reply.error;
+ }
+ 
+@@ -306,7 +302,6 @@ int nbd_client_co_pwrite_zeroes(BlockDriverState *bs, int64_t offset,
+     } else {
+         nbd_co_receive_reply(client, &request, &reply, NULL);
+     }
+-    nbd_coroutine_end(bs, &request);
+     return -reply.error;
+ }
+ 
+@@ -330,7 +325,6 @@ int nbd_client_co_flush(BlockDriverState *bs)
+     } else {
+         nbd_co_receive_reply(client, &request, &reply, NULL);
+     }
+-    nbd_coroutine_end(bs, &request);
+     return -reply.error;
+ }
+ 
+@@ -355,7 +349,6 @@ int nbd_client_co_pdiscard(BlockDriverState *bs, int64_t offset, int bytes)
+     } else {
+         nbd_co_receive_reply(client, &request, &reply, NULL);
+     }
+-    nbd_coroutine_end(bs, &request);
+     return -reply.error;
+ 
+ }
+diff --git a/block/qcow2-bitmap.c b/block/qcow2-bitmap.c
+index e8d3bdbd6e..14f41d0427 100644
+--- a/block/qcow2-bitmap.c
++++ b/block/qcow2-bitmap.c
+@@ -602,7 +602,7 @@ static Qcow2BitmapList *bitmap_list_load(BlockDriverState *bs, uint64_t offset,
+             goto fail;
+         }
+ 
+-        bm = g_new(Qcow2Bitmap, 1);
++        bm = g_new0(Qcow2Bitmap, 1);
+         bm->table.offset = e->bitmap_table_offset;
+         bm->table.size = e->bitmap_table_size;
+         bm->flags = e->flags;
+diff --git a/block/qcow2.c b/block/qcow2.c
+index 40ba26c111..a756bf9541 100644
+--- a/block/qcow2.c
++++ b/block/qcow2.c
+@@ -2053,6 +2053,14 @@ static int qcow2_inactivate(BlockDriverState *bs)
+     int ret, result = 0;
+     Error *local_err = NULL;
+ 
++    qcow2_store_persistent_dirty_bitmaps(bs, &local_err);
++    if (local_err != NULL) {
++        result = -EINVAL;
++        error_report_err(local_err);
++        error_report("Persistent bitmaps are lost for node '%s'",
++                     bdrv_get_device_or_node_name(bs));
++    }
++
+     ret = qcow2_cache_flush(bs, s->l2_table_cache);
+     if (ret) {
+         result = ret;
+@@ -2067,14 +2075,6 @@ static int qcow2_inactivate(BlockDriverState *bs)
+                      strerror(-ret));
+     }
+ 
+-    qcow2_store_persistent_dirty_bitmaps(bs, &local_err);
+-    if (local_err != NULL) {
+-        result = -EINVAL;
+-        error_report_err(local_err);
+-        error_report("Persistent bitmaps are lost for node '%s'",
+-                     bdrv_get_device_or_node_name(bs));
+-    }
+-
+     if (result == 0) {
+         qcow2_mark_clean(bs);
+     }
+diff --git a/block/throttle-groups.c b/block/throttle-groups.c
+index 890bfded3f..8f5b445eff 100644
+--- a/block/throttle-groups.c
++++ b/block/throttle-groups.c
+@@ -392,17 +392,19 @@ static void coroutine_fn throttle_group_restart_queue_entry(void *opaque)
+         schedule_next_request(blk, is_write);
+         qemu_mutex_unlock(&tg->lock);
+     }
++
++    g_free(data);
+ }
+ 
+ static void throttle_group_restart_queue(BlockBackend *blk, bool is_write)
+ {
+     Coroutine *co;
+-    RestartData rd = {
+-        .blk = blk,
+-        .is_write = is_write
+-    };
++    RestartData *rd = g_new0(RestartData, 1);
++
++    rd->blk = blk;
++    rd->is_write = is_write;
+ 
+-    co = qemu_coroutine_create(throttle_group_restart_queue_entry, &rd);
++    co = qemu_coroutine_create(throttle_group_restart_queue_entry, rd);
+     aio_co_enter(blk_get_aio_context(blk), co);
+ }
+ 
+diff --git a/contrib/libvhost-user/libvhost-user.c b/contrib/libvhost-user/libvhost-user.c
+index 35fa0c5e56..d27d6303db 100644
+--- a/contrib/libvhost-user/libvhost-user.c
++++ b/contrib/libvhost-user/libvhost-user.c
+@@ -521,6 +521,19 @@ vu_set_vring_addr_exec(VuDev *dev, VhostUserMsg *vmsg)
+ 
+     vq->used_idx = vq->vring.used->idx;
+ 
++    if (vq->last_avail_idx != vq->used_idx) {
++        bool resume = dev->iface->queue_is_processed_in_order &&
++            dev->iface->queue_is_processed_in_order(dev, index);
++
++        DPRINT("Last avail index != used index: %u != %u%s\n",
++               vq->last_avail_idx, vq->used_idx,
++               resume ? ", resuming" : "");
++
++        if (resume) {
++            vq->shadow_avail_idx = vq->last_avail_idx = vq->used_idx;
++        }
++    }
++
+     return false;
+ }
+ 
+diff --git a/contrib/libvhost-user/libvhost-user.h b/contrib/libvhost-user/libvhost-user.h
+index 53ef222c0b..4021f1124e 100644
+--- a/contrib/libvhost-user/libvhost-user.h
++++ b/contrib/libvhost-user/libvhost-user.h
+@@ -132,6 +132,7 @@ typedef void (*vu_set_features_cb) (VuDev *dev, uint64_t features);
+ typedef int (*vu_process_msg_cb) (VuDev *dev, VhostUserMsg *vmsg,
+                                   int *do_reply);
+ typedef void (*vu_queue_set_started_cb) (VuDev *dev, int qidx, bool started);
++typedef bool (*vu_queue_is_processed_in_order_cb) (VuDev *dev, int qidx);
+ 
+ typedef struct VuDevIface {
+     /* called by VHOST_USER_GET_FEATURES to get the features bitmask */
+@@ -148,6 +149,12 @@ typedef struct VuDevIface {
+     vu_process_msg_cb process_msg;
+     /* tells when queues can be processed */
+     vu_queue_set_started_cb queue_set_started;
++    /*
++     * If the queue is processed in order, in which case it will be
++     * resumed to vring.used->idx. This can help to support resuming
++     * on unmanaged exit/crash.
++     */
++    vu_queue_is_processed_in_order_cb queue_is_processed_in_order;
+ } VuDevIface;
+ 
+ typedef void (*vu_queue_handler_cb) (VuDev *dev, int qidx);
+diff --git a/hw/9pfs/9p.c b/hw/9pfs/9p.c
+index 333dbb6f8e..8e9490c5f5 100644
+--- a/hw/9pfs/9p.c
++++ b/hw/9pfs/9p.c
+@@ -803,12 +803,12 @@ static uint32_t stat_to_v9mode(const struct stat *stbuf)
+     return mode;
+ }
+ 
+-static int coroutine_fn stat_to_v9stat(V9fsPDU *pdu, V9fsPath *name,
++static int coroutine_fn stat_to_v9stat(V9fsPDU *pdu, V9fsPath *path,
++                                       const char *basename,
+                                        const struct stat *stbuf,
+                                        V9fsStat *v9stat)
+ {
+     int err;
+-    const char *str;
+ 
+     memset(v9stat, 0, sizeof(*v9stat));
+ 
+@@ -829,7 +829,7 @@ static int coroutine_fn stat_to_v9stat(V9fsPDU *pdu, V9fsPath *name,
+     v9fs_string_free(&v9stat->extension);
+ 
+     if (v9stat->mode & P9_STAT_MODE_SYMLINK) {
+-        err = v9fs_co_readlink(pdu, name, &v9stat->extension);
++        err = v9fs_co_readlink(pdu, path, &v9stat->extension);
+         if (err < 0) {
+             return err;
+         }
+@@ -842,14 +842,7 @@ static int coroutine_fn stat_to_v9stat(V9fsPDU *pdu, V9fsPath *name,
+                 "HARDLINKCOUNT", (unsigned long)stbuf->st_nlink);
+     }
+ 
+-    str = strrchr(name->data, '/');
+-    if (str) {
+-        str += 1;
+-    } else {
+-        str = name->data;
+-    }
+-
+-    v9fs_string_sprintf(&v9stat->name, "%s", str);
++    v9fs_string_sprintf(&v9stat->name, "%s", basename);
+ 
+     v9stat->size = 61 +
+         v9fs_string_size(&v9stat->name) +
+@@ -1058,6 +1051,7 @@ static void coroutine_fn v9fs_stat(void *opaque)
+     struct stat stbuf;
+     V9fsFidState *fidp;
+     V9fsPDU *pdu = opaque;
++    char *basename;
+ 
+     err = pdu_unmarshal(pdu, offset, "d", &fid);
+     if (err < 0) {
+@@ -1074,7 +1068,9 @@ static void coroutine_fn v9fs_stat(void *opaque)
+     if (err < 0) {
+         goto out;
+     }
+-    err = stat_to_v9stat(pdu, &fidp->path, &stbuf, &v9stat);
++    basename = g_path_get_basename(fidp->path.data);
++    err = stat_to_v9stat(pdu, &fidp->path, basename, &stbuf, &v9stat);
++    g_free(basename);
+     if (err < 0) {
+         goto out;
+     }
+@@ -1750,21 +1746,30 @@ static int coroutine_fn v9fs_do_readdir_with_stat(V9fsPDU *pdu,
+         if (err < 0) {
+             break;
+         }
+-        err = stat_to_v9stat(pdu, &path, &stbuf, &v9stat);
++        err = stat_to_v9stat(pdu, &path, dent->d_name, &stbuf, &v9stat);
+         if (err < 0) {
+             break;
+         }
++        if ((count + v9stat.size + 2) > max_count) {
++            v9fs_readdir_unlock(&fidp->fs.dir);
++
++            /* Ran out of buffer. Set dir back to old position and return */
++            v9fs_co_seekdir(pdu, fidp, saved_dir_pos);
++            v9fs_stat_free(&v9stat);
++            v9fs_path_free(&path);
++            return count;
++        }
++
+         /* 11 = 7 + 4 (7 = start offset, 4 = space for storing count) */
+         len = pdu_marshal(pdu, 11 + count, "S", &v9stat);
+ 
+         v9fs_readdir_unlock(&fidp->fs.dir);
+ 
+-        if ((len != (v9stat.size + 2)) || ((count + len) > max_count)) {
+-            /* Ran out of buffer. Set dir back to old position and return */
++        if (len < 0) {
+             v9fs_co_seekdir(pdu, fidp, saved_dir_pos);
+             v9fs_stat_free(&v9stat);
+             v9fs_path_free(&path);
+-            return count;
++            return len;
+         }
+         count += len;
+         v9fs_stat_free(&v9stat);
+@@ -2559,13 +2564,11 @@ static int coroutine_fn v9fs_complete_rename(V9fsPDU *pdu, V9fsFidState *fidp,
+                                              int32_t newdirfid,
+                                              V9fsString *name)
+ {
+-    char *end;
+     int err = 0;
+     V9fsPath new_path;
+     V9fsFidState *tfidp;
+     V9fsState *s = pdu->s;
+     V9fsFidState *dirfidp = NULL;
+-    char *old_name, *new_name;
+ 
+     v9fs_path_init(&new_path);
+     if (newdirfid != -1) {
+@@ -2583,18 +2586,15 @@ static int coroutine_fn v9fs_complete_rename(V9fsPDU *pdu, V9fsFidState *fidp,
+             goto out;
+         }
+     } else {
+-        old_name = fidp->path.data;
+-        end = strrchr(old_name, '/');
+-        if (end) {
+-            end++;
+-        } else {
+-            end = old_name;
+-        }
+-        new_name = g_malloc0(end - old_name + name->size + 1);
+-        strncat(new_name, old_name, end - old_name);
+-        strncat(new_name + (end - old_name), name->data, name->size);
+-        err = v9fs_co_name_to_path(pdu, NULL, new_name, &new_path);
+-        g_free(new_name);
++        char *dir_name = g_path_get_dirname(fidp->path.data);
++        V9fsPath dir_path;
++
++        v9fs_path_init(&dir_path);
++        v9fs_path_sprintf(&dir_path, "%s", dir_name);
++        g_free(dir_name);
++
++        err = v9fs_co_name_to_path(pdu, &dir_path, name->data, &new_path);
++        v9fs_path_free(&dir_path);
+         if (err < 0) {
+             goto out;
+         }
+diff --git a/hw/acpi/pcihp.c b/hw/acpi/pcihp.c
+index c420a388ea..7da51c0569 100644
+--- a/hw/acpi/pcihp.c
++++ b/hw/acpi/pcihp.c
+@@ -75,6 +75,43 @@ static int acpi_pcihp_get_bsel(PCIBus *bus)
+     }
+ }
+ 
++/* Assign BSEL property to all buses.  In the future, this can be changed
++ * to only assign to buses that support hotplug.
++ */
++static void *acpi_set_bsel(PCIBus *bus, void *opaque)
++{
++    unsigned *bsel_alloc = opaque;
++    unsigned *bus_bsel;
++
++    if (qbus_is_hotpluggable(BUS(bus))) {
++        bus_bsel = g_malloc(sizeof *bus_bsel);
++
++        *bus_bsel = (*bsel_alloc)++;
++        object_property_add_uint32_ptr(OBJECT(bus), ACPI_PCIHP_PROP_BSEL,
++                                       bus_bsel, &error_abort);
++    }
++
++    return bsel_alloc;
++}
++
++static void acpi_set_pci_info(void)
++{
++    static bool bsel_is_set;
++    PCIBus *bus;
++    unsigned bsel_alloc = ACPI_PCIHP_BSEL_DEFAULT;
++
++    if (bsel_is_set) {
++        return;
++    }
++    bsel_is_set = true;
++
++    bus = find_i440fx(); /* TODO: Q35 support */
++    if (bus) {
++        /* Scan all PCI buses. Set property to enable acpi based hotplug. */
++        pci_for_each_bus_depth_first(bus, acpi_set_bsel, NULL, &bsel_alloc);
++    }
++}
++
+ static void acpi_pcihp_test_hotplug_bus(PCIBus *bus, void *opaque)
+ {
+     AcpiPciHpFind *find = opaque;
+@@ -177,6 +214,7 @@ static void acpi_pcihp_update(AcpiPciHpState *s)
+ 
+ void acpi_pcihp_reset(AcpiPciHpState *s)
+ {
++    acpi_set_pci_info();
+     acpi_pcihp_update(s);
+ }
+ 
+@@ -273,7 +311,7 @@ static void pci_write(void *opaque, hwaddr addr, uint64_t data,
+                       addr, data);
+         break;
+     case PCI_SEL_BASE:
+-        s->hotplug_select = data;
++        s->hotplug_select = s->legacy_piix ? ACPI_PCIHP_BSEL_DEFAULT : data;
+         ACPI_PCIHP_DPRINTF("pcisel write %" HWADDR_PRIx " <== %" PRIu64 "\n",
+                       addr, data);
+     default:
+diff --git a/hw/acpi/piix4.c b/hw/acpi/piix4.c
+index f276967365..f4fd5907b8 100644
+--- a/hw/acpi/piix4.c
++++ b/hw/acpi/piix4.c
+@@ -385,10 +385,7 @@ static void piix4_device_plug_cb(HotplugHandler *hotplug_dev,
+                                 dev, errp);
+         }
+     } else if (object_dynamic_cast(OBJECT(dev), TYPE_PCI_DEVICE)) {
+-        if (!xen_enabled()) {
+-            acpi_pcihp_device_plug_cb(hotplug_dev, &s->acpi_pci_hotplug, dev,
+-                                      errp);
+-        }
++        acpi_pcihp_device_plug_cb(hotplug_dev, &s->acpi_pci_hotplug, dev, errp);
+     } else if (object_dynamic_cast(OBJECT(dev), TYPE_CPU)) {
+         if (s->cpu_hotplug_legacy) {
+             legacy_acpi_cpu_plug_cb(hotplug_dev, &s->gpe_cpu, dev, errp);
+@@ -411,10 +408,8 @@ static void piix4_device_unplug_request_cb(HotplugHandler *hotplug_dev,
+         acpi_memory_unplug_request_cb(hotplug_dev, &s->acpi_memory_hotplug,
+                                       dev, errp);
+     } else if (object_dynamic_cast(OBJECT(dev), TYPE_PCI_DEVICE)) {
+-        if (!xen_enabled()) {
+-            acpi_pcihp_device_unplug_cb(hotplug_dev, &s->acpi_pci_hotplug, dev,
+-                                        errp);
+-        }
++        acpi_pcihp_device_unplug_cb(hotplug_dev, &s->acpi_pci_hotplug, dev,
++                                    errp);
+     } else if (object_dynamic_cast(OBJECT(dev), TYPE_CPU) &&
+                !s->cpu_hotplug_legacy) {
+         acpi_cpu_unplug_request_cb(hotplug_dev, &s->cpuhp_state, dev, errp);
+diff --git a/hw/arm/allwinner-a10.c b/hw/arm/allwinner-a10.c
+index f62a9a3541..43a3f01f45 100644
+--- a/hw/arm/allwinner-a10.c
++++ b/hw/arm/allwinner-a10.c
+@@ -118,6 +118,8 @@ static void aw_a10_class_init(ObjectClass *oc, void *data)
+     DeviceClass *dc = DEVICE_CLASS(oc);
+ 
+     dc->realize = aw_a10_realize;
++    /* Reason: Uses serial_hds in realize and nd_table in instance_init */
++    dc->user_creatable = false;
+ }
+ 
+ static const TypeInfo aw_a10_type_info = {
+diff --git a/hw/arm/aspeed_soc.c b/hw/arm/aspeed_soc.c
+index 5529024edf..7f1be04b9b 100644
+--- a/hw/arm/aspeed_soc.c
++++ b/hw/arm/aspeed_soc.c
+@@ -338,6 +338,8 @@ static void aspeed_soc_class_init(ObjectClass *oc, void *data)
+ 
+     sc->info = (AspeedSoCInfo *) data;
+     dc->realize = aspeed_soc_realize;
++    /* Reason: Uses serial_hds and nd_table in realize() directly */
++    dc->user_creatable = false;
+ }
+ 
+ static const TypeInfo aspeed_soc_type_info = {
+diff --git a/hw/arm/digic.c b/hw/arm/digic.c
+index 94f32637f0..6184020985 100644
+--- a/hw/arm/digic.c
++++ b/hw/arm/digic.c
+@@ -101,6 +101,8 @@ static void digic_class_init(ObjectClass *oc, void *data)
+     DeviceClass *dc = DEVICE_CLASS(oc);
+ 
+     dc->realize = digic_realize;
++    /* Reason: Uses serial_hds in the realize function --> not usable twice */
++    dc->user_creatable = false;
+ }
+ 
+ static const TypeInfo digic_type_info = {
+diff --git a/hw/arm/mps2.c b/hw/arm/mps2.c
+index abb0ab6d71..769cff872c 100644
+--- a/hw/arm/mps2.c
++++ b/hw/arm/mps2.c
+@@ -287,8 +287,8 @@ static void mps2_common_init(MachineState *machine)
+             cmsdk_apb_uart_create(uartbase[i],
+                                   qdev_get_gpio_in(txrx_orgate_dev, 0),
+                                   qdev_get_gpio_in(txrx_orgate_dev, 1),
+-                                  qdev_get_gpio_in(orgate_dev, 0),
+-                                  qdev_get_gpio_in(orgate_dev, 1),
++                                  qdev_get_gpio_in(orgate_dev, i * 2),
++                                  qdev_get_gpio_in(orgate_dev, i * 2 + 1),
+                                   NULL,
+                                   uartchr, SYSCLK_FRQ);
+         }
+diff --git a/hw/display/vga-helpers.h b/hw/display/vga-helpers.h
+index 94f6de2046..5a752b3f9e 100644
+--- a/hw/display/vga-helpers.h
++++ b/hw/display/vga-helpers.h
+@@ -95,20 +95,46 @@ static void vga_draw_glyph9(uint8_t *d, int linesize,
+     } while (--h);
+ }
+ 
++static inline uint8_t vga_read_byte(VGACommonState *vga, uint32_t addr)
++{
++    return vga->vram_ptr[addr & vga->vbe_size_mask];
++}
++
++static inline uint16_t vga_read_word_le(VGACommonState *vga, uint32_t addr)
++{
++    uint32_t offset = addr & vga->vbe_size_mask & ~1;
++    uint16_t *ptr = (uint16_t *)(vga->vram_ptr + offset);
++    return lduw_le_p(ptr);
++}
++
++static inline uint16_t vga_read_word_be(VGACommonState *vga, uint32_t addr)
++{
++    uint32_t offset = addr & vga->vbe_size_mask & ~1;
++    uint16_t *ptr = (uint16_t *)(vga->vram_ptr + offset);
++    return lduw_be_p(ptr);
++}
++
++static inline uint32_t vga_read_dword_le(VGACommonState *vga, uint32_t addr)
++{
++    uint32_t offset = addr & vga->vbe_size_mask & ~3;
++    uint32_t *ptr = (uint32_t *)(vga->vram_ptr + offset);
++    return ldl_le_p(ptr);
++}
++
+ /*
+  * 4 color mode
+  */
+-static void vga_draw_line2(VGACommonState *s1, uint8_t *d,
+-                           const uint8_t *s, int width)
++static void vga_draw_line2(VGACommonState *vga, uint8_t *d,
++                           uint32_t addr, int width)
+ {
+     uint32_t plane_mask, *palette, data, v;
+     int x;
+ 
+-    palette = s1->last_palette;
+-    plane_mask = mask16[s1->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
++    palette = vga->last_palette;
++    plane_mask = mask16[vga->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
+     width >>= 3;
+     for(x = 0; x < width; x++) {
+-        data = ((uint32_t *)s)[0];
++        data = vga_read_dword_le(vga, addr);
+         data &= plane_mask;
+         v = expand2[GET_PLANE(data, 0)];
+         v |= expand2[GET_PLANE(data, 2)] << 2;
+@@ -124,7 +150,7 @@ static void vga_draw_line2(VGACommonState *s1, uint8_t *d,
+         ((uint32_t *)d)[6] = palette[(v >> 4) & 0xf];
+         ((uint32_t *)d)[7] = palette[(v >> 0) & 0xf];
+         d += 32;
+-        s += 4;
++        addr += 4;
+     }
+ }
+ 
+@@ -134,17 +160,17 @@ static void vga_draw_line2(VGACommonState *s1, uint8_t *d,
+ /*
+  * 4 color mode, dup2 horizontal
+  */
+-static void vga_draw_line2d2(VGACommonState *s1, uint8_t *d,
+-                             const uint8_t *s, int width)
++static void vga_draw_line2d2(VGACommonState *vga, uint8_t *d,
++                             uint32_t addr, int width)
+ {
+     uint32_t plane_mask, *palette, data, v;
+     int x;
+ 
+-    palette = s1->last_palette;
+-    plane_mask = mask16[s1->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
++    palette = vga->last_palette;
++    plane_mask = mask16[vga->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
+     width >>= 3;
+     for(x = 0; x < width; x++) {
+-        data = ((uint32_t *)s)[0];
++        data = vga_read_dword_le(vga, addr);
+         data &= plane_mask;
+         v = expand2[GET_PLANE(data, 0)];
+         v |= expand2[GET_PLANE(data, 2)] << 2;
+@@ -160,24 +186,24 @@ static void vga_draw_line2d2(VGACommonState *s1, uint8_t *d,
+         PUT_PIXEL2(d, 6, palette[(v >> 4) & 0xf]);
+         PUT_PIXEL2(d, 7, palette[(v >> 0) & 0xf]);
+         d += 64;
+-        s += 4;
++        addr += 4;
+     }
+ }
+ 
+ /*
+  * 16 color mode
+  */
+-static void vga_draw_line4(VGACommonState *s1, uint8_t *d,
+-                           const uint8_t *s, int width)
++static void vga_draw_line4(VGACommonState *vga, uint8_t *d,
++                           uint32_t addr, int width)
+ {
+     uint32_t plane_mask, data, v, *palette;
+     int x;
+ 
+-    palette = s1->last_palette;
+-    plane_mask = mask16[s1->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
++    palette = vga->last_palette;
++    plane_mask = mask16[vga->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
+     width >>= 3;
+     for(x = 0; x < width; x++) {
+-        data = ((uint32_t *)s)[0];
++        data = vga_read_dword_le(vga, addr);
+         data &= plane_mask;
+         v = expand4[GET_PLANE(data, 0)];
+         v |= expand4[GET_PLANE(data, 1)] << 1;
+@@ -192,24 +218,24 @@ static void vga_draw_line4(VGACommonState *s1, uint8_t *d,
+         ((uint32_t *)d)[6] = palette[(v >> 4) & 0xf];
+         ((uint32_t *)d)[7] = palette[(v >> 0) & 0xf];
+         d += 32;
+-        s += 4;
++        addr += 4;
+     }
+ }
+ 
+ /*
+  * 16 color mode, dup2 horizontal
+  */
+-static void vga_draw_line4d2(VGACommonState *s1, uint8_t *d,
+-                             const uint8_t *s, int width)
++static void vga_draw_line4d2(VGACommonState *vga, uint8_t *d,
++                             uint32_t addr, int width)
+ {
+     uint32_t plane_mask, data, v, *palette;
+     int x;
+ 
+-    palette = s1->last_palette;
+-    plane_mask = mask16[s1->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
++    palette = vga->last_palette;
++    plane_mask = mask16[vga->ar[VGA_ATC_PLANE_ENABLE] & 0xf];
+     width >>= 3;
+     for(x = 0; x < width; x++) {
+-        data = ((uint32_t *)s)[0];
++        data = vga_read_dword_le(vga, addr);
+         data &= plane_mask;
+         v = expand4[GET_PLANE(data, 0)];
+         v |= expand4[GET_PLANE(data, 1)] << 1;
+@@ -224,7 +250,7 @@ static void vga_draw_line4d2(VGACommonState *s1, uint8_t *d,
+         PUT_PIXEL2(d, 6, palette[(v >> 4) & 0xf]);
+         PUT_PIXEL2(d, 7, palette[(v >> 0) & 0xf]);
+         d += 64;
+-        s += 4;
++        addr += 4;
+     }
+ }
+ 
+@@ -233,21 +259,21 @@ static void vga_draw_line4d2(VGACommonState *s1, uint8_t *d,
+  *
+  * XXX: add plane_mask support (never used in standard VGA modes)
+  */
+-static void vga_draw_line8d2(VGACommonState *s1, uint8_t *d,
+-                             const uint8_t *s, int width)
++static void vga_draw_line8d2(VGACommonState *vga, uint8_t *d,
++                             uint32_t addr, int width)
+ {
+     uint32_t *palette;
+     int x;
+ 
+-    palette = s1->last_palette;
++    palette = vga->last_palette;
+     width >>= 3;
+     for(x = 0; x < width; x++) {
+-        PUT_PIXEL2(d, 0, palette[s[0]]);
+-        PUT_PIXEL2(d, 1, palette[s[1]]);
+-        PUT_PIXEL2(d, 2, palette[s[2]]);
+-        PUT_PIXEL2(d, 3, palette[s[3]]);
++        PUT_PIXEL2(d, 0, palette[vga_read_byte(vga, addr + 0)]);
++        PUT_PIXEL2(d, 1, palette[vga_read_byte(vga, addr + 1)]);
++        PUT_PIXEL2(d, 2, palette[vga_read_byte(vga, addr + 2)]);
++        PUT_PIXEL2(d, 3, palette[vga_read_byte(vga, addr + 3)]);
+         d += 32;
+-        s += 4;
++        addr += 4;
+     }
+ }
+ 
+@@ -256,63 +282,63 @@ static void vga_draw_line8d2(VGACommonState *s1, uint8_t *d,
+  *
+  * XXX: add plane_mask support (never used in standard VGA modes)
+  */
+-static void vga_draw_line8(VGACommonState *s1, uint8_t *d,
+-                           const uint8_t *s, int width)
++static void vga_draw_line8(VGACommonState *vga, uint8_t *d,
++                           uint32_t addr, int width)
+ {
+     uint32_t *palette;
+     int x;
+ 
+-    palette = s1->last_palette;
++    palette = vga->last_palette;
+     width >>= 3;
+     for(x = 0; x < width; x++) {
+-        ((uint32_t *)d)[0] = palette[s[0]];
+-        ((uint32_t *)d)[1] = palette[s[1]];
+-        ((uint32_t *)d)[2] = palette[s[2]];
+-        ((uint32_t *)d)[3] = palette[s[3]];
+-        ((uint32_t *)d)[4] = palette[s[4]];
+-        ((uint32_t *)d)[5] = palette[s[5]];
+-        ((uint32_t *)d)[6] = palette[s[6]];
+-        ((uint32_t *)d)[7] = palette[s[7]];
++        ((uint32_t *)d)[0] = palette[vga_read_byte(vga, addr + 0)];
++        ((uint32_t *)d)[1] = palette[vga_read_byte(vga, addr + 1)];
++        ((uint32_t *)d)[2] = palette[vga_read_byte(vga, addr + 2)];
++        ((uint32_t *)d)[3] = palette[vga_read_byte(vga, addr + 3)];
++        ((uint32_t *)d)[4] = palette[vga_read_byte(vga, addr + 4)];
++        ((uint32_t *)d)[5] = palette[vga_read_byte(vga, addr + 5)];
++        ((uint32_t *)d)[6] = palette[vga_read_byte(vga, addr + 6)];
++        ((uint32_t *)d)[7] = palette[vga_read_byte(vga, addr + 7)];
+         d += 32;
+-        s += 8;
++        addr += 8;
+     }
+ }
+ 
+ /*
+  * 15 bit color
+  */
+-static void vga_draw_line15_le(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line15_le(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+     int w;
+     uint32_t v, r, g, b;
+ 
+     w = width;
+     do {
+-        v = lduw_le_p((void *)s);
++        v = vga_read_word_le(vga, addr);
+         r = (v >> 7) & 0xf8;
+         g = (v >> 2) & 0xf8;
+         b = (v << 3) & 0xf8;
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 2;
++        addr += 2;
+         d += 4;
+     } while (--w != 0);
+ }
+ 
+-static void vga_draw_line15_be(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line15_be(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+     int w;
+     uint32_t v, r, g, b;
+ 
+     w = width;
+     do {
+-        v = lduw_be_p((void *)s);
++        v = vga_read_word_be(vga, addr);
+         r = (v >> 7) & 0xf8;
+         g = (v >> 2) & 0xf8;
+         b = (v << 3) & 0xf8;
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 2;
++        addr += 2;
+         d += 4;
+     } while (--w != 0);
+ }
+@@ -320,38 +346,38 @@ static void vga_draw_line15_be(VGACommonState *s1, uint8_t *d,
+ /*
+  * 16 bit color
+  */
+-static void vga_draw_line16_le(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line16_le(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+     int w;
+     uint32_t v, r, g, b;
+ 
+     w = width;
+     do {
+-        v = lduw_le_p((void *)s);
++        v = vga_read_word_le(vga, addr);
+         r = (v >> 8) & 0xf8;
+         g = (v >> 3) & 0xfc;
+         b = (v << 3) & 0xf8;
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 2;
++        addr += 2;
+         d += 4;
+     } while (--w != 0);
+ }
+ 
+-static void vga_draw_line16_be(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line16_be(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+     int w;
+     uint32_t v, r, g, b;
+ 
+     w = width;
+     do {
+-        v = lduw_be_p((void *)s);
++        v = vga_read_word_be(vga, addr);
+         r = (v >> 8) & 0xf8;
+         g = (v >> 3) & 0xfc;
+         b = (v << 3) & 0xf8;
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 2;
++        addr += 2;
+         d += 4;
+     } while (--w != 0);
+ }
+@@ -359,36 +385,36 @@ static void vga_draw_line16_be(VGACommonState *s1, uint8_t *d,
+ /*
+  * 24 bit color
+  */
+-static void vga_draw_line24_le(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line24_le(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+     int w;
+     uint32_t r, g, b;
+ 
+     w = width;
+     do {
+-        b = s[0];
+-        g = s[1];
+-        r = s[2];
++        b = vga_read_byte(vga, addr + 0);
++        g = vga_read_byte(vga, addr + 1);
++        r = vga_read_byte(vga, addr + 2);
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 3;
++        addr += 3;
+         d += 4;
+     } while (--w != 0);
+ }
+ 
+-static void vga_draw_line24_be(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line24_be(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+     int w;
+     uint32_t r, g, b;
+ 
+     w = width;
+     do {
+-        r = s[0];
+-        g = s[1];
+-        b = s[2];
++        r = vga_read_byte(vga, addr + 0);
++        g = vga_read_byte(vga, addr + 1);
++        b = vga_read_byte(vga, addr + 2);
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 3;
++        addr += 3;
+         d += 4;
+     } while (--w != 0);
+ }
+@@ -396,44 +422,36 @@ static void vga_draw_line24_be(VGACommonState *s1, uint8_t *d,
+ /*
+  * 32 bit color
+  */
+-static void vga_draw_line32_le(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line32_le(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+-#ifndef HOST_WORDS_BIGENDIAN
+-    memcpy(d, s, width * 4);
+-#else
+     int w;
+     uint32_t r, g, b;
+ 
+     w = width;
+     do {
+-        b = s[0];
+-        g = s[1];
+-        r = s[2];
++        b = vga_read_byte(vga, addr + 0);
++        g = vga_read_byte(vga, addr + 1);
++        r = vga_read_byte(vga, addr + 2);
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 4;
++        addr += 4;
+         d += 4;
+     } while (--w != 0);
+-#endif
+ }
+ 
+-static void vga_draw_line32_be(VGACommonState *s1, uint8_t *d,
+-                               const uint8_t *s, int width)
++static void vga_draw_line32_be(VGACommonState *vga, uint8_t *d,
++                               uint32_t addr, int width)
+ {
+-#ifdef HOST_WORDS_BIGENDIAN
+-    memcpy(d, s, width * 4);
+-#else
+     int w;
+     uint32_t r, g, b;
+ 
+     w = width;
+     do {
+-        r = s[1];
+-        g = s[2];
+-        b = s[3];
++        r = vga_read_byte(vga, addr + 1);
++        g = vga_read_byte(vga, addr + 2);
++        b = vga_read_byte(vga, addr + 3);
+         ((uint32_t *)d)[0] = rgb_to_pixel32(r, g, b);
+-        s += 4;
++        addr += 4;
+         d += 4;
+     } while (--w != 0);
+-#endif
+ }
+diff --git a/hw/display/vga.c b/hw/display/vga.c
+index 63421f9ee8..497c8236d0 100644
+--- a/hw/display/vga.c
++++ b/hw/display/vga.c
+@@ -1005,7 +1005,7 @@ void vga_mem_writeb(VGACommonState *s, hwaddr addr, uint32_t val)
+ }
+ 
+ typedef void vga_draw_line_func(VGACommonState *s1, uint8_t *d,
+-                                const uint8_t *s, int width);
++                                uint32_t srcaddr, int width);
+ 
+ #include "vga-helpers.h"
+ 
+@@ -1628,9 +1628,15 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
+     y1 = 0;
+ 
+     if (!full_update) {
++        ram_addr_t region_start = addr1;
++        ram_addr_t region_end = addr1 + line_offset * height;
+         vga_sync_dirty_bitmap(s);
+-        snap = memory_region_snapshot_and_clear_dirty(&s->vram, addr1,
+-                                                      line_offset * height,
++        if (s->line_compare < height) {
++            /* split screen mode */
++            region_start = 0;
++        }
++        snap = memory_region_snapshot_and_clear_dirty(&s->vram, region_start,
++                                                      region_end - region_start,
+                                                       DIRTY_MEMORY_VGA);
+     }
+ 
+@@ -1660,7 +1666,7 @@ static void vga_draw_graphic(VGACommonState *s, int full_update)
+             if (y_start < 0)
+                 y_start = y;
+             if (!(is_buffer_shared(surface))) {
+-                vga_draw_line(s, d, s->vram_ptr + addr, width);
++                vga_draw_line(s, d, addr, width);
+                 if (s->cursor_draw_line)
+                     s->cursor_draw_line(s, d, y);
+             }
+@@ -2164,6 +2170,7 @@ void vga_common_init(VGACommonState *s, Object *obj, bool global_vmstate)
+     if (!s->vbe_size) {
+         s->vbe_size = s->vram_size;
+     }
++    s->vbe_size_mask = s->vbe_size - 1;
+ 
+     s->is_vbe_vmstate = 1;
+     memory_region_init_ram_nomigrate(&s->vram, obj, "vga.vram", s->vram_size,
+diff --git a/hw/display/vga_int.h b/hw/display/vga_int.h
+index dd6c958da3..ad34a1f048 100644
+--- a/hw/display/vga_int.h
++++ b/hw/display/vga_int.h
+@@ -94,6 +94,7 @@ typedef struct VGACommonState {
+     uint32_t vram_size;
+     uint32_t vram_size_mb; /* property */
+     uint32_t vbe_size;
++    uint32_t vbe_size_mask;
+     uint32_t latch;
+     bool has_chain4_alias;
+     MemoryRegion chain4_alias;
+diff --git a/hw/i386/acpi-build.c b/hw/i386/acpi-build.c
+index 98dd424678..4d19d91e1b 100644
+--- a/hw/i386/acpi-build.c
++++ b/hw/i386/acpi-build.c
+@@ -493,36 +493,6 @@ build_madt(GArray *table_data, BIOSLinker *linker, PCMachineState *pcms)
+                  table_data->len - madt_start, 1, NULL, NULL);
+ }
+ 
+-/* Assign BSEL property to all buses.  In the future, this can be changed
+- * to only assign to buses that support hotplug.
+- */
+-static void *acpi_set_bsel(PCIBus *bus, void *opaque)
+-{
+-    unsigned *bsel_alloc = opaque;
+-    unsigned *bus_bsel;
+-
+-    if (qbus_is_hotpluggable(BUS(bus))) {
+-        bus_bsel = g_malloc(sizeof *bus_bsel);
+-
+-        *bus_bsel = (*bsel_alloc)++;
+-        object_property_add_uint32_ptr(OBJECT(bus), ACPI_PCIHP_PROP_BSEL,
+-                                       bus_bsel, &error_abort);
+-    }
+-
+-    return bsel_alloc;
+-}
+-
+-static void acpi_set_pci_info(void)
+-{
+-    PCIBus *bus = find_i440fx(); /* TODO: Q35 support */
+-    unsigned bsel_alloc = ACPI_PCIHP_BSEL_DEFAULT;
+-
+-    if (bus) {
+-        /* Scan all PCI buses. Set property to enable acpi based hotplug. */
+-        pci_for_each_bus_depth_first(bus, acpi_set_bsel, NULL, &bsel_alloc);
+-    }
+-}
+-
+ static void build_append_pcihp_notify_entry(Aml *method, int slot)
+ {
+     Aml *if_ctx;
+@@ -2888,8 +2858,6 @@ void acpi_setup(void)
+ 
+     build_state = g_malloc0(sizeof *build_state);
+ 
+-    acpi_set_pci_info();
+-
+     acpi_build_tables_init(&tables);
+     acpi_build(&tables, MACHINE(pcms));
+ 
+diff --git a/hw/i386/multiboot.c b/hw/i386/multiboot.c
+index f13e23139b..22688d376d 100644
+--- a/hw/i386/multiboot.c
++++ b/hw/i386/multiboot.c
+@@ -221,15 +221,34 @@ int load_multiboot(FWCfgState *fw_cfg,
+         uint32_t mh_header_addr = ldl_p(header+i+12);
+         uint32_t mh_load_end_addr = ldl_p(header+i+20);
+         uint32_t mh_bss_end_addr = ldl_p(header+i+24);
++
+         mh_load_addr = ldl_p(header+i+16);
++        if (mh_header_addr < mh_load_addr) {
++            fprintf(stderr, "invalid mh_load_addr address\n");
++            exit(1);
++        }
++
+         uint32_t mb_kernel_text_offset = i - (mh_header_addr - mh_load_addr);
+         uint32_t mb_load_size = 0;
+         mh_entry_addr = ldl_p(header+i+28);
+ 
+         if (mh_load_end_addr) {
++            if (mh_bss_end_addr < mh_load_addr) {
++                fprintf(stderr, "invalid mh_bss_end_addr address\n");
++                exit(1);
++            }
+             mb_kernel_size = mh_bss_end_addr - mh_load_addr;
++
++            if (mh_load_end_addr < mh_load_addr) {
++                fprintf(stderr, "invalid mh_load_end_addr address\n");
++                exit(1);
++            }
+             mb_load_size = mh_load_end_addr - mh_load_addr;
+         } else {
++            if (kernel_file_size < mb_kernel_text_offset) {
++                fprintf(stderr, "invalid kernel_file_size\n");
++                exit(1);
++            }
+             mb_kernel_size = kernel_file_size - mb_kernel_text_offset;
+             mb_load_size = mb_kernel_size;
+         }
+diff --git a/hw/ide/ahci.c b/hw/ide/ahci.c
+index 406a1b5579..ccbe091e0d 100644
+--- a/hw/ide/ahci.c
++++ b/hw/ide/ahci.c
+@@ -1495,6 +1495,7 @@ void ahci_uninit(AHCIState *s)
+ 
+             ide_exit(s);
+         }
++        object_unparent(OBJECT(&ad->port));
+     }
+ 
+     g_free(s->dev);
+diff --git a/hw/ide/microdrive.c b/hw/ide/microdrive.c
+index e3fd30e457..17917c0b30 100644
+--- a/hw/ide/microdrive.c
++++ b/hw/ide/microdrive.c
+@@ -575,12 +575,15 @@ PCMCIACardState *dscm1xxxx_init(DriveInfo *dinfo)
+ static void dscm1xxxx_class_init(ObjectClass *oc, void *data)
+ {
+     PCMCIACardClass *pcc = PCMCIA_CARD_CLASS(oc);
++    DeviceClass *dc = DEVICE_CLASS(oc);
+ 
+     pcc->cis = dscm1xxxx_cis;
+     pcc->cis_len = sizeof(dscm1xxxx_cis);
+ 
+     pcc->attach = dscm1xxxx_attach;
+     pcc->detach = dscm1xxxx_detach;
++    /* Reason: Needs to be wired-up in code, see dscm1xxxx_init() */
++    dc->user_creatable = false;
+ }
+ 
+ static const TypeInfo dscm1xxxx_type_info = {
+diff --git a/hw/intc/arm_gicv3_kvm.c b/hw/intc/arm_gicv3_kvm.c
+index 6051c77705..481fe5405a 100644
+--- a/hw/intc/arm_gicv3_kvm.c
++++ b/hw/intc/arm_gicv3_kvm.c
+@@ -293,7 +293,7 @@ static void kvm_arm_gicv3_put(GICv3State *s)
+             kvm_gicr_access(s, GICR_PROPBASER + 4, ncpu, &regh, true);
+ 
+             reg64 = c->gicr_pendbaser;
+-            if (!c->gicr_ctlr & GICR_CTLR_ENABLE_LPIS) {
++            if (!(c->gicr_ctlr & GICR_CTLR_ENABLE_LPIS)) {
+                 /* Setting PTZ is advised if LPIs are disabled, to reduce
+                  * GIC initialization time.
+                  */
+diff --git a/hw/s390x/ipl.c b/hw/s390x/ipl.c
+index cc360031ef..0d06fc12b6 100644
+--- a/hw/s390x/ipl.c
++++ b/hw/s390x/ipl.c
+@@ -442,6 +442,8 @@ static void s390_ipl_class_init(ObjectClass *klass, void *data)
+     dc->reset = s390_ipl_reset;
+     dc->vmsd = &vmstate_ipl;
+     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
++    /* Reason: Loads the ROMs and thus can only be used one time - internally */
++    dc->user_creatable = false;
+ }
+ 
+ static const TypeInfo s390_ipl_info = {
+diff --git a/hw/scsi/scsi-bus.c b/hw/scsi/scsi-bus.c
+index e364410a23..ade31c11f5 100644
+--- a/hw/scsi/scsi-bus.c
++++ b/hw/scsi/scsi-bus.c
+@@ -516,8 +516,10 @@ static size_t scsi_sense_len(SCSIRequest *req)
+ static int32_t scsi_target_send_command(SCSIRequest *req, uint8_t *buf)
+ {
+     SCSITargetReq *r = DO_UPCAST(SCSITargetReq, req, req);
++    int fixed_sense = (req->cmd.buf[1] & 1) == 0;
+ 
+-    if (req->lun != 0) {
++    if (req->lun != 0 &&
++        buf[0] != INQUIRY && buf[0] != REQUEST_SENSE) {
+         scsi_req_build_sense(req, SENSE_CODE(LUN_NOT_SUPPORTED));
+         scsi_req_complete(req, CHECK_CONDITION);
+         return 0;
+@@ -535,9 +537,28 @@ static int32_t scsi_target_send_command(SCSIRequest *req, uint8_t *buf)
+         break;
+     case REQUEST_SENSE:
+         scsi_target_alloc_buf(&r->req, scsi_sense_len(req));
+-        r->len = scsi_device_get_sense(r->req.dev, r->buf,
+-                                       MIN(req->cmd.xfer, r->buf_len),
+-                                       (req->cmd.buf[1] & 1) == 0);
++        if (req->lun != 0) {
++            const struct SCSISense sense = SENSE_CODE(LUN_NOT_SUPPORTED);
++
++            if (fixed_sense) {
++                r->buf[0] = 0x70;
++                r->buf[2] = sense.key;
++                r->buf[10] = 10;
++                r->buf[12] = sense.asc;
++                r->buf[13] = sense.ascq;
++                r->len = MIN(req->cmd.xfer, SCSI_SENSE_LEN);
++            } else {
++                r->buf[0] = 0x72;
++                r->buf[1] = sense.key;
++                r->buf[2] = sense.asc;
++                r->buf[3] = sense.ascq;
++                r->len = 8;
++            }
++        } else {
++            r->len = scsi_device_get_sense(r->req.dev, r->buf,
++                                           MIN(req->cmd.xfer, r->buf_len),
++                                           fixed_sense);
++        }
+         if (r->req.dev->sense_is_ua) {
+             scsi_device_unit_attention_reported(req->dev);
+             r->req.dev->sense_len = 0;
+diff --git a/hw/virtio/vhost.c b/hw/virtio/vhost.c
+index 6eddb099b0..b737ca915b 100644
+--- a/hw/virtio/vhost.c
++++ b/hw/virtio/vhost.c
+@@ -1356,6 +1356,10 @@ void vhost_dev_cleanup(struct vhost_dev *hdev)
+     if (hdev->mem) {
+         /* those are only safe after successful init */
+         memory_listener_unregister(&hdev->memory_listener);
++        for (i = 0; i < hdev->n_mem_sections; ++i) {
++            MemoryRegionSection *section = &hdev->mem_sections[i];
++            memory_region_unref(section->mr);
++        }
+         QLIST_REMOVE(hdev, entry);
+     }
+     if (hdev->migration_blocker) {
+diff --git a/hw/watchdog/wdt_diag288.c b/hw/watchdog/wdt_diag288.c
+index a7b64e2c40..47f289216a 100644
+--- a/hw/watchdog/wdt_diag288.c
++++ b/hw/watchdog/wdt_diag288.c
+@@ -121,6 +121,7 @@ static void wdt_diag288_class_init(ObjectClass *klass, void *data)
+     dc->realize = wdt_diag288_realize;
+     dc->unrealize = wdt_diag288_unrealize;
+     dc->reset = wdt_diag288_reset;
++    dc->hotpluggable = false;
+     set_bit(DEVICE_CATEGORY_MISC, dc->categories);
+     dc->vmsd = &vmstate_diag288;
+     diag288->handle_timer = wdt_diag288_handle_timer;
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 6855b94bbf..f4ff372d41 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -189,13 +189,13 @@ extern int daemon(int, int);
+ 
+ /* Round number up to multiple. Requires that d be a power of 2 (see
+  * QEMU_ALIGN_UP for a safer but slower version on arbitrary
+- * numbers) */
++ * numbers); works even if d is a smaller type than n.  */
+ #ifndef ROUND_UP
+-#define ROUND_UP(n,d) (((n) + (d) - 1) & -(d))
++#define ROUND_UP(n, d) (((n) + (d) - 1) & -(0 ? (n) : (d)))
+ #endif
+ 
+ #ifndef DIV_ROUND_UP
+-#define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
++#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+ #endif
+ 
+ /*
+diff --git a/migration/block.c b/migration/block.c
+index 9171f60028..606ad4db92 100644
+--- a/migration/block.c
++++ b/migration/block.c
+@@ -161,6 +161,11 @@ int blk_mig_active(void)
+     return !QSIMPLEQ_EMPTY(&block_mig_state.bmds_list);
+ }
+ 
++int blk_mig_bulk_active(void)
++{
++    return blk_mig_active() && !block_mig_state.bulk_completed;
++}
++
+ uint64_t blk_mig_bytes_transferred(void)
+ {
+     BlkMigDevState *bmds;
+diff --git a/migration/block.h b/migration/block.h
+index 22ebe94259..3178609dbd 100644
+--- a/migration/block.h
++++ b/migration/block.h
+@@ -16,6 +16,7 @@
+ 
+ #ifdef CONFIG_LIVE_BLOCK_MIGRATION
+ int blk_mig_active(void);
++int blk_mig_bulk_active(void);
+ uint64_t blk_mig_bytes_transferred(void);
+ uint64_t blk_mig_bytes_remaining(void);
+ uint64_t blk_mig_bytes_total(void);
+@@ -25,6 +26,12 @@ static inline int blk_mig_active(void)
+ {
+     return false;
+ }
++
++static inline int blk_mig_bulk_active(void)
++{
++    return false;
++}
++
+ static inline uint64_t blk_mig_bytes_transferred(void)
+ {
+     return 0;
+diff --git a/migration/ram.c b/migration/ram.c
+index e18b3e2d4f..576e1002ea 100644
+--- a/migration/ram.c
++++ b/migration/ram.c
+@@ -46,6 +46,7 @@
+ #include "exec/ram_addr.h"
+ #include "qemu/rcu_queue.h"
+ #include "migration/colo.h"
++#include "migration/block.h"
+ 
+ /***********************************************************/
+ /* ram save/restore */
+@@ -623,7 +624,10 @@ static void migration_bitmap_sync(RAMState *rs)
+             / (end_time - rs->time_last_bitmap_sync);
+         bytes_xfer_now = ram_counters.transferred;
+ 
+-        if (migrate_auto_converge()) {
++        /* During block migration the auto-converge logic incorrectly detects
++         * that ram migration makes no progress. Avoid this by disabling the
++         * throttling logic during the bulk phase of block migration. */
++        if (migrate_auto_converge() && !blk_mig_bulk_active()) {
+             /* The following detection logic can be refined later. For now:
+                Check to see if the dirtied bytes is 50% more than the approx.
+                amount of bytes that just got transferred since the last time we
+diff --git a/pc-bios/s390-ccw/cio.h b/pc-bios/s390-ccw/cio.h
+index f5b4549ea3..55eaeee4b6 100644
+--- a/pc-bios/s390-ccw/cio.h
++++ b/pc-bios/s390-ccw/cio.h
+@@ -133,7 +133,7 @@ struct ccw1 {
+     __u8 flags;
+     __u16 count;
+     __u32 cda;
+-} __attribute__ ((packed));
++} __attribute__ ((packed, aligned(8)));
+ 
+ #define CCW_FLAG_DC              0x80
+ #define CCW_FLAG_CC              0x40
+diff --git a/scripts/device-crash-test b/scripts/device-crash-test
+index e77b693eb2..81d65b9617 100755
+--- a/scripts/device-crash-test
++++ b/scripts/device-crash-test
+@@ -187,7 +187,6 @@ ERROR_WHITELIST = [
+     {'log':r"Device [\w.,-]+ can not be dynamically instantiated"},
+     {'log':r"Platform Bus: Can not fit MMIO region of size "},
+     # other more specific errors we will ignore:
+-    {'device':'allwinner-a10', 'log':"Unsupported NIC model:"},
+     {'device':'.*-spapr-cpu-core', 'log':r"CPU core type should be"},
+     {'log':r"MSI(-X)? is not supported by interrupt controller"},
+     {'log':r"pxb-pcie? devices cannot reside on a PCIe? bus"},
+diff --git a/slirp/socket.c b/slirp/socket.c
+index ecec0295a9..cb7b5b608d 100644
+--- a/slirp/socket.c
++++ b/slirp/socket.c
+@@ -60,29 +60,36 @@ socreate(Slirp *slirp)
+ }
+ 
+ /*
++ * Remove references to so from the given message queue.
++ */
++static void
++soqfree(struct socket *so, struct quehead *qh)
++{
++    struct mbuf *ifq;
++
++    for (ifq = (struct mbuf *) qh->qh_link;
++             (struct quehead *) ifq != qh;
++             ifq = ifq->ifq_next) {
++        if (ifq->ifq_so == so) {
++            struct mbuf *ifm;
++            ifq->ifq_so = NULL;
++            for (ifm = ifq->ifs_next; ifm != ifq; ifm = ifm->ifs_next) {
++                ifm->ifq_so = NULL;
++            }
++        }
++    }
++}
++
++/*
+  * remque and free a socket, clobber cache
+  */
+ void
+ sofree(struct socket *so)
+ {
+   Slirp *slirp = so->slirp;
+-  struct mbuf *ifm;
+ 
+-  for (ifm = (struct mbuf *) slirp->if_fastq.qh_link;
+-       (struct quehead *) ifm != &slirp->if_fastq;
+-       ifm = ifm->ifq_next) {
+-    if (ifm->ifq_so == so) {
+-      ifm->ifq_so = NULL;
+-    }
+-  }
+-
+-  for (ifm = (struct mbuf *) slirp->if_batchq.qh_link;
+-       (struct quehead *) ifm != &slirp->if_batchq;
+-       ifm = ifm->ifq_next) {
+-    if (ifm->ifq_so == so) {
+-      ifm->ifq_so = NULL;
+-    }
+-  }
++  soqfree(so, &slirp->if_fastq);
++  soqfree(so, &slirp->if_batchq);
+ 
+   if (so->so_emu==EMU_RSH && so->extra) {
+ 	sofree(so->extra);
+diff --git a/stubs/Makefile.objs b/stubs/Makefile.objs
+index e69c217aff..4a33495911 100644
+--- a/stubs/Makefile.objs
++++ b/stubs/Makefile.objs
+@@ -40,3 +40,4 @@ stub-obj-y += pc_madt_cpu_entry.o
+ stub-obj-y += vmgenid.o
+ stub-obj-y += xen-common.o
+ stub-obj-y += xen-hvm.o
++stub-obj-y += pci-host-piix.o
+diff --git a/stubs/pci-host-piix.c b/stubs/pci-host-piix.c
+new file mode 100644
+index 0000000000..6ed81b1f21
+--- /dev/null
++++ b/stubs/pci-host-piix.c
+@@ -0,0 +1,6 @@
++#include "qemu/osdep.h"
++#include "hw/i386/pc.h"
++PCIBus *find_i440fx(void)
++{
++    return NULL;
++}
+diff --git a/target/arm/translate-a64.c b/target/arm/translate-a64.c
+index 2200e25be0..cb44632d16 100644
+--- a/target/arm/translate-a64.c
++++ b/target/arm/translate-a64.c
+@@ -2217,29 +2217,34 @@ static void disas_ldst_pair(DisasContext *s, uint32_t insn)
+         } else {
+             do_fp_st(s, rt, tcg_addr, size);
+         }
+-    } else {
+-        TCGv_i64 tcg_rt = cpu_reg(s, rt);
+-        if (is_load) {
+-            do_gpr_ld(s, tcg_rt, tcg_addr, size, is_signed, false,
+-                      false, 0, false, false);
+-        } else {
+-            do_gpr_st(s, tcg_rt, tcg_addr, size,
+-                      false, 0, false, false);
+-        }
+-    }
+-    tcg_gen_addi_i64(tcg_addr, tcg_addr, 1 << size);
+-    if (is_vector) {
++        tcg_gen_addi_i64(tcg_addr, tcg_addr, 1 << size);
+         if (is_load) {
+             do_fp_ld(s, rt2, tcg_addr, size);
+         } else {
+             do_fp_st(s, rt2, tcg_addr, size);
+         }
+     } else {
++        TCGv_i64 tcg_rt = cpu_reg(s, rt);
+         TCGv_i64 tcg_rt2 = cpu_reg(s, rt2);
++
+         if (is_load) {
++            TCGv_i64 tmp = tcg_temp_new_i64();
++
++            /* Do not modify tcg_rt before recognizing any exception
++             * from the second load.
++             */
++            do_gpr_ld(s, tmp, tcg_addr, size, is_signed, false,
++                      false, 0, false, false);
++            tcg_gen_addi_i64(tcg_addr, tcg_addr, 1 << size);
+             do_gpr_ld(s, tcg_rt2, tcg_addr, size, is_signed, false,
+                       false, 0, false, false);
++
++            tcg_gen_mov_i64(tcg_rt, tmp);
++            tcg_temp_free_i64(tmp);
+         } else {
++            do_gpr_st(s, tcg_rt, tcg_addr, size,
++                      false, 0, false, false);
++            tcg_gen_addi_i64(tcg_addr, tcg_addr, 1 << size);
+             do_gpr_st(s, tcg_rt2, tcg_addr, size,
+                       false, 0, false, false);
+         }
+diff --git a/target/s390x/gen-features.c b/target/s390x/gen-features.c
+index c8dc104bc1..68e6c31b4b 100644
+--- a/target/s390x/gen-features.c
++++ b/target/s390x/gen-features.c
+@@ -527,7 +527,6 @@ static uint16_t default_GEN13_GA1[] = {
+ #define default_GEN13_GA2 EmptyFeat
+ 
+ static uint16_t default_GEN14_GA1[] = {
+-    S390_FEAT_ADAPTER_INT_SUPPRESSION,
+     S390_FEAT_INSTRUCTION_EXEC_PROT,
+     S390_FEAT_GUARDED_STORAGE,
+     S390_FEAT_VECTOR_PACKED_DECIMAL,
+diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
+index c4c5791d27..eb0dbb338b 100644
+--- a/target/s390x/kvm.c
++++ b/target/s390x/kvm.c
+@@ -308,8 +308,13 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
+         }
+     }
+ 
+-    /* Try to enable AIS facility */
+-    kvm_vm_enable_cap(s, KVM_CAP_S390_AIS, 0);
++    /*
++     * The migration interface for ais was introduced with kernel 4.13
++     * but the capability itself had been active since 4.12. As migration
++     * support is considered necessary let's disable ais in the 2.10
++     * machine.
++     */
++    /* kvm_vm_enable_cap(s, KVM_CAP_S390_AIS, 0); */
+ 
+     qemu_mutex_init(&qemu_sigp_mutex);
+ 
+diff --git a/tests/vhost-user-bridge.c b/tests/vhost-user-bridge.c
+index 1e5b5ca3da..f922cc75ae 100644
+--- a/tests/vhost-user-bridge.c
++++ b/tests/vhost-user-bridge.c
+@@ -466,11 +466,18 @@ vubr_panic(VuDev *dev, const char *msg)
+     vubr->quit = 1;
+ }
+ 
++static bool
++vubr_queue_is_processed_in_order(VuDev *dev, int qidx)
++{
++    return true;
++}
++
+ static const VuDevIface vuiface = {
+     .get_features = vubr_get_features,
+     .set_features = vubr_set_features,
+     .process_msg = vubr_process_msg,
+     .queue_set_started = vubr_queue_set_started,
++    .queue_is_processed_in_order = vubr_queue_is_processed_in_order,
+ };
+ 
+ static void
+diff --git a/ui/console.c b/ui/console.c
+index d2d3534c49..f0292d7820 100644
+--- a/ui/console.c
++++ b/ui/console.c
+@@ -1540,7 +1540,7 @@ void dpy_gfx_replace_surface(QemuConsole *con,
+     DisplaySurface *old_surface = con->surface;
+     DisplayChangeListener *dcl;
+ 
+-    assert(old_surface != surface);
++    assert(old_surface != surface || surface == NULL);
+ 
+     con->surface = surface;
+     QLIST_FOREACH(dcl, &s->listeners, next) {
+diff --git a/vl.c b/vl.c
+index 8e247cc2a2..d63269332f 100644
+--- a/vl.c
++++ b/vl.c
+@@ -3557,7 +3557,7 @@ int main(int argc, char **argv, char **envp)
+             case QEMU_OPTION_virtfs: {
+                 QemuOpts *fsdev;
+                 QemuOpts *device;
+-                const char *writeout, *sock_fd, *socket;
++                const char *writeout, *sock_fd, *socket, *path, *security_model;
+ 
+                 olist = qemu_find_opts("virtfs");
+                 if (!olist) {
+@@ -3596,11 +3596,15 @@ int main(int argc, char **argv, char **envp)
+                 }
+                 qemu_opt_set(fsdev, "fsdriver",
+                              qemu_opt_get(opts, "fsdriver"), &error_abort);
+-                qemu_opt_set(fsdev, "path", qemu_opt_get(opts, "path"),
+-                             &error_abort);
+-                qemu_opt_set(fsdev, "security_model",
+-                             qemu_opt_get(opts, "security_model"),
+-                             &error_abort);
++                path = qemu_opt_get(opts, "path");
++                if (path) {
++                    qemu_opt_set(fsdev, "path", path, &error_abort);
++                }
++                security_model = qemu_opt_get(opts, "security_model");
++                if (security_model) {
++                    qemu_opt_set(fsdev, "security_model", security_model,
++                                 &error_abort);
++                }
+                 socket = qemu_opt_get(opts, "socket");
+                 if (socket) {
+                     qemu_opt_set(fsdev, "socket", socket, &error_abort);
