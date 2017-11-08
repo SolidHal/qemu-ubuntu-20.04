@@ -271,6 +271,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qe
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
 # aarch64 arm uses bootroms
  ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~),
+:ubuntu: ipxe-qemu-256k-compat-efi-roms,
  qemu-efi-aarch64, qemu-efi-arm
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
 Provides: ${sysprovides:arm}
@@ -315,6 +316,7 @@ Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
+:ubuntu: ipxe-qemu-256k-compat-efi-roms,
 # ppc targets use vgabios-stdvga and bootroms
  seabios, ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
 Provides: ${sysprovides:ppc}
@@ -357,6 +359,7 @@ Package: qemu-system-x86
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el riscv64 s390x sparc sparc64 x32
 Multi-Arch: foreign
 Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
+:ubuntu: ipxe-qemu-256k-compat-efi-roms,
  seabios (>= 1.10.2-1~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
  ovmf,
