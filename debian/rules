@@ -43,7 +43,6 @@ common_configure_opts = \
 	--localstatedir=/var \
 	--disable-blobs \
 	--disable-strip \
-	--with-system-pixman \
 	--interp-prefix=/etc/qemu-binfmt/%M \
 	--localstatedir=/var \
 

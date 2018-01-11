@@ -1,3 +1,37 @@
+qemu (1:2.11+dfsg-1) unstable; urgency=medium
+
+  [ Michael Tokarev ]
+  * update to new upstream (2.11) release
+    Closes: #883625, CVE-2017-17381
+    Closes: #880832, CVE-2017-15289
+    Closes: #880836, CVE-2017-15268
+    Closes: #883399, CVE-2017-15119
+    Closes: #883406, CVE-2017-15118
+  * update to new upstream, remove old patches, refresh debian patches
+  * disable sdl audio driver (pulse or oss should work fine)
+  * do not build-depend on libx11-dev (libsdl2-dev already depends on it)
+  * move libpulse-dev build-dep to a better place
+  * clean up d/control from various old conflicts/replaces/provides
+  * remove --with-system-pixman, not used anymore
+  * remove ubuntu-specific qemu-system-aarch64 transitional package (trusty)
+  * remove ubuntu-specific mentions of old qemu-kvm-spice package (precise)
+  * remove old comment about /etc/kvm from qemu-kvm description
+  * add Suggests: openbios-sparc for qemu-system-sparc on ubuntu
+    (similar to what is done for qemu-system-ppc)
+  * update get-orig-source.sh with new blobs/submodules
+  * update debian/watch a bit
+
+  [ Aurelien Jarno ]
+  * debian/control-in: build qemu-system and qemu-user on mips64 and
+    mips64el.  Closes: #880485.
+
+  [ Christian Ehrhardt ]
+  * ppc64[le]: provide symlink matching arch name
+  * d/control-in: Enable seccomp for ppc64el,
+    this bumps minimum libseccomp version
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 11 Jan 2018 14:42:12 +0300
+
 qemu (1:2.10.0+dfsg-2) unstable; urgency=medium
 
   * update to upstream 2.10.1 point release

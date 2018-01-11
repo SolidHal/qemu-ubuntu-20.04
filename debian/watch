@@ -1,4 +1,7 @@
-version=3
+version=4
 
-opts=dversionmangle=s/\+dfsg.*$//g,uversionmangle=s/-rc/~rc/g \
+opts=\
+dversionmangle=s/\+dfsg.*$//,\
+repacksuffix=+dfsg,\
+compression=xz \
   http://wiki.qemu.org/Download .*/qemu-(.*)\.tar\.(?:gz|bz2|xz)

@@ -3,7 +3,7 @@
 set -e
 
 base=http://wiki.qemu-project.org/download
-comp=.bz2
+comp=.xz
 
 dir() {
   if [ -d $1 ]; then
@@ -29,13 +29,15 @@ rm -vf pc-bios/efi-*.rom	# roms/ipxe/
 rm -vf pc-bios/bamboo.dtb	# pc-bios/bamboo.dts
 rm -vf pc-bios/openbios-*	# roms/openbios/
 rm -vf pc-bios/palcode-clipper	# roms/qemu-palcode/ alpha palcode
-rm -vf pc-bios/s390-zipl.rom	# s390-tools+addon, git://repo.or.cz/s390-tools.git, debian #684909
 rm -vf pc-bios/s390-ccw.img	# pc-bios/s390-ccw/
-rm -vf pc-bios/kvmvapic.bin
+rm -vf pc-bios/s390-netboot.img	# pc-bios/s390-ccw/
+rm -vf pc-bios/kvmvapic.bin	# pc-bios/optionrom/
 rm -vf pc-bios/linuxboot.bin
+rm -vf pc-bios/linuxboot_dma.bin
 rm -vf pc-bios/multiboot.bin
-rm -vf pc-bios/u-boot.e500
-rm -vf pc-bios/QEMU,*.bin
+rm -vf pc-bios/skiboot.lid	# roms/skiboot/
+rm -vf pc-bios/u-boot.e500	# roms/u-boot/
+rm -vf pc-bios/QEMU,*.bin	# roms/openbios/
 
 # remove other software (git submodules)
 dir roms/ipxe
@@ -45,11 +47,15 @@ dir roms/qemu-palcode
 dir roms/seabios
 dir roms/sgabios
 dir roms/SLOF
+dir roms/skiboot
 dir roms/vgabios
 dir roms/u-boot
+rm -vf roms/u-boot.tar.*
+dir roms/QemuMacDrivers
 
 dir dtc
-dir pixman
+#dir pixman
+dir capstone
 
 find scripts -name '*.pyc' -print -delete
 

@@ -9,7 +9,7 @@ and it will still work.
 
 --- a/os-posix.c
 +++ b/os-posix.c
-@@ -75,6 +75,7 @@ void os_setup_signal_handling(void)
+@@ -72,6 +72,7 @@ void os_setup_signal_handling(void)
      sigaction(SIGTERM, &act, NULL);
  }
  
@@ -17,7 +17,7 @@ and it will still work.
  /* Find a likely location for support files using the location of the binary.
     For installed binaries this will be "$bindir/../share/qemu".  When
     running from the build tree this will be "$bindir/../pc-bios".  */
-@@ -109,6 +110,7 @@ char *os_find_datadir(void)
+@@ -107,6 +108,7 @@ char *os_find_datadir(void)
  }
  #undef SHARE_SUFFIX
  #undef BUILD_SUFFIX
@@ -27,18 +27,12 @@ and it will still work.
  {
 --- a/vl.c
 +++ b/vl.c
-@@ -4115,14 +4115,6 @@ int main(int argc, char **argv, char **e
-         qemu_set_log(0);
+@@ -4314,7 +4314,7 @@ int main(int argc, char **argv, char **e
      }
  
--    /* If no data_dir is specified then try to find it relative to the
--       executable path.  */
--    if (data_dir_idx < ARRAY_SIZE(data_dir)) {
--        data_dir[data_dir_idx] = os_find_datadir();
--        if (data_dir[data_dir_idx] != NULL) {
--            data_dir_idx++;
--        }
--    }
-     /* If all else fails use the install path specified when building. */
-     if (data_dir_idx < ARRAY_SIZE(data_dir)) {
-         data_dir[data_dir_idx++] = CONFIG_QEMU_DATADIR;
+     /* try to find datadir relative to the executable path */
+-    qemu_add_data_dir(os_find_datadir());
++    /* qemu_add_data_dir(os_find_datadir()); */
+ 
+     /* add the datadir specified when building */
+     qemu_add_data_dir(CONFIG_QEMU_DATADIR);

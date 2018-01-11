@@ -1,5 +1,2 @@
 use-fixed-data-path.patch
 use-data-path.patch
-qemu-2.10.1.diff
-9pfs-use-g_malloc0-to-allocate-space-for-xattr-CVE-2017-15038.patch
-remove-trailing-whitespace-from-qemu-options.hx.patch
