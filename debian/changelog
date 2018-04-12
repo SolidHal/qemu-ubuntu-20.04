@@ -1,3 +1,38 @@
+qemu (1:2.12~rc3+dfsg-1) unstable; urgency=medium
+
+  * new upstream 2.12 release (Release Candidate 3)
+    Closes: #892041, CVE-2018-7550
+    Closes: #884806, CVE-2017-15124
+    Closes: #887392, CVE-2018-5683
+    Closes: #892497, CVE-2018-7858
+    Closes: #882136, CVE-2017-16845
+    Closes: #886532, #892947, #891375, #887892, #860822, #851694
+  * refresh local debian patches
+  * d/rules: enable new system (hppa riscv32 riscv64) and
+    user (aarch64_be xtensa xtensaeb riskc32 riscv64) targets
+    Closes: #893767
+  * fix d/source/options to match current reality
+  * drop use-data-path.patch, upstream now has --firmwarepath= option
+  * enable capstone disassembler library support
+    (build-depend on libcapstone-dev)
+  * debian/extract-config-opts: use tab for option / condition separator
+  * qemu-block-extra: install only block modules
+  * make `qemu' metapackage to be dummy, to remove it in a future release
+  * do not suggest kmod, it is pointless
+  * install /usr/bin/qemu-pr-helper to qemu-utils package
+  * switch from sdl2 to gtk ui
+    Closes: #839695, #886671, #879536, #879534, #879532, #879193, #894852
+  * qemu-system-ppc: forgotten qemu-system-ppc64le.1 link
+  * mention closing of #880582 by 2.11
+  * package will built against spice 0.14, so Closes: #854959
+  * check sfdisk presence in qemu-make-debian-root (Closes: #872098)
+  * check mke2fs presence in qemu-make-debian-root (Closes: #887207)
+  * debian/binfmt-update-in: include forgotten hppa (Closes: #891261)
+  * debian/TODO: removed some old ToDo items
+  * use binfmt-support --fix-binary option (Closes: #868030)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 12 Apr 2018 19:04:03 +0300
+
 qemu (1:2.11+dfsg-1) unstable; urgency=medium
 
   [ Michael Tokarev ]
@@ -7,6 +42,7 @@ qemu (1:2.11+dfsg-1) unstable; urgency=medium
     Closes: #880836, CVE-2017-15268
     Closes: #883399, CVE-2017-15119
     Closes: #883406, CVE-2017-15118
+    Closes: #880582
   * update to new upstream, remove old patches, refresh debian patches
   * disable sdl audio driver (pulse or oss should work fine)
   * do not build-depend on libx11-dev (libsdl2-dev already depends on it)

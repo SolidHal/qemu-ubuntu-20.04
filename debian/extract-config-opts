@@ -5,7 +5,7 @@
 # Usage:  ./debian/extract-config-opts $OS-$ARCH debian/control
 
 sed -n 's/^# \?--/--/p' $2 | \
-while read f p x; do
+while IFS='	' read f p x; do
   [ -n "$p" ] || p="*"
   eval "case \$1 in ($p) echo \$f;; esac"
 done

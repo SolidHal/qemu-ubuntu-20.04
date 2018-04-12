@@ -27,12 +27,16 @@ and it will still work.
  {
 --- a/vl.c
 +++ b/vl.c
-@@ -4314,7 +4314,7 @@ int main(int argc, char **argv, char **e
-     }
+@@ -4171,9 +4171,9 @@ int main(int argc, char **argv, char **e
+     g_strfreev(dirs);
  
      /* try to find datadir relative to the executable path */
--    qemu_add_data_dir(os_find_datadir());
-+    /* qemu_add_data_dir(os_find_datadir()); */
+-    dir = os_find_datadir();
+-    qemu_add_data_dir(dir);
+-    g_free(dir);
++//    dir = os_find_datadir();
++//    qemu_add_data_dir(dir);
++//    g_free(dir);
  
      /* add the datadir specified when building */
      qemu_add_data_dir(CONFIG_QEMU_DATADIR);

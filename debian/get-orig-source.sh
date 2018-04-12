@@ -18,7 +18,7 @@ clean_dfsg() {
 
 rm -vf pc-bios/bios.bin		# roms/seabios/
 rm -vf pc-bios/bios-256k.bin	# roms/seabios/
-rm -vf pc-bios/*-dsdt.aml	# roms/seabios/
+rm -vf pc-bios/hppa-firmware.img	# roms/seabios-hppa/
 rm -vf pc-bios/ppc_rom.bin	# comes from openhackware
 rm -vf pc-bios/sgabios.bin	# roms/sgabios/
 rm -vf pc-bios/slof.bin		# roms/SLOF/
@@ -27,6 +27,7 @@ rm -vf pc-bios/vgabios*.bin	# roms/vgabios/
 rm -vf pc-bios/pxe-*.rom	# roms/ipxe/
 rm -vf pc-bios/efi-*.rom	# roms/ipxe/
 rm -vf pc-bios/bamboo.dtb	# pc-bios/bamboo.dts
+rm -vf pc-bios/canyonlands.dtb
 rm -vf pc-bios/openbios-*	# roms/openbios/
 rm -vf pc-bios/palcode-clipper	# roms/qemu-palcode/ alpha palcode
 rm -vf pc-bios/s390-ccw.img	# pc-bios/s390-ccw/
@@ -37,7 +38,9 @@ rm -vf pc-bios/linuxboot_dma.bin
 rm -vf pc-bios/multiboot.bin
 rm -vf pc-bios/skiboot.lid	# roms/skiboot/
 rm -vf pc-bios/u-boot.e500	# roms/u-boot/
+rm -vf pc-bios/u-boot-sam460-20100605.bin	# roms/u-boot-sam460ex/
 rm -vf pc-bios/QEMU,*.bin	# roms/openbios/
+rm -vf pc-bios/qemu_vga.ndrv	# roms/QemuMacDrivers/
 
 # remove other software (git submodules)
 dir roms/ipxe
@@ -45,16 +48,17 @@ dir roms/openbios
 dir roms/openhackware
 dir roms/qemu-palcode
 dir roms/seabios
+dir roms/seabios-hppa
 dir roms/sgabios
 dir roms/SLOF
 dir roms/skiboot
 dir roms/vgabios
 dir roms/u-boot
 rm -vf roms/u-boot.tar.*
+dir roms/u-boot-sam460ex
 dir roms/QemuMacDrivers
 
 dir dtc
-#dir pixman
 dir capstone
 
 find scripts -name '*.pyc' -print -delete

@@ -3,3 +3,4 @@ usr/share/openbios/openbios-ppc usr/share/qemu/openbios-ppc
 usr/share/slof/slof.bin usr/share/qemu/slof.bin
 usr/share/slof/spapr-rtas.bin usr/share/qemu/spapr-rtas.bin
 usr/bin/qemu-system-ppc64 usr/bin/qemu-system-ppc64le
+usr/share/man/man1/qemu-system-ppc64.1 usr/share/man/man1/qemu-system-ppc64le.1

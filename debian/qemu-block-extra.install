@@ -1,1 +1,1 @@
-usr/lib/*/qemu/*.so
+usr/lib/*/qemu/block-*.so
