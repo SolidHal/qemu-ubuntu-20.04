@@ -1,3 +1,14 @@
+qemu (1:2.12~rc3+dfsg-2) unstable; urgency=medium
+
+  * fix typo in previous changelog entry
+  * add riscv32/riscv64 to qemu-debootstrap
+  * install gtk message catalogs into qemu-system-common (Closes: #878130)
+    (and install-gtk-message-catalogs-if-CONFIG_GTK.patch)
+  * tcg_mips-handle-large-offsets-from-target-env-to-tlb_table.patch:
+    fix FTBFS on mips targets
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 14 Apr 2018 17:01:24 +0300
+
 qemu (1:2.12~rc3+dfsg-1) unstable; urgency=medium
 
   * new upstream 2.12 release (Release Candidate 3)
@@ -9,7 +20,7 @@ qemu (1:2.12~rc3+dfsg-1) unstable; urgency=medium
     Closes: #886532, #892947, #891375, #887892, #860822, #851694
   * refresh local debian patches
   * d/rules: enable new system (hppa riscv32 riscv64) and
-    user (aarch64_be xtensa xtensaeb riskc32 riscv64) targets
+    user (aarch64_be xtensa xtensaeb riscv32 riscv64) targets
     Closes: #893767
   * fix d/source/options to match current reality
   * drop use-data-path.patch, upstream now has --firmwarepath= option

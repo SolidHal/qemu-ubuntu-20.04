@@ -1,0 +1,25 @@
+From: Michael Tokarev <mjt@tls.msk.ru>
+Date: Sat, 14 Apr 2018 17:26:31 +0300
+Subject:Makefile: install gtk message catalogs if CONFIG_GTK=y too, not only =m
+
+Signed-off-by: Michael Tokarev <mjt@tls.msk.ru>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 727ef118f3..8644c2e918 100644
+--- a/Makefile
++++ b/Makefile
+@@ -856,7 +856,7 @@ ifneq ($(BLOBS),)
+ 		$(INSTALL_DATA) $(SRC_PATH)/pc-bios/$$x "$(DESTDIR)$(qemu_datadir)"; \
+ 	done
+ endif
+-ifeq ($(CONFIG_GTK),m)
++ifneq ($(filter $(CONFIG_GTK),y m),)
+ 	$(MAKE) -C po $@
+ endif
+ 	$(INSTALL_DIR) "$(DESTDIR)$(qemu_datadir)/keymaps"
+-- 
+2.11.0
+
