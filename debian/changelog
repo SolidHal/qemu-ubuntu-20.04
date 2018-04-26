@@ -1,3 +1,15 @@
+qemu (1:2.12+dfsg-1) unstable; urgency=medium
+
+  * new upstream release
+  * get-orig-source: do not remove roms/* directories,
+    since we will use these to build the roms
+  * disable building on hppa arch (not supported upstream since ong time)
+  * Use https://download.qemu.org to download new tarballs (Closes: #895067)
+  * add Breaks: binfmt-support (<<2.1.7) so that --fix-binary works;
+    also fix qemu-user-static description (Closes: #896478)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 26 Apr 2018 20:29:36 +0300
+
 qemu (1:2.12~rc3+dfsg-2) unstable; urgency=medium
 
   * fix typo in previous changelog entry
