@@ -27,16 +27,24 @@ and it will still work.
  {
 --- a/vl.c
 +++ b/vl.c
-@@ -4171,9 +4171,9 @@ int main(int argc, char **argv, char **e
+@@ -3051,7 +3051,7 @@ int main(int argc, char **argv, char **e
+     Error *main_loop_err = NULL;
+     Error *err = NULL;
+     bool list_data_dirs = false;
+-    char *dir, **dirs;
++    char **dirs;
+     typedef struct BlockdevOptions_queue {
+         BlockdevOptions *bdo;
+         Location loc;
+@@ -4170,11 +4170,6 @@ int main(int argc, char **argv, char **e
+     }
      g_strfreev(dirs);
  
-     /* try to find datadir relative to the executable path */
+-    /* try to find datadir relative to the executable path */
 -    dir = os_find_datadir();
 -    qemu_add_data_dir(dir);
 -    g_free(dir);
-+//    dir = os_find_datadir();
-+//    qemu_add_data_dir(dir);
-+//    g_free(dir);
- 
+-
      /* add the datadir specified when building */
      qemu_add_data_dir(CONFIG_QEMU_DATADIR);
+ 

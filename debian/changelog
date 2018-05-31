@@ -1,3 +1,22 @@
+qemu (1:2.12+dfsg-2) unstable; urgency=medium
+
+  * create new package, qemu-system-gui,
+    and package GTK module and audio modules in there
+    Closes: #850584
+  * add an item about qemu-system-gui to debian/qemu-system-common.NEWS
+  * qemu-system-*: require more recent qemu-system-common
+  * switch all builds to be in a single b/ subdir
+  * d/get-orig-source: remove .oco (object) files from roms/SLOF/
+  * refresh patches/use-fixed-data-path.patch: remove now-unused local var too
+  * ccid-card-passthru-fix-regression-in-realize.patch (Closes: #900006)
+  * debian/control-in: enable seccomp on linux-any (Closes: #900055)
+  * create new arch-indep package qemu-system-data, for data and firmware files.
+    Move common data files from qemu-system-common to it, for now
+  * fix sata/ahci stalls (ahci-fix-PxCI-register-race.patch)
+  * tcg-i386-Fix-dup_vec-in-non-AVX2-codepath.patch (Closes: #900372)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 31 May 2018 13:22:55 +0300
+
 qemu (1:2.12+dfsg-1) unstable; urgency=medium
 
   * new upstream release

@@ -1,3 +1,19 @@
+qemu (1:2.12+dfsg-2) unstable; urgency=medium
+
+   Since qemu 2.12, [G]UI display frontends can be built as modules.
+   Debian creates new package, qemu-system-gui, which currently
+   includes GTK3 support. This also switches display from SDL to GTK.
+   Qemu-system-* packages recommends installing qemu-system-gui, so
+   by default on upgrade you will have new package installed, and
+   local GUI will continue to work. However, if you choose to not
+   install recommended packages, you might consider installing
+   qemu-system-gui package separately, if you need local GUI support
+   as well. Without this package, qemu-system-* becomes "headless",
+   and can be used on servers to reduce amount of dependencies -
+   this way, no X11 stuff is needed by qemu-system anymore.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 27 Apr 2018 09:18:32 +0300
+
 qemu (1:2.2+dfsg-6exp) unstable; urgency=medium
 
    Since Debian release 2.2+dfsg-6exp, a new package named qemu-block-extra

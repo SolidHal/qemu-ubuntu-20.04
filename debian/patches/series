@@ -1,1 +1,4 @@
 use-fixed-data-path.patch
+ccid-card-passthru-fix-regression-in-realize.patch
+ahci-fix-PxCI-register-race.patch
+tcg-i386-Fix-dup_vec-in-non-AVX2-codepath.patch

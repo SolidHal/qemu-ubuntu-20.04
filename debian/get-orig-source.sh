@@ -51,6 +51,10 @@ rm -vf pc-bios/qemu_vga.ndrv	# roms/QemuMacDrivers/
 #dir roms/seabios-hppa
 #dir roms/sgabios
 #dir roms/SLOF
+rm -vf roms/SLOF/board-js2x/rtas/i2c_bmc.oco
+rm -vf roms/SLOF/board-js2x/rtas/ipmi_oem.oco
+rm -vf roms/SLOF/clients/takeover/takeover.oco
+rm -vf roms/SLOF/lib/libipmi/libipmi.oco
 #dir roms/skiboot
 #dir roms/vgabios
 #dir roms/u-boot

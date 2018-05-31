@@ -86,13 +86,13 @@ user_targets = \
 
 endif	# enable_linux_user
 
-configure-stamp: configure
+b/configure-stamp: configure
 	dh_testdir
 
 	# system build
-	rm -rf qemu-build; mkdir qemu-build
-	cd qemu-build && \
-	    ../configure ${common_configure_opts} --disable-user \
+	rm -rf b/qemu; mkdir -p b/qemu
+	cd b/qemu && \
+	    ../../configure ${common_configure_opts} --disable-user \
 		--${enable_system}-system \
 		--${enable_linux_user}-linux-user \
 		--enable-modules \
@@ -101,44 +101,44 @@ configure-stamp: configure
 		$(QEMU_CONFIGURE_OPTIONS) || \
 	 { echo ===== CONFIGURE FAILED ===; tail -n 50 config.log; exit 1; }
 
-# switch UI and audio modules back to be built-ins, for now
-	sed -i -r 's/(CONFIG_(CURSES|GTK|SDL|AUDIO_.*))=m/\1=y/' \
-		qemu-build/config-host.mak
+# switch some simple UI and simple audio modules to be built-ins,
+# but keep more complex to be modules to move to a separate package
+	sed -i -r 's/(CONFIG_(CURSES|-GTK|-SDL|AUDIO_(-PA|OSS|ALSA|-SDL)))=m/\1=y/' \
+		b/qemu/config-host.mak
 
 ifeq ($(enable_linux_user),enable)
 # do not use debian/configure-opts here, all optional stuff will be enabled
 # automatically, dependencies are already verified in the main build
-	rm -rf user-static-build; mkdir user-static-build
-	cd user-static-build && \
-	    ../configure ${common_configure_opts} \
+	rm -rf b/user-static; mkdir b/user-static
+	cd b/user-static && \
+	    ../../configure ${common_configure_opts} \
 		--static --disable-system \
 		--target-list="$(addsuffix -linux-user,${user_targets})"
 endif
 	touch $@
 
 build: build-arch build-indep
-build-arch: build-stamp
-build-indep: build-stamp
-build-stamp: configure-stamp
+build-arch: b/build-stamp
+build-indep: b/build-stamp
+b/build-stamp: b/configure-stamp
 	dh_testdir
 
 	# system and utils build
-	$(MAKE) -C qemu-build V=${V}
+	$(MAKE) -C b/qemu V=${V}
 ifeq (${enable_system},enable)
-	dtc -o qemu-build/pc-bios/bamboo.dtb pc-bios/bamboo.dts
+	dtc -o b/qemu/pc-bios/bamboo.dtb pc-bios/bamboo.dts
 endif
 
 ifeq ($(enable_linux_user),enable)
 	# user-static build
 	# we use this invocation to build just the binaries
-	$(MAKE) -C user-static-build V=${V} $(foreach t,${user_targets},subdir-${t}-linux-user)
+	$(MAKE) -C b/user-static V=${V} $(foreach t,${user_targets},subdir-${t}-linux-user)
 endif
 	touch $@
 
 clean:	debian/control
 	dh_testdir
-	rm -rf qemu-build user-static-build
-	rm -f configure-stamp build-stamp
+	rm -rf b
 	find scripts/ -name '*.pyc' -delete || :
 	dh_clean
 
@@ -167,14 +167,14 @@ ${sysarch_$1}) \
 
 endef
 
-install: build-stamp
+install: b/build-stamp
 	dh_testdir
 	dh_testroot
 	dh_prep
 	dh_installdirs -a
 
 	# system and utils install
-	$(MAKE) -C qemu-build DESTDIR=$(CURDIR)/debian/tmp install
+	$(MAKE) -C b/qemu DESTDIR=$(CURDIR)/debian/tmp install
 
 ifeq (${enable_system},enable)
 
@@ -248,7 +248,7 @@ ifeq ($(enable_linux_user),enable)
 	# qemu-user-static
 	mkdir -p debian/qemu-user-static/usr/bin debian/qemu-user-static/usr/share/man/man1
 	for t in ${user_targets}; do \
-	    cp -p user-static-build/$$t-linux-user/qemu-$$t \
+	    cp -p b/user-static/$$t-linux-user/qemu-$$t \
 		debian/qemu-user-static/usr/bin/qemu-$$t-static ; \
 	    ln -s qemu-user-static.1 \
 		    debian/qemu-user-static/usr/share/man/man1/qemu-$$t-static.1 ; \
