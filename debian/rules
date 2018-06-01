@@ -281,6 +281,7 @@ endif
 	dh_installinit -pqemu-guest-agent
 endif
 	dh_link ${ai}
+	dh_lintian ${ai}
 	dh_strip ${ai}
 	dh_compress ${ai}
 	dh_fixperms ${ai}

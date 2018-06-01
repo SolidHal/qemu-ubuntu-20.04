@@ -102,8 +102,8 @@ Build-Depends: debhelper (>= 9),
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.8
 Homepage: http://www.qemu.org/
-Vcs-Browser: https://anonscm.debian.org/gitweb/?p=pkg-qemu/qemu.git
-Vcs-Git: git://anonscm.debian.org/pkg-qemu/qemu.git
+Vcs-Browser: https://salsa.debian.org/qemu-team/qemu
+Vcs-Git: git@salsa.debian.org:qemu-team/qemu.git
 
 Package: qemu
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
@@ -189,7 +189,7 @@ Description: QEMU full system emulation binaries (common files)
  full system emulation (qemu-system-*) packages.
 
 Package: qemu-system-gui
-Architecture: amd64 arm arm64 armel armhf hppa i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
+Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
 Depends: ${misc:Depends}, ${shlibs:Depends},
 Description: QEMU full system emulation binaries (user interface and audio support)
@@ -199,7 +199,7 @@ Description: QEMU full system emulation binaries (user interface and audio suppo
 Package: qemu-system-misc
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}),
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
 # alpha uses vgabios
 # alpha m68k sh4 uses bootroms
@@ -225,7 +225,7 @@ Description: QEMU full system emulation binaries (miscellaneous)
 Package: qemu-system-arm
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}),
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
 # aarch64 arm uses bootroms
  ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~),
@@ -248,7 +248,7 @@ Description: QEMU full system emulation binaries (arm)
 Package: qemu-system-mips
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}),
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
 # all mips targets uses vgabios and bootroms
  seabios, ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
@@ -270,7 +270,7 @@ Description: QEMU full system emulation binaries (mips)
 Package: qemu-system-ppc
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}),
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
  qemu-slof,
 # ubuntu can't Depend on openbios-ppc and openhackware as they're in universe
  openbios-ppc (>= 1.1+svn1229), openhackware
@@ -295,7 +295,7 @@ Description: QEMU full system emulation binaries (ppc)
 Package: qemu-system-sparc
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}),
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
 # ubuntu/openbios-sparc is in universe
  openbios-sparc (>> 1.1+svn1395-1~)
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
@@ -319,7 +319,7 @@ Description: QEMU full system emulation binaries (sparc)
 Package: qemu-system-x86
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el s390x sparc sparc64 x32
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}),
+Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qemu-system-data (>> ${source:Version}~),
  seabios (>= 1.10.2-1~), ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),

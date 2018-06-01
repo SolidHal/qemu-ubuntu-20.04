@@ -1,3 +1,14 @@
+qemu (1:2.12+dfsg-3) unstable; urgency=medium
+
+  * make qemu-system-foo depending
+    on qemu-system-data >>ver~, not >>ver
+    (Closes: #900585)
+  * do not build qemu-system-gui on hppa
+  * use dh_lintian for lintian overrides
+  * update VCS fields to point to salsa.debian.org
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 01 Jun 2018 21:42:29 +0300
+
 qemu (1:2.12+dfsg-2) unstable; urgency=medium
 
   * create new package, qemu-system-gui,
