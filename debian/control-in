@@ -18,8 +18,8 @@ Build-Depends: debhelper (>= 12),
  texinfo, python3-sphinx,
 # iasl (from acpica-tools) is used only in a single test these days, not for building
 # acpica-tools,
-# --enable-capstone=system
- libcapstone-dev,
+:debian:# --enable-capstone=system
+:debian: libcapstone-dev,
 # --enable-linux-aio	linux-*
  libaio-dev [linux-any],
 # --audio-drv-list=pa,alsa,oss	linux-*
