@@ -1,3 +1,56 @@
+qemu (1:3.1+dfsg-1) unstable; urgency=medium
+
+  * new upstream release (3.1)
+  * Security bugs fixed by upstream:
+    Closes: #910431, CVE-2018-10839:
+     integer overflow leads to buffer overflow issue
+    Closes: #911468, CVE-2018-17962
+     pcnet: integer overflow leads to buffer overflow
+    Closes: #911469, CVE-2018-17963
+     net: ignore packets with large size
+    Closes: #908682, CVE-2018-3639
+     qemu should be able to pass the ssbd cpu flag
+    Closes: #901017, CVE-2018-11806
+     m_cat in slirp/mbuf.c in Qemu has a heap-based buffer overflow
+     via incoming fragmented datagrams
+    Closes: #902725, CVE-2018-12617
+     qmp_guest_file_read in qemu-ga has an integer overflow
+    Closes: #907500, CVE-2018-15746
+     qemu-seccomp might allow local OS guest users to cause a denial of service
+    Closes: #915884, CVE-2018-16867
+     dev-mtp: path traversal in usb_mtp_write_data of the MTP
+    Closes: #911499, CVE-2018-17958
+     Buffer Overflow in rtl8139_do_receive in hw/net/rtl8139.c
+     because an incorrect integer data type is used
+    Closes: #911470, CVE-2018-18438
+     integer overflows because IOReadHandler and its associated functions
+     use a signed integer data type for a size value
+    Closes: #912535, CVE-2018-18849
+     lsi53c895a: OOB msg buffer access leads to DoS
+    Closes: #914604, CVE-2018-18954
+     pnv_lpc_do_eccb function in hw/ppc/pnv_lpc.c in Qemu before 3.1
+     allows out-of-bounds write or read access to PowerNV memory
+    Closes: #914599, CVE-2018-19364
+     Use-after-free due to race condition while updating fid path
+    Closes: #914727, CVE-2018-19489
+     9pfs: crash due to race condition in renaming files
+  * remove patches which were applied upstream
+  * add new manpage qemu-cpu-models.7
+  * qemu-system-ppcemb is gone, use qemu-system-ppc[64]
+  * do-not-link-everything-with-xen.patch (trivial)
+  * get-orig-source: handle 3.x and 4.x, and remove roms again, as
+    upstream wants us to use separate source packages for that stuff
+  * move generated data from qemu-system-data back to qemu-system-common
+  * d/control: enable spice on arm64 (Closes: #902501)
+    (probably should enable on all)
+  * d/control: change git@salsa urls to https
+  * add qemu-guest-agent.service (Closes: #795486)
+  * enable opengl support and virglrenderer (Closes: #813658)
+  * simplify d/rules just a little bit
+  * build-depend on libudev-dev, for qga
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sun, 02 Dec 2018 19:10:27 +0300
+
 qemu (1:2.12+dfsg-3) unstable; urgency=medium
 
   * make qemu-system-foo depending

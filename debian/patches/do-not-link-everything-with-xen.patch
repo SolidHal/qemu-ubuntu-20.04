@@ -1,0 +1,12 @@
+diff --git a/configure b/configure
+index 0a3c6a72c3..581170e81a 100755
+--- a/configure
++++ b/configure
+@@ -2320,7 +2320,6 @@ if test "$xen" != "no" ; then
+     fi
+     QEMU_CFLAGS="$QEMU_CFLAGS $($pkg_config --cflags $xen_pc)"
+     libs_softmmu="$($pkg_config --libs $xen_pc) $libs_softmmu"
+-    LDFLAGS="$($pkg_config --libs $xen_pc) $LDFLAGS"
+   else
+ 
+     xen_libs="-lxenstore -lxenctrl -lxenguest"

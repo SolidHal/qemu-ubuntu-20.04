@@ -1,1 +1,8 @@
 debian/qemu-ifdown etc/
+debian/tmp/usr/share/man/man1/qemu-system.1
+debian/tmp/usr/share/qemu/trace-events-all
+debian/tmp/usr/share/man/man7/qemu-qmp-ref.7
+debian/tmp/usr/share/man/man7/qemu-block-drivers.7
+debian/tmp/usr/share/man/man7/qemu-cpu-models.7
+debian/tmp/usr/share/doc/qemu/qemu-doc.* usr/share/doc/qemu-system-common
+debian/tmp/usr/share/doc/qemu/qemu-qmp-ref.* usr/share/doc/qemu-system-common

@@ -56,7 +56,7 @@ ifeq (${enable_system},enable)
 # list of system (softmmu) targets, from ./configure
 system_targets = \
  i386 x86_64 alpha aarch64 arm cris lm32 hppa m68k microblaze microblazeel \
- mips mipsel mips64 mips64el moxie nios2 or1k ppc ppcemb ppc64 riscv32 riscv64 \
+ mips mipsel mips64 mips64el moxie nios2 or1k ppc ppc64 riscv32 riscv64 \
  sh4 sh4eb sparc sparc64 s390x tricore xtensa xtensaeb unicore32
 
 # qemu-system subpackages, from d/control
@@ -64,7 +64,7 @@ sys_systems = arm mips ppc sparc x86
 systems = ${sys_systems} misc
 sysarch_arm   = $(filter aarch64 arm,${system_targets})
 sysarch_mips  = $(filter mips mipsel mips64 mips64el,${system_targets})
-sysarch_ppc   = $(filter ppc ppc64 ppcemb,${system_targets})
+sysarch_ppc   = $(filter ppc ppc64,${system_targets})
 sysarch_sparc = $(filter sparc sparc64,${system_targets})
 sysarch_x86   = $(filter i386 x86_64,${system_targets})
 sysarch_misc  = $(filter-out $(foreach s,${sys_systems},${sysarch_$s}),${system_targets})
@@ -119,7 +119,7 @@ endif
 
 build: build-arch build-indep
 build-arch: b/build-stamp
-build-indep: b/build-stamp
+build-indep:
 b/build-stamp: b/configure-stamp
 	dh_testdir
 
@@ -132,7 +132,7 @@ endif
 ifeq ($(enable_linux_user),enable)
 	# user-static build
 	# we use this invocation to build just the binaries
-	$(MAKE) -C b/user-static V=${V} $(foreach t,${user_targets},subdir-${t}-linux-user)
+	$(MAKE) -C b/user-static V=${V} $(patsubst %,subdir-%-linux-user,${user_targets})
 endif
 	touch $@
 
@@ -236,22 +236,16 @@ endif # linux
 endif # enable_system
 
 ifeq ($(enable_linux_user),enable)
-	# qemu-user
-	mkdir -p debian/qemu-user/usr/bin debian/qemu-user/usr/share/man/man1
-	for t in ${user_targets}; do \
-	    mv debian/tmp/usr/bin/qemu-$$t \
-		debian/qemu-user/usr/bin ; \
-	    ln -s qemu-user.1 \
-		debian/qemu-user/usr/share/man/man1/qemu-$$t.1 ; \
-	done
+	dh_movefiles -p qemu-user $(patsubst %,usr/bin/qemu-%,${user_targets})
+	dh_link -p qemu-user $(patsubst %,usr/share/man/man1/qemu-user.1 usr/share/man/man1/qemu-%.1,${user_targets})
 
 	# qemu-user-static
 	mkdir -p debian/qemu-user-static/usr/bin debian/qemu-user-static/usr/share/man/man1
 	for t in ${user_targets}; do \
-	    cp -p b/user-static/$$t-linux-user/qemu-$$t \
-		debian/qemu-user-static/usr/bin/qemu-$$t-static ; \
-	    ln -s qemu-user-static.1 \
-		    debian/qemu-user-static/usr/share/man/man1/qemu-$$t-static.1 ; \
+	   cp -p b/user-static/$$t-linux-user/qemu-$$t \
+	       debian/qemu-user-static/usr/bin/qemu-$$t-static ; \
+	   ln -s qemu-user-static.1 \
+	       debian/qemu-user-static/usr/share/man/man1/qemu-$$t-static.1 ; \
 	done
 
 	# binfmt support

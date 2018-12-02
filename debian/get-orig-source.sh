@@ -43,23 +43,23 @@ rm -vf pc-bios/QEMU,*.bin	# roms/openbios/
 rm -vf pc-bios/qemu_vga.ndrv	# roms/QemuMacDrivers/
 
 # remove other software (git submodules)
-#dir roms/ipxe
-#dir roms/openbios
-#dir roms/openhackware
+dir roms/ipxe
+dir roms/openbios
+dir roms/openhackware
 #dir roms/qemu-palcode
-#dir roms/seabios
-#dir roms/seabios-hppa
+dir roms/seabios
+dir roms/seabios-hppa
 #dir roms/sgabios
-#dir roms/SLOF
-rm -vf roms/SLOF/board-js2x/rtas/i2c_bmc.oco
-rm -vf roms/SLOF/board-js2x/rtas/ipmi_oem.oco
-rm -vf roms/SLOF/clients/takeover/takeover.oco
-rm -vf roms/SLOF/lib/libipmi/libipmi.oco
-#dir roms/skiboot
-#dir roms/vgabios
-#dir roms/u-boot
-#rm -vf roms/u-boot.tar.*
-#dir roms/u-boot-sam460ex
+dir roms/SLOF
+#rm -vf roms/SLOF/board-js2x/rtas/i2c_bmc.oco
+#rm -vf roms/SLOF/board-js2x/rtas/ipmi_oem.oco
+#rm -vf roms/SLOF/clients/takeover/takeover.oco
+#rm -vf roms/SLOF/lib/libipmi/libipmi.oco
+dir roms/skiboot
+dir roms/vgabios
+dir roms/u-boot
+rm -vf roms/u-boot.tar.*
+dir roms/u-boot-sam460ex
 dir roms/QemuMacDrivers
 
 dir dtc
@@ -78,7 +78,7 @@ case "$#$1" in
     echo "apparently not a qemu source dir" >&2; exit 1
     ;;
 
-  1[012].*) ;;
+  1[01234].*) ;;
 
   *)
     echo "unknown arguments.  Should be either 'dfsg' or a version number" >&2
@@ -92,7 +92,7 @@ case "$upstream" in
    *~rc*) upstream=$(echo "$upstream" | sed 's/~rc/-rc/') ;;
 esac
 case "$upstream" in
-   2.[0-9] | 2.[0-9][!0-9.]* ) # add .0 to a version number
+   [234].[0-9] | [234].[0-9][!0-9.]* ) # add .0 to a version number
      upstream=$(echo "$upstream" | sed 's/^.\../&.0/') ;;
 esac
 
