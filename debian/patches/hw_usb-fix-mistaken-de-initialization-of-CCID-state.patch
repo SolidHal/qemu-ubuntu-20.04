@@ -1,0 +1,46 @@
+From: Daniel P. Berrangé <berrange@redhat.com>
+Subject: hw/usb: fix mistaken de-initialization of CCID state
+Date: Fri, 21 Dec 2018 13:41:15 +0000
+Message-Id: <20181221134115.27973-1-berrange@redhat.com>
+Bug-Debian: https://bugs.debian.org/917007
+
+In previous commit:
+
+  commit 7dea29e4af17fc1d27478de9f8ea38144deac54a
+  Author: Li Qiang <liq3ea@gmail.com>
+  Date:   Fri Oct 19 03:50:36 2018 -0700
+
+    hw: ccid-card-emulated: cleanup resource when realize in error path
+
+The emulated_realize method was changed so that it jumps to a cleanup
+label to de-initialize state upon error. This change failed to ensure
+the success path exited the method before this point though. So the
+mutexes are always destroyed even in normal operation. The result is
+as crashtastic as expected:
+
+$ qemu-system-x86_64 -usb -device usb-ccid,id=ccid0 -device ccid-card-emulated,backend=nss-emulated,id=smartcard0,bus=ccid0.0
+qemu-system-x86_64: util/qemu-thread-posix.c:64: qemu_mutex_lock_impl: Assertion `mutex->initialized' failed.
+Aborted (core dumped)
+
+Reported-by: Michael Tokarev <mjt@tls.msk.ru>
+Signed-off-by: Daniel P. Berrangé <berrange@redhat.com>
+---
+ hw/usb/ccid-card-emulated.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/hw/usb/ccid-card-emulated.c b/hw/usb/ccid-card-emulated.c
+index 25976ed84f..e0457d305b 100644
+--- a/hw/usb/ccid-card-emulated.c
++++ b/hw/usb/ccid-card-emulated.c
+@@ -549,6 +549,8 @@ static void emulated_realize(CCIDCardState *base, Error **errp)
+     qemu_thread_create(&card->apdu_thread_id, "ccid/apdu", handle_apdu_thread,
+                        card, QEMU_THREAD_JOINABLE);
+ 
++    return;
++
+ out2:
+     clean_event_notifier(card);
+ out1:
+-- 
+2.19.2
+

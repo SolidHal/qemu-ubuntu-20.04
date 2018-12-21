@@ -31,6 +31,8 @@ enable_linux_user = $(if $(filter qemu-user,${BUILD_PACKAGES}),enable,disable)
 
 FIRMWAREPATH = /usr/share/qemu:/usr/share/seabios:/usr/lib/ipxe/qemu
 
+S390X_CROSSPFX = s390x-linux-gnu-
+
 # we add another set of configure options from debian/control
 common_configure_opts = \
 	--with-pkgversion="Debian $(DEB_VERSION)" \
@@ -117,9 +119,7 @@ ifeq ($(enable_linux_user),enable)
 endif
 	touch $@
 
-build: build-arch build-indep
 build-arch: b/build-stamp
-build-indep:
 b/build-stamp: b/configure-stamp
 	dh_testdir
 
@@ -135,20 +135,6 @@ ifeq ($(enable_linux_user),enable)
 	$(MAKE) -C b/user-static V=${V} $(patsubst %,subdir-%-linux-user,${user_targets})
 endif
 	touch $@
-
-clean:	debian/control
-	dh_testdir
-	rm -rf b
-	find scripts/ -name '*.pyc' -delete || :
-	dh_clean
-
-# define ${ai} variable to be one of -i (indep), -a (arch) or nothing (both)
-ai :=
-binary-indep: ai := -i
-binary-indep: install
-binary-arch: ai := -a
-binary-arch: install
-binary: install
 
 define inst-system
 	mkdir -p debian/qemu-system-$1/usr/share/man/man1 debian/qemu-system-$1/usr/bin
@@ -167,14 +153,14 @@ ${sysarch_$1}) \
 
 endef
 
-install: b/build-stamp
+binary-arch:
 	dh_testdir
 	dh_testroot
-	dh_prep
+	dh_prep -a
 	dh_installdirs -a
 
 	# system and utils install
-	$(MAKE) -C b/qemu DESTDIR=$(CURDIR)/debian/tmp install
+	$(MAKE) -C b/qemu DESTDIR=$(CURDIR)/debian/tmp install KEYMAPS=
 
 ifeq (${enable_system},enable)
 
@@ -258,29 +244,27 @@ ifeq ($(enable_linux_user),enable)
 
 endif	# enable_linux_user
 
-# install whole thing so --list-missing works right
-	dh_install --list-missing
-# install the rest for arch/indep as needed
-	dh_installdocs ${ai} -Nqemu-user-binfmt
-	dh_installchangelogs ${ai} -Nqemu-user-binfmt
-	dh_installdocs ${ai} -pqemu-user-binfmt --link-doc=qemu-user
-	dh_installman ${ai}
-	dh_installudev ${ai}
-ifneq (${ai},-i)	# do not run this for binary-indep
+	dh_install -a
+	dh_missing --list-missing
+	dh_installdocs -a -Nqemu-user-binfmt
+	dh_installchangelogs -a -Nqemu-user-binfmt
+	dh_installdocs -a -pqemu-user-binfmt --link-doc=qemu-user
+	dh_installman -a
+	dh_installudev -a
 ifeq (${enable_system},enable)
 # qemu-ifup is arch-specific
 	install -D debian/qemu-ifup.$(DEB_HOST_ARCH_OS) \
 		debian/qemu-system-common/etc/qemu-ifup
 endif
-	dh_installinit -pqemu-guest-agent
-endif
-	dh_link ${ai}
-	dh_lintian ${ai}
-	dh_strip ${ai}
-	dh_compress ${ai}
-	dh_fixperms ${ai}
-	dh_shlibdeps ${ai}
-	dh_installdeb ${ai}
+	dh_installinit -a -pqemu-guest-agent
+	dh_installsystemd -a -pqemu-guest-agent --no-start --no-enable
+	dh_link -a
+	dh_lintian -a
+	dh_strip -a
+	dh_compress -a
+	dh_fixperms -a
+	dh_shlibdeps -a
+	dh_installdeb -a
 ifeq ($(enable_linux_user),enable)
 # after shlibdeps finished, grab ${shlibs:Depends} from -user package
 # and transform it into Built-Using field for -user-static.
@@ -293,9 +277,9 @@ ifeq ($(enable_linux_user),enable)
 	  echo "built-using=$$srcs" >> debian/qemu-user-static.substvars ; \
 	fi
 endif
-	dh_gencontrol ${ai}
-	dh_md5sums ${ai}
-	dh_builddeb ${ai}
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
 
 ifneq (,$(wildcard debian/control-in))
 # only include rules for debian/control if debian/control-in is present
@@ -307,8 +291,55 @@ debian/control: debian/control-in debian/rules
 	chmod -w $@
 endif
 
+
+# s390x firmware in pc-bios/s390-ccw
+s390ccw_srcs = start.S main.c bootmap.c jump2ipl.c sclp.c menu.c virtio.c virtio-scsi.c virtio-blkdev.c libc.c
+
+build-indep:
+
+	mkdir -p b/fw
+
+# x86 optionrom
+	${MAKE} -f ${CURDIR}/debian/optionrom.mak -C ${CURDIR}/b/fw SRC_PATH=${CURDIR}
+
+# s390x firmware in pc-bios/s390-ccw
+	${S390X_CROSSPFX}gcc -Wl,-pie -fPIE -nostdlib -o b/fw/s390-ccw.img \
+	  -ffreestanding -fno-delete-null-pointer-checks -msoft-float \
+	  -march=z900 -fPIE -fno-strict-aliasing -fno-asynchronous-unwind-tables -fno-stack-protector \
+	   $(addprefix pc-bios/s390-ccw/,${s390ccw_srcs})
+	${S390X_CROSSPFX}strip --strip-unneeded b/fw/s390-ccw.img
+	chmod -x b/fw/s390-ccw.img
+
+binary-indep:
+	dh_testdir
+	dh_testroot
+	dh_prep -i -Xdebian/tmp
+
+	dh_install -i
+	rm -f debian/qemu-system-data/usr/share/qemu/keymaps/Makefile
+	dh_installdocs -i
+	dh_installchangelogs -i
+	dh_lintian -i
+	dh_compress -i
+	dh_fixperms -i
+	dh_installdeb -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+build: build-arch build-indep
+binary: binary-arch binary-indep
+
+clean:	debian/control
+	dh_testdir
+	rm -rf b
+	find scripts/ -name '*.pyc' -delete || :
+	dh_clean
+
+.PHONY: build clean binary-arch binary-indep binary build-arch build-indep build
+
 get-orig-source:
 	./debian/get-orig-source.sh ${DEB_VERSION}
 
-.PHONY: build clean binary-indep binary-arch binary install get-orig-source
+.PHONY: get-orig-source
 

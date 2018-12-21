@@ -1,3 +1,27 @@
+qemu (1:3.1+dfsg-2) unstable; urgency=medium
+
+  * d/rules: split arch and indep builds
+  * enable s390x cross-compiler and build s390-ccw.img (Closes: #684909)
+  * build x86 optionrom in qemu-system-data (was in seabios/debian/)
+  * qemu-system-data: Multi-Arch: allowed=>foreign (Closes: #903562)
+  * fix Replaces: version for qemu-system-common (Closes: #916279)
+  * add simple udev rules file for systemd guest agent (Closes: #916674)
+  * usb-mtp-use-O_NOFOLLOW-and-O_CLOEXEC-CVE-2018-16872.patch
+    Race condition in usb_mtp implementation (Closes: #916397)
+  * bt-use-size_t-type-for-length-parameters-instead-of-int-CVE-2018-19665.patch
+    Memory corruption in bluetooth subsystem (Closes: #916278)
+  * hw_usb-fix-mistaken-de-initialization-of-CCID-state.patch (Closes: #917007)
+  * bump debhelper compat to 12 (>>11)
+  * d/rules: use dh_missing instead of dh_install --list-missing (compat=12)
+  * use dh_installsystemd for guest agent (Closes: #916625)
+  * mention closing by 3.1: Closes: #912655, CVE-2018-16847
+  * mention closing by 2.10:
+    Closes: #849798, CVE-2016-10028
+    Closes: CVE-2017-9060
+    Closes: CVE-2017-8284
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 21 Dec 2018 16:51:39 +0300
+
 qemu (1:3.1+dfsg-1) unstable; urgency=medium
 
   * new upstream release (3.1)
@@ -34,6 +58,8 @@ qemu (1:3.1+dfsg-1) unstable; urgency=medium
      Use-after-free due to race condition while updating fid path
     Closes: #914727, CVE-2018-19489
      9pfs: crash due to race condition in renaming files
+    Closes: #912655, CVE-2018-16847
+     Out-of-bounds r/w buffer access in cmb operations
   * remove patches which were applied upstream
   * add new manpage qemu-cpu-models.7
   * qemu-system-ppcemb is gone, use qemu-system-ppc[64]
@@ -228,6 +254,9 @@ qemu (1:2.10.0-1) unstable; urgency=medium
      #867751, CVE-2017-10806
      #866674, CVE-2017-10664
      #873849, CVE-2017-12809
+     #849798, CVE-2016-10028
+     CVE-2017-9060
+     CVE-2017-8284
   * dropped all fixes, applied upstream
   * dropped 02_kfreebsd.patch - apparently not relevant anymore
   * dropped +dfsg, use upstream tarball directly: we do not use
