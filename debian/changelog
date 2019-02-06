@@ -1,3 +1,43 @@
+qemu (1:3.1+dfsg-3) unstable; urgency=medium
+
+  [ Michael Tokarev ]
+  * mention #696289 closed by 2.10
+  * move ovmf to recommends on debian and update aarch ovmf refs
+    (Closes: #889885)
+  * remove /dev/kvm permission handling (moved to systemd 239-6)
+    (Closes: #892945)
+  * build qemu-palcode using alpha cross-compiler
+    (Closes: #913103)
+  * fix path in qemu-guest-agent.service (#918378), fixs Bind[s]To
+    (Closes: #918378
+  * use int for sparc64 timeval.tv_usec
+    (Closes: #920032)
+  * build-depend on libglusterfs-dev not glusterfs-common
+    (Closes: #919668, #881527)
+  * add breaks: qemu-system-data to qemu-system-common,
+    to close #916279 completely (all this can be removed after buster)
+    (Closes: #916279)
+  * scsi-generic-avoid-possible-oob-access-to-r-buf-CVE-2019-6501.patch
+    (Closes: #920222, CVE-2019-6501)
+  * slirp-check-data-length-while-emulating-ident-function-CVE-2019-6778.patch
+    (Closes: #921525)
+  * pvrdma-release-device-resources-on-error-CVE-2018-20123.patch
+    (Closes: #916442, CVE-2018-20123)
+  * enable rdma and pvrdma, build-depend on
+    librdmacm-dev, libibverbs-dev, libibumad-dev
+  * sync debian/qemu-user-static.1 and debian/qemu-user.1 generate the latter
+    from the former (finally Closes: #901407)
+  * move ivshmem-server & ivshmem-client from qemu-utils to qemu-system-common
+    (the binaries are also specific to qemu-system, not useable alone)
+  * move qemu-pr-helper from qemu-utils to qemu-system-common -
+    this is an internal qemu-system helper, with possible socket activation,
+    not intended for use outside of qemu-system
+
+  [ Christian Ehrhardt ]
+  * qemu-guest-agent: freeze-hook to ignore dpkg files (packaging changes)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 06 Feb 2019 12:23:01 +0300
+
 qemu (1:3.1+dfsg-2) unstable; urgency=medium
 
   * d/rules: split arch and indep builds
@@ -242,6 +282,7 @@ qemu (1:2.10.0-1) unstable; urgency=medium
     Closes: #867978
     Closes: #871648, #871702, #872257
     Closes: #851694
+    Closes: #696289
     Closed in this upstream release:
      #865755, CVE-2017-9524
      #863840, CVE-2017-9310

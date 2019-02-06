@@ -1,0 +1,42 @@
+From: Ben Hutchings <ben@decadent.org.uk>
+Date: Wed, 6 Feb 2019 11:35:06 +0300
+Subject: sparc64 timeval.tv_usec is int
+
+
+On sparc (only) Linux defines timeval::tv_usec with type int, not
+long.  However qemu-user's definition of struct target_timeval uses
+abi_long unconditionally.  This results in the syscall translation
+layer effectively multiplying tv_usec by 2**32.  All sparc syscalls
+passing non-zero values for this field fail with -EINVAL.
+
+Laurent Vivier <laurent@vivier.eu>:
+
+According to the kernel definition, I think it should be:
+
+See arch/sparc/include/uapi/asm/posix_types.h
+
+typedef int                    __kernel_suseconds_t;
+..
+---
+ linux-user/syscall_defs.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/linux-user/syscall_defs.h b/linux-user/syscall_defs.h
+index 99bbce083c..106eafe7fc 100644
+--- a/linux-user/syscall_defs.h
++++ b/linux-user/syscall_defs.h
+@@ -210,7 +210,11 @@ struct target_linger {
+ 
+ struct target_timeval {
+     abi_long tv_sec;
++#if defined(TARGET_SPARC64) && !defined(TARGET_ABI32)
++    abi_int  tv_usec;
++#else
+     abi_long tv_usec;
++#endif
+ };
+ 
+ struct target_timespec {
+-- 
+2.11.0
+

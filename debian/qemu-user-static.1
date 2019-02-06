@@ -16,11 +16,11 @@ system as the current one.
 .BR \-h
 Print this help.
 .TP
-.BR \-g
-Wait gdb connection to port 1234.
+.BR \-g " \fI<port>\fP"
+Wait gdb connection to port \fIport\fP.
 .TP
 .BR \-L " \fI<path>\fP"
-Set the elf interpreter prefix (default=\fI/usr/gnemul/qemu\-arm\fP).
+Set the elf interpreter prefix (default=\fI/etc/qemu\-binfmt/%M\fP).
 .TP
 .BR \-s " \fI<size>\fP"
 Set the stack size in bytes (default=\fI524288\fP).
@@ -31,7 +31,7 @@ Activate log (logfile=\fI/tmp/qemu.log\fP)
 .BR \-p " \fI<pagesize>\fP"
 Set the host page size to 'pagesize'.
 .SH SEE ALSO
-.BR qemu (1),
-.BR qemu\-img (1).
+.BR qemu-system (1)
+(in qemu-system-common package).
 .SH AUTHOR
 This manual page was written by Guillem Jover <guillem@debian.org>.

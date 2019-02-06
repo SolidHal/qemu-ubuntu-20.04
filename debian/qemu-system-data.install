@@ -5,3 +5,5 @@ pc-bios/qemu_logo_no_text.svg usr/share/qemu
 b/fw/*.bin usr/share/qemu
 # s390x firmware
 b/fw/s390*.img usr/share/qemu
+# alpha firmware
+b/qemu-palcode/palcode-clipper usr/share/qemu
