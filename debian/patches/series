@@ -5,5 +5,4 @@ bt-use-size_t-type-for-length-parameters-instead-of-int-CVE-2018-19665.patch
 hw_usb-fix-mistaken-de-initialization-of-CCID-state.patch
 sparc64-timeval.tv_usec-is-int.patch
 scsi-generic-avoid-possible-oob-access-to-r-buf-CVE-2019-6501.patch
-pvrdma-release-device-resources-on-error-CVE-2018-20123.patch
 slirp-check-data-length-while-emulating-ident-function-CVE-2019-6778.patch

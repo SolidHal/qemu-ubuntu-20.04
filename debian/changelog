@@ -1,9 +1,20 @@
+qemu (1:3.1+dfsg-4) unstable; urgency=medium
+
+  * mention closing of #855043 by 3.1+dfsg-3
+  * disable pvrdma for now, it is a bit too buggy.
+    Besides several security holes there are many other bugs there as well,
+    and the amount of patches applied upstream after 3.1 release is large
+    (Closes, or really makes unimportant again: CVE-2018-20123 CVE-2018-20124
+     CVE-2018-20125 CVE-2018-20126 CVE-2018-20191 CVE-2018-20216)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 11 Feb 2019 14:00:09 +0300
+
 qemu (1:3.1+dfsg-3) unstable; urgency=medium
 
   [ Michael Tokarev ]
   * mention #696289 closed by 2.10
   * move ovmf to recommends on debian and update aarch ovmf refs
-    (Closes: #889885)
+    (Closes: #889885, #855043)
   * remove /dev/kvm permission handling (moved to systemd 239-6)
     (Closes: #892945)
   * build qemu-palcode using alpha cross-compiler

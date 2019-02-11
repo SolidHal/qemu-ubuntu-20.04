@@ -75,8 +75,10 @@ Build-Depends: debhelper (>= 11),
 # --enable-spice	linux-amd64|linux-i386|linux-arm64
  libspice-server-dev (>= 0.12.2~) [linux-amd64 linux-i386 linux-arm64],
  libspice-protocol-dev (>= 0.12.3~) [linux-amd64 linux-i386 linux-arm64],
-# --enable-rdma --enable-pvrdma
+# --enable-rdma
  librdmacm-dev, libibverbs-dev, libibumad-dev,
+# pvrdma is too buggy in 3.1, disable it for now
+# --disable-pvrdma
 # --enable-libusb	linux-*
  libusb-1.0-0-dev (>= 2:1.0.13~) [linux-any],
 # --enable-usb-redir	linux-*
