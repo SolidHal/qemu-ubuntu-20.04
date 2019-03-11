@@ -6,3 +6,4 @@ hw_usb-fix-mistaken-de-initialization-of-CCID-state.patch
 sparc64-timeval.tv_usec-is-int.patch
 scsi-generic-avoid-possible-oob-access-to-r-buf-CVE-2019-6501.patch
 slirp-check-data-length-while-emulating-ident-function-CVE-2019-6778.patch
+i2c-ddc-fix-oob-read-CVE-2019-3812.patch
