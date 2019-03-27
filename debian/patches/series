@@ -8,3 +8,4 @@ scsi-generic-avoid-possible-oob-access-to-r-buf-CVE-2019-6501.patch
 slirp-check-data-length-while-emulating-ident-function-CVE-2019-6778.patch
 i2c-ddc-fix-oob-read-CVE-2019-3812.patch
 slirp-check-sscanf-result-when-emulating-ident-CVE-2019-9824.patch
+device_tree-don-t-use-load_image-CVE-2018-20815.patch
