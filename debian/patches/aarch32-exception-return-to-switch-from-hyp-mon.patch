@@ -1,0 +1,56 @@
+From: Alexander Graf <agraf@suse.de>
+Date: Mon, 21 Jan 2019 10:23:11 +0000
+Subject: target/arm: Allow Aarch32 exception return to switch from Mon->Hyp
+Commit-Id: 2d2a4549cc29850aab891495685a7b31f5254b12
+Bug-Debian: http://bugs.debian.org/927763
+
+In U-boot, we switch from S-SVC -> Mon -> Hyp mode when we want to
+enter Hyp mode. The change into Hyp mode is done by doing an
+exception return from Mon. This doesn't work with current QEMU.
+
+The problem is that in bad_mode_switch() we refuse to allow
+the change of mode.
+
+Note that bad_mode_switch() is used to do validation for two situations:
+
+ (1) changes to mode by instructions writing to CPSR.M
+     (ie not exception take/return) -- this corresponds to the
+     Armv8 Arm ARM pseudocode Arch32.WriteModeByInstr
+ (2) changes to mode by exception return
+
+Attempting to enter or leave Hyp mode via case (1) is forbidden in
+v8 and UNPREDICTABLE in v7, and QEMU is correct to disallow it
+there. However, we're already doing that check at the top of the
+bad_mode_switch() function, so if that passes then we should allow
+the case (2) exception return mode changes to switch into Hyp mode.
+
+We want to test whether we're trying to return to the nonexistent
+"secure Hyp" mode, so we need to look at arm_is_secure_below_el3()
+rather than arm_is_secure(), since the latter is always true if
+we're in Mon (EL3).
+
+Signed-off-by: Alexander Graf <agraf@suse.de>
+Reviewed-by: Peter Maydell <peter.maydell@linaro.org>
+Message-id: 20190109152430.32359-1-agraf@suse.de
+[PMM: rewrote commit message]
+Signed-off-by: Peter Maydell <peter.maydell@linaro.org>
+---
+ target/arm/helper.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/target/arm/helper.c b/target/arm/helper.c
+index f00c141ef9..9bf8fbd8f9 100644
+--- a/target/arm/helper.c
++++ b/target/arm/helper.c
+@@ -6297,7 +6297,7 @@ static int bad_mode_switch(CPUARMState *env, int mode, CPSRWriteType write_type)
+         return 0;
+     case ARM_CPU_MODE_HYP:
+         return !arm_feature(env, ARM_FEATURE_EL2)
+-            || arm_current_el(env) < 2 || arm_is_secure(env);
++            || arm_current_el(env) < 2 || arm_is_secure_below_el3(env);
+     case ARM_CPU_MODE_MON:
+         return arm_current_el(env) < 3;
+     default:
+-- 
+2.11.0
+
