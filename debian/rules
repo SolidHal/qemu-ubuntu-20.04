@@ -128,6 +128,7 @@ b/configure-stamp: configure
 	    ../../configure ${common_configure_opts} --disable-user \
 		--${enable_system}-system \
 		--${enable_linux_user}-linux-user \
+		--disable-xen \
 		--enable-modules \
 		$(shell sh debian/extract-config-opts \
 		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
@@ -173,13 +174,39 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
 	echo "#define CONFIG_MICROVM_DEFAULT 1" >> b/qemu-microvm/x86_64-softmmu/config-target.h
 endif
 
+ifeq ($(VENDOR),UBUNTU)
+ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
+# like above but with:
+#  --enable-xen
+#  --disable-linux-user (not needed for this binary)
+#  reduced --target-list as needed for xen
+#  xen can only be configured on x86, so skip other build architectures
+	# system build for qemu-system-x86-xen
+	rm -rf b/qemu-xen; mkdir -p b/qemu-xen
+	cd b/qemu-xen && \
+	    ../../configure ${common_configure_opts} --disable-user \
+		--${enable_system}-system \
+		--disable-linux-user \
+		--enable-xen \
+		--target-list="aarch64-softmmu arm-softmmu i386-softmmu x86_64-softmmu"
+		--enable-modules \
+		$(shell sh debian/extract-config-opts \
+		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
+		$(QEMU_CONFIGURE_OPTIONS) || \
+	 { echo ===== CONFIGURE FAILED ===; tail -n 50 config.log; exit 1; }
+# same config as the main build.
+	sed -i -r 's/(CONFIG_(CURSES|-GTK|-SDL|AUDIO_(-PA|OSS|ALSA|-SDL)))=m/\1=y/' \
+		b/qemu-xen/config-host.mak
+endif
+endif
+
 ifeq ($(enable_linux_user),enable)
 # do not use debian/configure-opts here, all optional stuff will be enabled
 # automatically, dependencies are already verified in the main build
 	rm -rf b/user-static; mkdir b/user-static
 	cd b/user-static && \
 	    ../../configure ${common_configure_opts} \
-		--static ${XXXstaticpie} --disable-system \
+		--static ${XXXstaticpie} --disable-system --disable-xen \
 		--target-list="$(addsuffix -linux-user,${user_targets})"
 endif
 	touch $@
@@ -199,6 +226,12 @@ endif
 ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
 	# microvm system
 	$(MAKE) -C b/qemu-microvm V=${V}
+endif
+
+ifeq ($(VENDOR),UBUNTU)
+ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
+	$(MAKE) -C b/qemu-xen V=${V}
+endif
 endif
 
 ifeq ($(enable_linux_user),enable)
@@ -243,6 +276,14 @@ ifeq (${enable_system},enable)
 	# qemu-system subpackages
 	mv debian/tmp/usr/share/man/man1/qemu.1 debian/tmp/usr/share/man/man1/qemu-system.1
 	$(foreach s,${systems},$(call inst-system,$s))
+
+ifeq ($(VENDOR),UBUNTU)
+ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
+	mkdir -p $(CURDIR)/debian/tmp-xen
+	$(MAKE) -C b/qemu-xen DESTDIR=$(CURDIR)/debian/tmp-xen install KEYMAPS=
+	$(call inst-system,x86,"-xen")
+endif
+endif
 
 ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
 	# microvm system

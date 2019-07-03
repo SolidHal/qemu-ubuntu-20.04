@@ -87,7 +87,7 @@ Build-Depends: debhelper (>= 12),
 # vde is debian-only since ubuntu/vde2 is in universe
 :debian:# --enable-vde
 :debian: libvdeplug-dev,
-# --enable-xen	linux-amd64|linux-i386
+:debian:# --enable-xen	linux-amd64|linux-i386
  libxen-dev [linux-amd64 linux-i386],
 # --enable-nettle
  nettle-dev,
@@ -529,3 +529,37 @@ Description: QEMU Full virtualization on x86 hardware
 :ubuntu: and various peripherals.  It enables easier testing and debugging of system
 :ubuntu: code.  It can also be used to provide virtual hosting of several virtual
 :ubuntu: machines on a single server.
+
+:ubuntu:# xen support generally is disabled, this is an extra build with xen enabled
+:ubuntu:# as needed by xen-utils-4.11 [amd64 arm64 armhf i386]
+:ubuntu:# Xen will depend on this; this package and the main qemu-system-x86 are
+:ubuntu:# mutually exclusive
+:ubuntu:Package: qemu-system-x86-xen
+:ubuntu:Architecture:  amd64 i386
+:ubuntu:Multi-Arch: foreign
+:ubuntu:Depends:
+:ubuntu: ${shlibs:Depends},
+:ubuntu: ${misc:Depends},
+:ubuntu: qemu-system-common (>> ${source:Version}~),
+:ubuntu: qemu-system-data (>> ${source:Version}~),
+:ubuntu: ipxe-qemu,
+:ubuntu:Recommends:
+:ubuntu: qemu-system-gui (= ${binary:Version}),
+:ubuntu: qemu-utils,
+:ubuntu: seabios,
+:ubuntu:Suggests:
+:ubuntu: qemu-block-extra (= ${binary:Version}),
+:ubuntu: ovmf,
+:ubuntu:Conflicts: qemu-system-x86
+:ubuntu:Description: QEMU full system emulation binaries (x86)
+:ubuntu: QEMU is a fast processor emulator: currently the package supports
+:ubuntu: i386 and x86-64 emulation. By using dynamic translation it achieves
+:ubuntu: reasonable speed while being easy to port on new host CPUs.
+:ubuntu: .
+:ubuntu: This package provides the full system emulation binaries to emulate
+:ubuntu: the following x86 hardware: ${sysarch:x86-xen}.
+:ubuntu: .
+:ubuntu: In comparison to the main qemu-system-x86 this package has xen support
+:ubuntu: enabled, but is only maintained as universe package. Qemu with xen support
+:ubuntu: is needed to run Xen in HVM mode. For any other use case you should install
+:ubuntu: and use qemu-system-x86 instead.
