@@ -40,6 +40,7 @@ uint32_t qvirtio_get_features(QVirtioDevice *d)
 
 void qvirtio_set_features(QVirtioDevice *d, uint32_t features)
 {
+    d->features = features;
     d->bus->set_features(d, features);
 }
 
@@ -161,7 +162,8 @@ void qvirtio_wait_config_isr(QVirtioDevice *d, gint64 timeout_us)
     }
 }
 
-void qvring_init(const QGuestAllocator *alloc, QVirtQueue *vq, uint64_t addr)
+void qvring_init(QTestState *qts, const QGuestAllocator *alloc, QVirtQueue *vq,
+                 uint64_t addr)
 {
     int i;
 
@@ -172,22 +174,23 @@ void qvring_init(const QGuestAllocator *alloc, QVirtQueue *vq, uint64_t addr)
 
     for (i = 0; i < vq->size - 1; i++) {
         /* vq->desc[i].addr */
-        writeq(vq->desc + (16 * i), 0);
+        qtest_writeq(qts, vq->desc + (16 * i), 0);
         /* vq->desc[i].next */
-        writew(vq->desc + (16 * i) + 14, i + 1);
+        qtest_writew(qts, vq->desc + (16 * i) + 14, i + 1);
     }
 
     /* vq->avail->flags */
-    writew(vq->avail, 0);
+    qtest_writew(qts, vq->avail, 0);
     /* vq->avail->idx */
-    writew(vq->avail + 2, 0);
+    qtest_writew(qts, vq->avail + 2, 0);
     /* vq->avail->used_event */
-    writew(vq->avail + 4 + (2 * vq->size), 0);
+    qtest_writew(qts, vq->avail + 4 + (2 * vq->size), 0);
 
     /* vq->used->flags */
-    writew(vq->used, 0);
+    qtest_writew(qts, vq->used, 0);
     /* vq->used->avail_event */
-    writew(vq->used + 2 + sizeof(struct vring_used_elem) * vq->size, 0);
+    qtest_writew(qts, vq->used + 2 + sizeof(struct vring_used_elem) * vq->size,
+                 0);
 }
 
 QVRingIndirectDesc *qvring_indirect_desc_setup(QVirtioDevice *d,
@@ -349,19 +352,14 @@ void qvirtqueue_set_used_event(QVirtQueue *vq, uint16_t idx)
     writew(vq->avail + 4 + (2 * vq->size), idx);
 }
 
-/*
- * qvirtio_get_dev_type:
- * Returns: the preferred virtio bus/device type for the current architecture.
- */
-const char *qvirtio_get_dev_type(void)
+void qvirtio_start_device(QVirtioDevice *vdev)
 {
-    const char *arch = qtest_get_arch();
+    qvirtio_reset(vdev);
+    qvirtio_set_acknowledge(vdev);
+    qvirtio_set_driver(vdev);
+}
 
-    if (g_str_equal(arch, "arm") || g_str_equal(arch, "aarch64")) {
-        return "device";  /* for virtio-mmio */
-    } else if (g_str_equal(arch, "s390x")) {
-        return "ccw";
-    } else {
-        return "pci";
-    }
+bool qvirtio_is_big_endian(QVirtioDevice *d)
+{
+    return d->big_endian;
 }

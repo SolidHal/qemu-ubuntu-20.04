@@ -15,12 +15,13 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, see <http://www.gnu.org/licenses/>.
- *
  */
 
 #include "qemu/osdep.h"
+#include "qemu-common.h"
 #include "qapi/error.h"
 #include "qapi/qapi-visit-sockets.h"
+#include "qemu/module.h"
 #include "io/channel-socket.h"
 #include "io/channel-watch.h"
 #include "trace.h"
@@ -688,10 +689,13 @@ qio_channel_socket_close(QIOChannel *ioc,
     int rc = 0;
 
     if (sioc->fd != -1) {
-        SocketAddress *addr = socket_local_address(sioc->fd, errp);
 #ifdef WIN32
         WSAEventSelect(sioc->fd, NULL, 0);
 #endif
+        if (qio_channel_has_feature(ioc, QIO_CHANNEL_FEATURE_LISTEN)) {
+            socket_listen_cleanup(sioc->fd, errp);
+        }
+
         if (closesocket(sioc->fd) < 0) {
             sioc->fd = -1;
             error_setg_errno(errp, errno,
@@ -699,20 +703,6 @@ qio_channel_socket_close(QIOChannel *ioc,
             return -1;
         }
         sioc->fd = -1;
-
-        if (addr && addr->type == SOCKET_ADDRESS_TYPE_UNIX
-            && addr->u.q_unix.path) {
-            if (unlink(addr->u.q_unix.path) < 0 && errno != ENOENT) {
-                error_setg_errno(errp, errno,
-                                 "Failed to unlink socket %s",
-                                 addr->u.q_unix.path);
-                rc = -1;
-            }
-        }
-
-        if (addr) {
-            qapi_free_SocketAddress(addr);
-        }
     }
     return rc;
 }

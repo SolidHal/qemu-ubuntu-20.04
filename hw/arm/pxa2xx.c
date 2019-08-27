@@ -8,9 +8,10 @@
  */
 
 #include "qemu/osdep.h"
-#include "qemu/error-report.h"
-#include "qapi/error.h"
 #include "qemu-common.h"
+#include "qemu/error-report.h"
+#include "qemu/module.h"
+#include "qapi/error.h"
 #include "cpu.h"
 #include "hw/sysbus.h"
 #include "hw/arm/pxa.h"
@@ -1286,7 +1287,7 @@ static int pxa2xx_i2c_event(I2CSlave *i2c, enum i2c_event event)
     return 0;
 }
 
-static int pxa2xx_i2c_rx(I2CSlave *i2c)
+static uint8_t pxa2xx_i2c_rx(I2CSlave *i2c)
 {
     PXA2xxI2CSlaveState *slave = PXA2XX_I2C_SLAVE(i2c);
     PXA2xxI2CState *s = slave->host;

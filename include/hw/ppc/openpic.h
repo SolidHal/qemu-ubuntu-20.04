@@ -1,7 +1,6 @@
 #ifndef OPENPIC_H
 #define OPENPIC_H
 
-#include "qemu-common.h"
 #include "hw/sysbus.h"
 #include "hw/qdev-core.h"
 #include "qom/cpu.h"
@@ -19,6 +18,8 @@ enum {
     OPENPIC_OUTPUT_RESET,   /* Core reset event          */
     OPENPIC_OUTPUT_NB,
 };
+
+typedef struct IrqLines { qemu_irq irq[OPENPIC_OUTPUT_NB]; } IrqLines;
 
 #define OPENPIC_MODEL_RAVEN       0
 #define OPENPIC_MODEL_FSL_MPIC_20 1

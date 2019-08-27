@@ -21,8 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "qemu/module.h"
 #include "hw/hw.h"
 #include "hw/audio/soundhw.h"
 #include "audio/audio.h"
@@ -251,7 +253,7 @@ static void gus_realizefn (DeviceState *dev, Error **errp)
 
     as.freq = s->freq;
     as.nchannels = 2;
-    as.fmt = AUD_FMT_S16;
+    as.fmt = AUDIO_FORMAT_S16;
     as.endianness = GUS_ENDIANNESS;
 
     s->voice = AUD_open_out (

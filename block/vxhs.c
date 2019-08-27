@@ -17,6 +17,7 @@
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qstring.h"
 #include "trace.h"
+#include "qemu/module.h"
 #include "qemu/uri.h"
 #include "qapi/error.h"
 #include "qemu/uuid.h"
@@ -556,6 +557,16 @@ static int64_t vxhs_getlength(BlockDriverState *bs)
     return vdisk_size;
 }
 
+static const char *const vxhs_strong_runtime_opts[] = {
+    VXHS_OPT_VDISK_ID,
+    "tls-creds",
+    VXHS_OPT_HOST,
+    VXHS_OPT_PORT,
+    VXHS_OPT_SERVER".",
+
+    NULL
+};
+
 static BlockDriver bdrv_vxhs = {
     .format_name                  = "vxhs",
     .protocol_name                = "vxhs",
@@ -567,6 +578,7 @@ static BlockDriver bdrv_vxhs = {
     .bdrv_getlength               = vxhs_getlength,
     .bdrv_aio_preadv              = vxhs_aio_preadv,
     .bdrv_aio_pwritev             = vxhs_aio_pwritev,
+    .strong_runtime_opts          = vxhs_strong_runtime_opts,
 };
 
 static void bdrv_vxhs_init(void)

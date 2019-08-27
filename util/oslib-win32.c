@@ -29,8 +29,10 @@
  * this file are based on code from GNOME glib-2 and use a different license,
  * see the license comment there.
  */
+
 #include "qemu/osdep.h"
 #include <windows.h>
+#include "qemu-common.h"
 #include "qapi/error.h"
 #include "sysemu/sysemu.h"
 #include "qemu/main-loop.h"
@@ -560,6 +562,11 @@ void os_mem_prealloc(int fd, char *area, size_t memory, int smp_cpus,
     }
 }
 
+uint64_t qemu_get_pmem_size(const char *filename, Error **errp)
+{
+    error_setg(errp, "pmem support not available");
+    return 0;
+}
 
 char *qemu_get_pid_name(pid_t pid)
 {

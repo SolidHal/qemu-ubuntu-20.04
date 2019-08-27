@@ -15,11 +15,11 @@
 #include "qapi/error.h"
 #include "hw/hw.h"
 #include "hw/arm/pxa.h"
-#include "hw/arm/arm.h"
-#include "hw/devices.h"
+#include "hw/arm/boot.h"
 #include "hw/arm/sharpsl.h"
 #include "hw/pcmcia.h"
 #include "hw/boards.h"
+#include "hw/display/tc6393xb.h"
 #include "hw/i2c/i2c.h"
 #include "hw/ssi/ssi.h"
 #include "hw/sysbus.h"
@@ -197,10 +197,10 @@ static int tosa_dac_event(I2CSlave *i2c, enum i2c_event event)
     return 0;
 }
 
-static int tosa_dac_recv(I2CSlave *s)
+static uint8_t tosa_dac_recv(I2CSlave *s)
 {
     printf("%s: recv not supported!!!\n", __func__);
-    return -1;
+    return 0xff;
 }
 
 static void tosa_tg_init(PXA2xxState *cpu)

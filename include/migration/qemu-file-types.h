@@ -22,8 +22,10 @@
  * THE SOFTWARE.
  */
 
-#ifndef QEMU_FILE_H
-#define QEMU_FILE_H
+#ifndef MIGRATION_QEMU_FILE_TYPES_H
+#define MIGRATION_QEMU_FILE_TYPES_H
+
+int qemu_file_get_error(QEMUFile *f);
 
 void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, size_t size);
 void qemu_put_byte(QEMUFile *f, int v);

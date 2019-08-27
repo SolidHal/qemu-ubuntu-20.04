@@ -6,6 +6,8 @@
 #include "sysemu/blockdev.h"
 #include "sysemu/accel.h"
 #include "hw/qdev.h"
+#include "qapi/qapi-types-machine.h"
+#include "qemu/module.h"
 #include "qom/object.h"
 #include "qom/cpu.h"
 
@@ -57,7 +59,6 @@ void memory_region_allocate_system_memory(MemoryRegion *mr, Object *owner,
 #define MACHINE_CLASS(klass) \
     OBJECT_CLASS_CHECK(MachineClass, (klass), TYPE_MACHINE)
 
-MachineClass *find_default_machine(void);
 extern MachineState *current_machine;
 
 void machine_run_board_init(MachineState *machine);
@@ -69,7 +70,6 @@ int machine_kvm_shadow_mem(MachineState *machine);
 int machine_phandle_start(MachineState *machine);
 bool machine_dump_guest_core(MachineState *machine);
 bool machine_mem_merge(MachineState *machine);
-void machine_register_compat_props(MachineState *machine);
 HotpluggableCPUList *machine_query_hotpluggable_cpus(MachineState *machine);
 void machine_set_cpu_numa_node(MachineState *machine,
                                const CpuInstanceProperties *props,
@@ -157,6 +157,15 @@ typedef struct {
  *    should instead use "unimplemented-device" for all memory ranges where
  *    the guest will attempt to probe for a device that QEMU doesn't
  *    implement and a stub device is required.
+ * @kvm_type:
+ *    Return the type of KVM corresponding to the kvm-type string option or
+ *    computed based on other criteria such as the host kernel capabilities.
+ * @numa_mem_supported:
+ *    true if '--numa node.mem' option is supported and false otherwise
+ * @smp_parse:
+ *    The function pointer to hook different machine specific functions for
+ *    parsing "smp-opts" from QemuOpts to MachineState::CpuTopology and more
+ *    machine specific topology fields, such as smp_dies for PCMachine.
  */
 struct MachineClass {
     /*< private >*/
@@ -170,9 +179,10 @@ struct MachineClass {
     const char *deprecation_reason;
 
     void (*init)(MachineState *state);
-    void (*reset)(void);
-    void (*hot_add_cpu)(const int64_t id, Error **errp);
-    int (*kvm_type)(const char *arg);
+    void (*reset)(MachineState *state);
+    void (*hot_add_cpu)(MachineState *state, const int64_t id, Error **errp);
+    int (*kvm_type)(MachineState *machine, const char *arg);
+    void (*smp_parse)(MachineState *ms, QemuOpts *opts);
 
     BlockInterfaceType block_default_type;
     int units_per_default_bus;
@@ -181,7 +191,6 @@ struct MachineClass {
     int default_cpus;
     unsigned int no_serial:1,
         no_parallel:1,
-        use_virtcon:1,
         no_floppy:1,
         no_cdrom:1,
         no_sdcard:1,
@@ -191,10 +200,11 @@ struct MachineClass {
     const char *default_machine_opts;
     const char *default_boot_order;
     const char *default_display;
-    GArray *compat_props;
+    GPtrArray *compat_props;
     const char *hw_version;
     ram_addr_t default_ram_size;
     const char *default_cpu_type;
+    bool default_kernel_irqchip_split;
     bool option_rom_has_mr;
     bool rom_file_has_mr;
     int minimum_page_bits;
@@ -207,6 +217,9 @@ struct MachineClass {
     void (*numa_auto_assign_ram)(MachineClass *mc, NodeInfo *nodes,
                                  int nb_nodes, ram_addr_t size);
     bool ignore_boot_device_suffixes;
+    bool smbus_no_migration_support;
+    bool nvdimm_supported;
+    bool numa_mem_supported;
 
     HotplugHandler *(*get_hotplug_handler)(MachineState *machine,
                                            DeviceState *dev);
@@ -226,6 +239,20 @@ typedef struct DeviceMemoryState {
     hwaddr base;
     MemoryRegion mr;
 } DeviceMemoryState;
+
+/**
+ * CpuTopology:
+ * @cpus: the number of present logical processors on the machine
+ * @cores: the number of cores in one package
+ * @threads: the number of threads in one core
+ * @max_cpus: the maximum number of logical processors on the machine
+ */
+typedef struct CpuTopology {
+    unsigned int cpus;
+    unsigned int cores;
+    unsigned int threads;
+    unsigned int max_cpus;
+} CpuTopology;
 
 /**
  * MachineState:
@@ -269,6 +296,8 @@ struct MachineState {
     const char *cpu_type;
     AccelState *accelerator;
     CPUArchIdList *possible_cpus;
+    CpuTopology smp;
+    struct NVDIMMState *nvdimms_state;
 };
 
 #define DEFINE_MACHINE(namestr, machine_initfn) \
@@ -288,20 +317,49 @@ struct MachineState {
     } \
     type_init(machine_initfn##_register_types)
 
-#define SET_MACHINE_COMPAT(m, COMPAT) \
-    do {                              \
-        int i;                        \
-        static GlobalProperty props[] = {       \
-            COMPAT                              \
-            { /* end of list */ }               \
-        };                                      \
-        if (!m->compat_props) { \
-            m->compat_props = g_array_new(false, false, sizeof(void *)); \
-        } \
-        for (i = 0; props[i].driver != NULL; i++) {    \
-            GlobalProperty *prop = &props[i];          \
-            g_array_append_val(m->compat_props, prop); \
-        }                                              \
-    } while (0)
+extern GlobalProperty hw_compat_4_0[];
+extern const size_t hw_compat_4_0_len;
+
+extern GlobalProperty hw_compat_3_1[];
+extern const size_t hw_compat_3_1_len;
+
+extern GlobalProperty hw_compat_3_0[];
+extern const size_t hw_compat_3_0_len;
+
+extern GlobalProperty hw_compat_2_12[];
+extern const size_t hw_compat_2_12_len;
+
+extern GlobalProperty hw_compat_2_11[];
+extern const size_t hw_compat_2_11_len;
+
+extern GlobalProperty hw_compat_2_10[];
+extern const size_t hw_compat_2_10_len;
+
+extern GlobalProperty hw_compat_2_9[];
+extern const size_t hw_compat_2_9_len;
+
+extern GlobalProperty hw_compat_2_8[];
+extern const size_t hw_compat_2_8_len;
+
+extern GlobalProperty hw_compat_2_7[];
+extern const size_t hw_compat_2_7_len;
+
+extern GlobalProperty hw_compat_2_6[];
+extern const size_t hw_compat_2_6_len;
+
+extern GlobalProperty hw_compat_2_5[];
+extern const size_t hw_compat_2_5_len;
+
+extern GlobalProperty hw_compat_2_4[];
+extern const size_t hw_compat_2_4_len;
+
+extern GlobalProperty hw_compat_2_3[];
+extern const size_t hw_compat_2_3_len;
+
+extern GlobalProperty hw_compat_2_2[];
+extern const size_t hw_compat_2_2_len;
+
+extern GlobalProperty hw_compat_2_1[];
+extern const size_t hw_compat_2_1_len;
 
 #endif

@@ -28,7 +28,6 @@
  * THE SOFTWARE.
  */
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "cpu.h"
 #include "hw/hw.h"
 #include "qapi/visitor.h"
@@ -412,7 +411,7 @@ void ich9_lpc_pm_init(PCIDevice *lpc_pci, bool smm_enabled)
                                  true);
     }
 
-    ich9_lpc_reset(&lpc->d.qdev);
+    ich9_lpc_reset(DEVICE(lpc));
 }
 
 /* APM */
@@ -624,17 +623,6 @@ static const MemoryRegionOps ich9_rst_cnt_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN
 };
 
-Object *ich9_lpc_find(void)
-{
-    bool ambig;
-    Object *o = object_resolve_path_type("", TYPE_ICH9_LPC_DEVICE, &ambig);
-
-    if (ambig) {
-        return NULL;
-    }
-    return o;
-}
-
 static void ich9_lpc_get_sci_int(Object *obj, Visitor *v, const char *name,
                                  void *opaque, Error **errp)
 {
@@ -805,6 +793,7 @@ static void ich9_lpc_class_init(ObjectClass *klass, void *data)
      * pc_q35_init()
      */
     dc->user_creatable = false;
+    hc->pre_plug = ich9_pm_device_pre_plug_cb;
     hc->plug = ich9_pm_device_plug_cb;
     hc->unplug_request = ich9_pm_device_unplug_request_cb;
     hc->unplug = ich9_pm_device_unplug_cb;

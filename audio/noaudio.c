@@ -21,9 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "qemu/osdep.h"
-#include "qemu-common.h"
 #include "qemu/host-utils.h"
+#include "qemu/module.h"
 #include "audio.h"
 #include "qemu/timer.h"
 
@@ -136,7 +137,7 @@ static int no_ctl_in (HWVoiceIn *hw, int cmd, ...)
     return 0;
 }
 
-static void *no_audio_init (void)
+static void *no_audio_init(Audiodev *dev)
 {
     return &no_audio_init;
 }
@@ -163,7 +164,6 @@ static struct audio_pcm_ops no_pcm_ops = {
 static struct audio_driver no_audio_driver = {
     .name           = "none",
     .descr          = "Timer based audio emulation",
-    .options        = NULL,
     .init           = no_audio_init,
     .fini           = no_audio_fini,
     .pcm_ops        = &no_pcm_ops,

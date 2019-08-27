@@ -12,6 +12,7 @@
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu/iov.h"
+#include "qemu/module.h"
 #include "hw/qdev.h"
 #include "hw/virtio/virtio.h"
 #include "hw/virtio/virtio-rng.h"
@@ -191,7 +192,7 @@ static void virtio_rng_device_realize(DeviceState *dev, Error **errp)
     if (vrng->conf.rng == NULL) {
         vrng->conf.default_backend = RNG_RANDOM(object_new(TYPE_RNG_RANDOM));
 
-        user_creatable_complete(OBJECT(vrng->conf.default_backend),
+        user_creatable_complete(USER_CREATABLE(vrng->conf.default_backend),
                                 &local_err);
         if (local_err) {
             error_propagate(errp, local_err);

@@ -127,13 +127,14 @@ b/build-stamp: b/configure-stamp
 	# system and utils build
 	$(MAKE) -C b/qemu V=${V}
 ifeq (${enable_system},enable)
+	rm -f b/qemu/pc-bios/bamboo.dtb
 	dtc -o b/qemu/pc-bios/bamboo.dtb pc-bios/bamboo.dts
 endif
 
 ifeq ($(enable_linux_user),enable)
 	# user-static build
 	# we use this invocation to build just the binaries
-	$(MAKE) -C b/user-static V=${V} $(patsubst %,subdir-%-linux-user,${user_targets})
+	$(MAKE) -C b/user-static V=${V} $(patsubst %,%-linux-user/all,${user_targets})
 	sed -e 's/qemu\\-user\\-static/qemu\\-user/g' \
 	    -e 's/ (static version)//' \
 	    debian/qemu-user-static.1 > debian/qemu-user.1
@@ -164,34 +165,14 @@ binary-arch:
 	dh_installdirs -a
 
 	# system and utils install
-	$(MAKE) -C b/qemu DESTDIR=$(CURDIR)/debian/tmp install KEYMAPS=
+	$(MAKE) -C b/qemu DESTDIR=$(CURDIR)/debian/tmp install \
+	  KEYMAPS= ICON_SIZES=
 
 ifeq (${enable_system},enable)
 
 	# qemu-system subpackages
 	mv debian/tmp/usr/share/man/man1/qemu.1 debian/tmp/usr/share/man/man1/qemu-system.1
 	$(foreach s,${systems},$(call inst-system,$s))
-
-ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-# We used to load kvm module on x86 using an initscript,
-# but modern kernels do that automatically.  Remove the initscript.
-# Remove this fragment for stretch+1.
-	for x in preinst postinst postrm; do \
-	  echo 'dpkg-maintscript-helper rm_conffile /etc/init.d/qemu-system-x86 1:2.2+dfsg-3~ -- "$$@"' \
-	    >> debian/qemu-system-x86.$$x.debhelper ; \
-	done
-# there's no need to restore the links b/c kernel autoloads our modules
-	echo 'if [ configure = "$$1" ] && dpkg --compare-versions "$$2" le-nl 1:2.2+dfsg-3~; then update-rc.d qemu-system-x86 remove >/dev/null; fi' \
-	  >> debian/qemu-system-x86.postinst.debhelper
-endif
-
-# remove now-unused target-x86_64.conf (and /etc/qemu dir too, see #797608)
-	for x in preinst postinst postrm; do \
-	  echo 'dpkg-maintscript-helper rm_conffile /etc/qemu/target-x86_64.conf 1:2.4+dfsg-1~ -- "$$@"' \
-            >> debian/qemu-system-x86.$$x.debhelper ; \
-	  echo '[ -d /etc/qemu ] && rmdir /etc/qemu 2>/dev/null || :' \
-	    >> debian/qemu-system-x86.$$x.debhelper; \
-	done
 
 ifeq ($(DEB_HOST_ARCH_OS),linux)
 
@@ -297,7 +278,7 @@ endif
 
 
 # s390x firmware in pc-bios/s390-ccw
-s390ccw_srcs = start.S main.c bootmap.c jump2ipl.c sclp.c menu.c virtio.c virtio-scsi.c virtio-blkdev.c libc.c
+s390ccw_srcs = start.S main.c bootmap.c jump2ipl.c sclp.c menu.c virtio.c virtio-scsi.c virtio-blkdev.c libc.c cio.c dasd-ipl.c
 
 build-indep:
 

@@ -21,12 +21,14 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
 #include "qemu/osdep.h"
 #include "hw/hw.h"
 #include "hw/audio/soundhw.h"
 #include "audio/audio.h"
 #include "hw/isa/isa.h"
 #include "hw/qdev.h"
+#include "qemu/module.h"
 #include "qemu/timer.h"
 #include "qapi/error.h"
 
@@ -288,7 +290,7 @@ static void cs_reset_voices (CSState *s, uint32_t val)
 
     switch ((val >> 5) & ((s->dregs[MODE_And_ID] & MODE2) ? 7 : 3)) {
     case 0:
-        as.fmt = AUD_FMT_U8;
+        as.fmt = AUDIO_FORMAT_U8;
         s->shift = as.nchannels == 2;
         break;
 
@@ -298,7 +300,7 @@ static void cs_reset_voices (CSState *s, uint32_t val)
     case 3:
         s->tab = ALawDecompressTable;
     x_law:
-        as.fmt = AUD_FMT_S16;
+        as.fmt = AUDIO_FORMAT_S16;
         as.endianness = AUDIO_HOST_ENDIANNESS;
         s->shift = as.nchannels == 2;
         break;
@@ -307,7 +309,7 @@ static void cs_reset_voices (CSState *s, uint32_t val)
         as.endianness = 1;
         /* fall through */
     case 2:
-        as.fmt = AUD_FMT_S16;
+        as.fmt = AUDIO_FORMAT_S16;
         s->shift = as.nchannels;
         break;
 

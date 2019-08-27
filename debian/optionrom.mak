@@ -6,7 +6,7 @@ CFLAGS = -O2 -m16 -Wa,-32 -march=i486 \
 	-I${SRC_PATH}/include
 VPATH = ${SRC_PATH}/pc-bios/optionrom
 
-BINS = kvmvapic.bin linuxboot.bin linuxboot_dma.bin multiboot.bin
+BINS = kvmvapic.bin linuxboot.bin linuxboot_dma.bin multiboot.bin pvh.bin
 all: ${BINS}
 
 %.o: %.S
@@ -15,10 +15,12 @@ all: ${BINS}
 	${CC} ${CFLAGS} -c -o $@ $<
 %.img: %.o
 	${LD} -m elf_i386 -T ${SRC_PATH}/pc-bios/optionrom/flat.lds -s -o $@ $<
+pvh.img: pvh.o pvh_main.o
+	${LD} -m elf_i386 -T ${SRC_PATH}/pc-bios/optionrom/flat.lds -s -o $@ $+
 %.raw: %.img
 	${OBJCOPY} -O binary -j .text $< $@
 %.bin: %.raw
-	python ${SRC_PATH}/scripts/signrom.py $< $@
+	python3 ${SRC_PATH}/scripts/signrom.py $< $@
 
 clean:
 	rm -f ${BINS}

@@ -24,6 +24,7 @@
 
 #include "qemu/osdep.h"
 #include "qapi/error.h"
+#include "qemu/module.h"
 #include "hw/hw.h"
 #include "hw/audio/soundhw.h"
 #include "audio/audio.h"
@@ -269,7 +270,7 @@ static void adlib_realizefn (DeviceState *dev, Error **errp)
 
     as.freq = s->freq;
     as.nchannels = SHIFT;
-    as.fmt = AUD_FMT_S16;
+    as.fmt = AUDIO_FORMAT_S16;
     as.endianness = AUDIO_HOST_ENDIANNESS;
 
     AUD_register_card ("adlib", &s->card);

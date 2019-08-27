@@ -72,6 +72,7 @@ static void machine_hppa_init(MachineState *machine)
     MemoryRegion *ram_region;
     MemoryRegion *cpu_region;
     long i;
+    unsigned int smp_cpus = machine->smp.cpus;
 
     ram_size = machine->ram_size;
 
@@ -135,8 +136,8 @@ static void machine_hppa_init(MachineState *machine)
         exit(1);
     }
 
-    size = load_elf(firmware_filename, NULL,
-                    NULL, &firmware_entry, &firmware_low, &firmware_high,
+    size = load_elf(firmware_filename, NULL, NULL, NULL,
+                    &firmware_entry, &firmware_low, &firmware_high,
                     true, EM_PARISC, 0, 0);
 
     /* Unfortunately, load_elf sign-extends reading elf32.  */
@@ -165,7 +166,7 @@ static void machine_hppa_init(MachineState *machine)
 
     /* Load kernel */
     if (kernel_filename) {
-        size = load_elf(kernel_filename, &cpu_hppa_to_phys,
+        size = load_elf(kernel_filename, NULL, &cpu_hppa_to_phys,
                         NULL, &kernel_entry, &kernel_low, &kernel_high,
                         true, EM_PARISC, 0, 0);
 
@@ -240,8 +241,9 @@ static void machine_hppa_init(MachineState *machine)
     cpu[0]->env.gr[21] = smp_cpus;
 }
 
-static void hppa_machine_reset(void)
+static void hppa_machine_reset(MachineState *ms)
 {
+    unsigned int smp_cpus = ms->smp.cpus;
     int i;
 
     qemu_devices_reset();

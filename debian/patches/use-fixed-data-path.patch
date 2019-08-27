@@ -27,15 +27,9 @@ and it will still work.
  {
 --- a/vl.c
 +++ b/vl.c
-@@ -3051,7 +3051,7 @@ int main(int argc, char **argv, char **e
-     Error *main_loop_err = NULL;
-     Error *err = NULL;
-     bool list_data_dirs = false;
+@@ -3051,1 +3051,1 @@ int main(int argc, char **argv, char **e
 -    char *dir, **dirs;
 +    char **dirs;
-     typedef struct BlockdevOptions_queue {
-         BlockdevOptions *bdo;
-         Location loc;
 @@ -4170,11 +4170,6 @@ int main(int argc, char **argv, char **e
      }
      g_strfreev(dirs);

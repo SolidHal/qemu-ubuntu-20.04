@@ -29,6 +29,7 @@
 #include "sysemu/balloon.h"
 #include "qemu/error-report.h"
 #include "trace.h"
+#include "hw/boards.h"
 
 /* Arbitrary limit on size of each discard command,
  * keeps them around ~200 bytes
@@ -128,6 +129,8 @@ static void migration_exit_cb(Notifier *n, void *data)
 
 static struct PostcopyBlocktimeContext *blocktime_context_new(void)
 {
+    MachineState *ms = MACHINE(qdev_get_machine());
+    unsigned int smp_cpus = ms->smp.cpus;
     PostcopyBlocktimeContext *ctx = g_new0(PostcopyBlocktimeContext, 1);
     ctx->page_fault_vcpu_time = g_new0(uint32_t, smp_cpus);
     ctx->vcpu_addr = g_new0(uintptr_t, smp_cpus);
@@ -141,10 +144,11 @@ static struct PostcopyBlocktimeContext *blocktime_context_new(void)
 
 static uint32List *get_vcpu_blocktime_list(PostcopyBlocktimeContext *ctx)
 {
+    MachineState *ms = MACHINE(qdev_get_machine());
     uint32List *list = NULL, *entry = NULL;
     int i;
 
-    for (i = smp_cpus - 1; i >= 0; i--) {
+    for (i = ms->smp.cpus - 1; i >= 0; i--) {
         entry = g_new0(uint32List, 1);
         entry->value = ctx->vcpu_blocktime[i];
         entry->next = list;
@@ -319,10 +323,10 @@ static bool ufd_check_and_apply(int ufd, MigrationIncomingState *mis)
 
 /* Callback from postcopy_ram_supported_by_host block iterator.
  */
-static int test_ramblock_postcopiable(const char *block_name, void *host_addr,
-                             ram_addr_t offset, ram_addr_t length, void *opaque)
+static int test_ramblock_postcopiable(RAMBlock *rb, void *opaque)
 {
-    RAMBlock *rb = qemu_ram_block_by_name(block_name);
+    const char *block_name = qemu_ram_get_idstr(rb);
+    ram_addr_t length = qemu_ram_get_used_length(rb);
     size_t pagesize = qemu_ram_pagesize(rb);
 
     if (length % pagesize) {
@@ -374,7 +378,7 @@ bool postcopy_ram_supported_by_host(MigrationIncomingState *mis)
     }
 
     /* We don't support postcopy with shared RAM yet */
-    if (qemu_ram_foreach_migratable_block(test_ramblock_postcopiable, NULL)) {
+    if (foreach_not_ignored_block(test_ramblock_postcopiable, NULL)) {
         goto out;
     }
 
@@ -443,9 +447,12 @@ out:
  * must be done right at the start prior to pre-copy.
  * opaque should be the MIS.
  */
-static int init_range(const char *block_name, void *host_addr,
-                      ram_addr_t offset, ram_addr_t length, void *opaque)
+static int init_range(RAMBlock *rb, void *opaque)
 {
+    const char *block_name = qemu_ram_get_idstr(rb);
+    void *host_addr = qemu_ram_get_host_addr(rb);
+    ram_addr_t offset = qemu_ram_get_offset(rb);
+    ram_addr_t length = qemu_ram_get_used_length(rb);
     trace_postcopy_init_range(block_name, host_addr, offset, length);
 
     /*
@@ -465,9 +472,12 @@ static int init_range(const char *block_name, void *host_addr,
  * At the end of migration, undo the effects of init_range
  * opaque should be the MIS.
  */
-static int cleanup_range(const char *block_name, void *host_addr,
-                        ram_addr_t offset, ram_addr_t length, void *opaque)
+static int cleanup_range(RAMBlock *rb, void *opaque)
 {
+    const char *block_name = qemu_ram_get_idstr(rb);
+    void *host_addr = qemu_ram_get_host_addr(rb);
+    ram_addr_t offset = qemu_ram_get_offset(rb);
+    ram_addr_t length = qemu_ram_get_used_length(rb);
     MigrationIncomingState *mis = opaque;
     struct uffdio_range range_struct;
     trace_postcopy_cleanup_range(block_name, host_addr, offset, length);
@@ -502,7 +512,7 @@ static int cleanup_range(const char *block_name, void *host_addr,
  */
 int postcopy_ram_incoming_init(MigrationIncomingState *mis)
 {
-    if (qemu_ram_foreach_migratable_block(init_range, NULL)) {
+    if (foreach_not_ignored_block(init_range, NULL)) {
         return -1;
     }
 
@@ -544,7 +554,7 @@ int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
             return -1;
         }
 
-        if (qemu_ram_foreach_migratable_block(cleanup_range, mis)) {
+        if (foreach_not_ignored_block(cleanup_range, mis)) {
             return -1;
         }
 
@@ -586,9 +596,12 @@ int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
 /*
  * Disable huge pages on an area
  */
-static int nhp_range(const char *block_name, void *host_addr,
-                    ram_addr_t offset, ram_addr_t length, void *opaque)
+static int nhp_range(RAMBlock *rb, void *opaque)
 {
+    const char *block_name = qemu_ram_get_idstr(rb);
+    void *host_addr = qemu_ram_get_host_addr(rb);
+    ram_addr_t offset = qemu_ram_get_offset(rb);
+    ram_addr_t length = qemu_ram_get_used_length(rb);
     trace_postcopy_nhp_range(block_name, host_addr, offset, length);
 
     /*
@@ -608,7 +621,7 @@ static int nhp_range(const char *block_name, void *host_addr,
  */
 int postcopy_ram_prepare_discard(MigrationIncomingState *mis)
 {
-    if (qemu_ram_foreach_migratable_block(nhp_range, mis)) {
+    if (foreach_not_ignored_block(nhp_range, mis)) {
         return -1;
     }
 
@@ -619,22 +632,20 @@ int postcopy_ram_prepare_discard(MigrationIncomingState *mis)
 
 /*
  * Mark the given area of RAM as requiring notification to unwritten areas
- * Used as a  callback on qemu_ram_foreach_migratable_block.
+ * Used as a  callback on foreach_not_ignored_block.
  *   host_addr: Base of area to mark
  *   offset: Offset in the whole ram arena
  *   length: Length of the section
  *   opaque: MigrationIncomingState pointer
  * Returns 0 on success
  */
-static int ram_block_enable_notify(const char *block_name, void *host_addr,
-                                   ram_addr_t offset, ram_addr_t length,
-                                   void *opaque)
+static int ram_block_enable_notify(RAMBlock *rb, void *opaque)
 {
     MigrationIncomingState *mis = opaque;
     struct uffdio_register reg_struct;
 
-    reg_struct.range.start = (uintptr_t)host_addr;
-    reg_struct.range.len = length;
+    reg_struct.range.start = (uintptr_t)qemu_ram_get_host_addr(rb);
+    reg_struct.range.len = qemu_ram_get_used_length(rb);
     reg_struct.mode = UFFDIO_REGISTER_MODE_MISSING;
 
     /* Now tell our userfault_fd that it's responsible for this area */
@@ -647,7 +658,6 @@ static int ram_block_enable_notify(const char *block_name, void *host_addr,
         return -1;
     }
     if (reg_struct.ioctls & ((__u64)1 << _UFFDIO_ZEROPAGE)) {
-        RAMBlock *rb = qemu_ram_block_by_name(block_name);
         qemu_ram_set_uf_zeroable(rb);
     }
 
@@ -801,6 +811,8 @@ static void mark_postcopy_blocktime_end(uintptr_t addr)
 {
     MigrationIncomingState *mis = migration_incoming_get_current();
     PostcopyBlocktimeContext *dc = mis->blocktime_ctx;
+    MachineState *ms = MACHINE(qdev_get_machine());
+    unsigned int smp_cpus = ms->smp.cpus;
     int i, affected_cpu = 0;
     bool vcpu_total_blocktime = false;
     uint32_t read_vcpu_time, low_time_offset;
@@ -1116,7 +1128,8 @@ int postcopy_ram_enable_notify(MigrationIncomingState *mis)
     mis->have_fault_thread = true;
 
     /* Mark so that we get notified of accesses to unwritten areas */
-    if (qemu_ram_foreach_migratable_block(ram_block_enable_notify, mis)) {
+    if (foreach_not_ignored_block(ram_block_enable_notify, mis)) {
+        error_report("ram_block_enable_notify failed");
         return -1;
     }
 

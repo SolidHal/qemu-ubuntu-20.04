@@ -804,7 +804,7 @@ static void gen_cvttq(DisasContext *ctx, int rb, int rc, int fn11)
 
 static void gen_ieee_intcvt(DisasContext *ctx,
                             void (*helper)(TCGv, TCGv_ptr, TCGv),
-			    int rb, int rc, int fn11)
+                            int rb, int rc, int fn11)
 {
     TCGv vb, vc;
 
@@ -3049,10 +3049,10 @@ static const TranslatorOps alpha_tr_ops = {
     .disas_log          = alpha_tr_disas_log,
 };
 
-void gen_intermediate_code(CPUState *cpu, TranslationBlock *tb)
+void gen_intermediate_code(CPUState *cpu, TranslationBlock *tb, int max_insns)
 {
     DisasContext dc;
-    translator_loop(&alpha_tr_ops, &dc.base, cpu, tb);
+    translator_loop(&alpha_tr_ops, &dc.base, cpu, tb, max_insns);
 }
 
 void restore_state_to_opc(CPUAlphaState *env, TranslationBlock *tb,

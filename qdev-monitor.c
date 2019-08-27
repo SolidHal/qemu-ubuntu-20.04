@@ -24,13 +24,14 @@
 #include "monitor/qdev.h"
 #include "sysemu/arch_init.h"
 #include "qapi/error.h"
-#include "qapi/qapi-commands-misc.h"
+#include "qapi/qapi-commands-qdev.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qerror.h"
 #include "qemu/config-file.h"
 #include "qemu/error-report.h"
 #include "qemu/help_option.h"
 #include "qemu/option.h"
+#include "qemu/qemu-print.h"
 #include "sysemu/block-backend.h"
 #include "migration/misc.h"
 
@@ -104,31 +105,22 @@ static bool qdev_class_has_alias(DeviceClass *dc)
     return (qdev_class_get_alias(dc) != NULL);
 }
 
-static void out_printf(const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    monitor_vfprintf(stdout, fmt, ap);
-    va_end(ap);
-}
-
 static void qdev_print_devinfo(DeviceClass *dc)
 {
-    out_printf("name \"%s\"", object_class_get_name(OBJECT_CLASS(dc)));
+    qemu_printf("name \"%s\"", object_class_get_name(OBJECT_CLASS(dc)));
     if (dc->bus_type) {
-        out_printf(", bus %s", dc->bus_type);
+        qemu_printf(", bus %s", dc->bus_type);
     }
     if (qdev_class_has_alias(dc)) {
-        out_printf(", alias \"%s\"", qdev_class_get_alias(dc));
+        qemu_printf(", alias \"%s\"", qdev_class_get_alias(dc));
     }
     if (dc->desc) {
-        out_printf(", desc \"%s\"", dc->desc);
+        qemu_printf(", desc \"%s\"", dc->desc);
     }
     if (!dc->user_creatable) {
-        out_printf(", no-user");
+        qemu_printf(", no-user");
     }
-    out_printf("\n");
+    qemu_printf("\n");
 }
 
 static void qdev_print_devinfos(bool show_no_user)
@@ -164,7 +156,7 @@ static void qdev_print_devinfos(bool show_no_user)
                 continue;
             }
             if (!cat_printed) {
-                out_printf("%s%s devices:\n", i ? "\n" : "", cat_name[i]);
+                qemu_printf("%s%s devices:\n", i ? "\n" : "", cat_name[i]);
                 cat_printed = true;
             }
             qdev_print_devinfo(dc);
@@ -286,20 +278,20 @@ int qdev_device_help(QemuOpts *opts)
     }
 
     if (prop_list) {
-        out_printf("%s options:\n", driver);
+        qemu_printf("%s options:\n", driver);
     } else {
-        out_printf("There are no options for %s.\n", driver);
+        qemu_printf("There are no options for %s.\n", driver);
     }
     for (prop = prop_list; prop; prop = prop->next) {
         int len;
-        out_printf("  %s=<%s>%n", prop->value->name, prop->value->type, &len);
+        qemu_printf("  %s=<%s>%n", prop->value->name, prop->value->type, &len);
         if (prop->value->has_description) {
             if (len < 24) {
-                out_printf("%*s", 24 - len, "");
+                qemu_printf("%*s", 24 - len, "");
             }
-            out_printf(" - %s\n", prop->value->description);
+            qemu_printf(" - %s\n", prop->value->description);
         } else {
-            out_printf("\n");
+            qemu_printf("\n");
         }
     }
 
@@ -414,7 +406,7 @@ static DeviceState *qbus_find_dev(BusState *bus, char *elem)
 static inline bool qbus_is_full(BusState *bus)
 {
     BusClass *bus_class = BUS_GET_CLASS(bus);
-    return bus_class->max_dev && bus->max_index >= bus_class->max_dev;
+    return bus_class->max_dev && bus->num_children >= bus_class->max_dev;
 }
 
 /*
@@ -747,63 +739,6 @@ void hmp_info_qdm(Monitor *mon, const QDict *qdict)
     qdev_print_devinfos(true);
 }
 
-typedef struct QOMCompositionState {
-    Monitor *mon;
-    int indent;
-} QOMCompositionState;
-
-static void print_qom_composition(Monitor *mon, Object *obj, int indent);
-
-static int print_qom_composition_child(Object *obj, void *opaque)
-{
-    QOMCompositionState *s = opaque;
-
-    print_qom_composition(s->mon, obj, s->indent);
-
-    return 0;
-}
-
-static void print_qom_composition(Monitor *mon, Object *obj, int indent)
-{
-    QOMCompositionState s = {
-        .mon = mon,
-        .indent = indent + 2,
-    };
-    char *name;
-
-    if (obj == object_get_root()) {
-        name = g_strdup("");
-    } else {
-        name = object_get_canonical_path_component(obj);
-    }
-    monitor_printf(mon, "%*s/%s (%s)\n", indent, "", name,
-                   object_get_typename(obj));
-    g_free(name);
-    object_child_foreach(obj, print_qom_composition_child, &s);
-}
-
-void hmp_info_qom_tree(Monitor *mon, const QDict *dict)
-{
-    const char *path = qdict_get_try_str(dict, "path");
-    Object *obj;
-    bool ambiguous = false;
-
-    if (path) {
-        obj = object_resolve_path(path, &ambiguous);
-        if (!obj) {
-            monitor_printf(mon, "Path '%s' could not be resolved.\n", path);
-            return;
-        }
-        if (ambiguous) {
-            monitor_printf(mon, "Warning: Path '%s' is ambiguous.\n", path);
-            return;
-        }
-    } else {
-        obj = qdev_get_machine();
-    }
-    print_qom_composition(mon, obj, 0);
-}
-
 void qmp_device_add(QDict *qdict, QObject **ret_data, Error **errp)
 {
     Error *local_err = NULL;
@@ -862,6 +797,7 @@ void qdev_unplug(DeviceState *dev, Error **errp)
     DeviceClass *dc = DEVICE_GET_CLASS(dev);
     HotplugHandler *hotplug_ctrl;
     HotplugHandlerClass *hdc;
+    Error *local_err = NULL;
 
     if (dev->parent_bus && !qbus_is_hotpluggable(dev->parent_bus)) {
         error_setg(errp, QERR_BUS_NO_HOTPLUG, dev->parent_bus->name);
@@ -890,10 +826,14 @@ void qdev_unplug(DeviceState *dev, Error **errp)
      * otherwise just remove it synchronously */
     hdc = HOTPLUG_HANDLER_GET_CLASS(hotplug_ctrl);
     if (hdc->unplug_request) {
-        hotplug_handler_unplug_request(hotplug_ctrl, dev, errp);
+        hotplug_handler_unplug_request(hotplug_ctrl, dev, &local_err);
     } else {
-        hotplug_handler_unplug(hotplug_ctrl, dev, errp);
+        hotplug_handler_unplug(hotplug_ctrl, dev, &local_err);
+        if (!local_err) {
+            object_unparent(OBJECT(dev));
+        }
     }
+    error_propagate(errp, local_err);
 }
 
 void qmp_device_del(const char *id, Error **errp)
