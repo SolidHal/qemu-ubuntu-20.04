@@ -31,7 +31,6 @@ enable_linux_user = $(if $(filter qemu-user,${BUILD_PACKAGES}),enable,disable)
 
 FIRMWAREPATH = /usr/share/qemu:/usr/share/seabios:/usr/lib/ipxe/qemu
 
-S390X_CROSSPFX = s390x-linux-gnu-
 ALPHAEV67_CROSSPFX = alpha-linux-gnu-
 
 # we add another set of configure options from debian/control
@@ -127,8 +126,9 @@ b/build-stamp: b/configure-stamp
 	# system and utils build
 	$(MAKE) -C b/qemu V=${V}
 ifeq (${enable_system},enable)
-	rm -f b/qemu/pc-bios/bamboo.dtb
+	rm -f b/qemu/pc-bios/bamboo.dtb b/qemu/pc-bios/canyonlands.dtb
 	dtc -o b/qemu/pc-bios/bamboo.dtb pc-bios/bamboo.dts
+	dtc -o b/qemu/pc-bios/canyonlands.dtb pc-bios/canyonlands.dts
 endif
 
 ifeq ($(enable_linux_user),enable)
@@ -277,9 +277,6 @@ debian/control: debian/control-in debian/rules
 endif
 
 
-# s390x firmware in pc-bios/s390-ccw
-s390ccw_srcs = start.S main.c bootmap.c jump2ipl.c sclp.c menu.c virtio.c virtio-scsi.c virtio-blkdev.c libc.c cio.c dasd-ipl.c
-
 build-indep:
 
 	mkdir -p b/fw
@@ -287,18 +284,23 @@ build-indep:
 # x86 optionrom
 	${MAKE} -f ${CURDIR}/debian/optionrom.mak -C ${CURDIR}/b/fw SRC_PATH=${CURDIR}
 
+# sgabios. The Makefile is too complex and forces current date to be embedded to binary
+	cc -c -o b/fw/sgabios.o roms/sgabios/sgabios.S -Wall -Os -m32 -nostdlib \
+	  -DBUILD_DATE="\"$$(LC_ALL=C date -u -r roms/sgabios/sgabios.S)\"" \
+	  -DBUILD_SHORT_DATE="\"$$(date -u +%D -r roms/sgabios/sgabios.S)\"" \
+	  -DBUILD_HOST=\"debian\" -DBUILD_USER=\"build\"
+	ld -T roms/sgabios/rom16.ld -nostdlib b/fw/sgabios.o -o b/fw/sgabios.elf
+	objcopy -O binary b/fw/sgabios.elf b/fw/sgabios.bin
+	cc -Wall -O2 -o b/fw/csum8 roms/sgabios/csum8.c
+	b/fw/csum8 b/fw/sgabios.bin
+
 # alpha firmware in roms/palcode-clipper
 	cp -al roms/qemu-palcode b/
 	${MAKE} -C ${CURDIR}/b/qemu-palcode CROSS=${ALPHAEV67_CROSSPFX}
 	${ALPHAEV67_CROSSPFX}strip b/qemu-palcode/palcode-clipper
 
 # s390x firmware in pc-bios/s390-ccw
-	${S390X_CROSSPFX}gcc -Wl,-pie -fPIE -nostdlib -o b/fw/s390-ccw.img \
-	  -ffreestanding -fno-delete-null-pointer-checks -msoft-float \
-	  -march=z900 -fPIE -fno-strict-aliasing -fno-asynchronous-unwind-tables -fno-stack-protector \
-	   $(addprefix pc-bios/s390-ccw/,${s390ccw_srcs})
-	${S390X_CROSSPFX}strip --strip-unneeded b/fw/s390-ccw.img
-	chmod -x b/fw/s390-ccw.img
+	${MAKE} -f debian/s390fw.mak OUT=b/fw/
 
 binary-indep:
 	dh_testdir

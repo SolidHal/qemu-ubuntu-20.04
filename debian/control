@@ -71,6 +71,8 @@ Build-Depends: debhelper (>= 11),
 # --disable-sdl
 # --enable-seccomp	linux-*
  libseccomp-dev (>= 2.3.0) [linux-any],
+# --enable-slirp=system
+ libslirp-dev,
 # --enable-spice	linux-amd64|linux-i386|linux-arm64
  libspice-server-dev (>= 0.12.5~) [linux-amd64 linux-i386 linux-arm64],
  libspice-protocol-dev (>= 0.12.3~) [linux-amd64 linux-i386 linux-arm64],
@@ -87,6 +89,8 @@ Build-Depends: debhelper (>= 11),
  libvdeplug-dev,
 # --enable-xen	linux-amd64|linux-i386
  libxen-dev [linux-amd64 linux-i386],
+# --enable-nettle
+ nettle-dev,
 ## always enabled: --enable-uuid
  uuid-dev,
 # --enable-xfsctl	linux-*
@@ -103,14 +107,11 @@ Build-Depends: debhelper (>= 11),
  libpng-dev,
 # --enable-kvm		linux-*
 # --enable-vhost-net	linux-*	# is it really linux-specific?
-##--enable-lzo todo
+##--enable-lzo todo, for (memory) dumps
 ##--enable-netmap todo bsd
-##--enable-quorum todo needs gcrypt
 ##--enable-xen-pci-passthrough todo
 ##--with-iconv (libiconv for curses wide char support)
 ## libudev?
-## nettle?
-## gcrypt?
 ## auth-pam - for auth for vnc&Co using PAM
 ## gio-2.0 - for -display=spice-app
 Build-Depends-Indep:
@@ -183,7 +184,8 @@ Description: extra block backend modules for qemu-system and qemu-utils
 Package: qemu-system-data
 Architecture: all
 Multi-Arch: foreign
-Replaces: qemu-system-common (<< 1:2.12+dfsg-2~)
+Conflicts: sgabios
+Replaces: qemu-system-common (<< 1:2.12+dfsg-2~), sgabios
 Provides: qemu-keymaps
 Depends: ${misc:Depends}
 Description: QEMU full system emulation (data files)
