@@ -134,7 +134,7 @@ fi
 
 qemu_arch=""
 case "$deb_arch" in
-  alpha|arm|armeb|i386|m68k|mips|mipsel|mips64el|ppc64|riscv32|riscv64|sh4|sh4eb|sparc|sparc64|s390x)
+  alpha|arm|armeb|hppa|i386|m68k|mips|mipsel|mips64el|ppc64|riscv32|riscv64|sh4|sh4eb|sparc|sparc64|s390x)
     qemu_arch="$deb_arch"
   ;;
   amd64)
@@ -156,7 +156,7 @@ case "$deb_arch" in
     qemu_arch="ppc64le"
   ;;
   *)
-    die "Sorry, I don't know how to support arch %s" "$arch"
+    die "Sorry, I don't know how to support arch %s" "$deb_arch"
   ;;
 esac
 

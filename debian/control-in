@@ -191,7 +191,7 @@ Architecture: all
 Multi-Arch: foreign
 Conflicts: sgabios
 Replaces: qemu-system-common (<< 1:2.12+dfsg-2~), sgabios
-Provides: qemu-keymaps
+Provides: qemu-keymaps, sgabios
 Depends: ${misc:Depends}
 Description: QEMU full system emulation (data files)
  This package provides architecture-neutral data files
