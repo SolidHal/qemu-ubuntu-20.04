@@ -19,6 +19,7 @@
 #include <lock.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <cpu.h>
 #include <device.h>
 #include <libfdt.h>
@@ -29,19 +30,19 @@
 
 #define DEBUG_TRACES
 
-#define MAX_SIZE (sizeof(union trace) + 7)
+#define MAX_SIZE sizeof(union trace)
 
 /* Smaller trace buffer for early booting */
 #define BOOT_TBUF_SZ 65536
 static struct {
 	struct trace_info trace_info;
 	char buf[BOOT_TBUF_SZ + MAX_SIZE];
-} boot_tracebuf;
+} boot_tracebuf __section(".data.boot_trace");
 
 void init_boot_tracebuf(struct cpu_thread *boot_cpu)
 {
 	init_lock(&boot_tracebuf.trace_info.lock);
-	boot_tracebuf.trace_info.tb.mask = cpu_to_be64(BOOT_TBUF_SZ - 1);
+	boot_tracebuf.trace_info.tb.buf_size = cpu_to_be64(BOOT_TBUF_SZ);
 	boot_tracebuf.trace_info.tb.max_size = cpu_to_be32(MAX_SIZE);
 
 	boot_cpu->trace = &boot_tracebuf.trace_info;
@@ -61,7 +62,7 @@ static bool handle_repeat(struct tracebuf *tb, const union trace *trace)
 	struct trace_repeat *rpt;
 	u32 len;
 
-	prev = (void *)tb->buf + be64_to_cpu(tb->last & tb->mask);
+	prev = (void *)tb->buf + be64_to_cpu(tb->last) % be64_to_cpu(tb->buf_size);
 
 	if (prev->type != trace->hdr.type
 	    || prev->len_div_8 != trace->hdr.len_div_8
@@ -80,7 +81,7 @@ static bool handle_repeat(struct tracebuf *tb, const union trace *trace)
 	if (be64_to_cpu(tb->last) + len != be64_to_cpu(tb->end)) {
 		u64 pos = be64_to_cpu(tb->last) + len;
 		/* FIXME: Reader is not protected from seeing this! */
-		rpt = (void *)tb->buf + (pos & be64_to_cpu(tb->mask));
+		rpt = (void *)tb->buf + pos % be64_to_cpu(tb->buf_size);
 		assert(pos + rpt->len_div_8*8 == be64_to_cpu(tb->end));
 		assert(rpt->type == TRACE_REPEAT);
 
@@ -99,7 +100,7 @@ static bool handle_repeat(struct tracebuf *tb, const union trace *trace)
 	 */
 	assert(trace->hdr.len_div_8 * 8 >= sizeof(*rpt));
 
-	rpt = (void *)tb->buf + be64_to_cpu(tb->end & tb->mask);
+	rpt = (void *)tb->buf + be64_to_cpu(tb->end) % be64_to_cpu(tb->buf_size);
 	rpt->timestamp = trace->hdr.timestamp;
 	rpt->type = TRACE_REPEAT;
 	rpt->len_div_8 = sizeof(*rpt) >> 3;
@@ -138,12 +139,12 @@ void trace_add(union trace *trace, u8 type, u16 len)
 	lock(&ti->lock);
 
 	/* Throw away old entries before we overwrite them. */
-	while ((be64_to_cpu(ti->tb.start) + be64_to_cpu(ti->tb.mask) + 1)
+	while ((be64_to_cpu(ti->tb.start) + be64_to_cpu(ti->tb.buf_size))
 	       < (be64_to_cpu(ti->tb.end) + tsz)) {
 		struct trace_hdr *hdr;
 
 		hdr = (void *)ti->tb.buf +
-			be64_to_cpu(ti->tb.start & ti->tb.mask);
+			be64_to_cpu(ti->tb.start) % be64_to_cpu(ti->tb.buf_size);
 		ti->tb.start = cpu_to_be64(be64_to_cpu(ti->tb.start) +
 					   (hdr->len_div_8 << 3));
 	}
@@ -154,7 +155,7 @@ void trace_add(union trace *trace, u8 type, u16 len)
 	/* Check for duplicates... */
 	if (!handle_repeat(&ti->tb, trace)) {
 		/* This may go off end, and that's why ti->tb.buf is oversize */
-		memcpy(ti->tb.buf + be64_to_cpu(ti->tb.end & ti->tb.mask),
+		memcpy(ti->tb.buf + be64_to_cpu(ti->tb.end) % be64_to_cpu(ti->tb.buf_size),
 		       trace, tsz);
 		ti->tb.last = ti->tb.end;
 		lwsync(); /* write barrier: write entry before exposing */
@@ -167,12 +168,21 @@ static void trace_add_dt_props(void)
 {
 	unsigned int i;
 	u64 *prop, tmask;
+	struct dt_node *exports;
+	char tname[256];
 
 	prop = malloc(sizeof(u64) * 2 * debug_descriptor.num_traces);
 
+	exports = dt_find_by_path(opal_node, "firmware/exports");
 	for (i = 0; i < debug_descriptor.num_traces; i++) {
 		prop[i * 2] = cpu_to_fdt64(debug_descriptor.trace_phys[i]);
 		prop[i * 2 + 1] = cpu_to_fdt64(debug_descriptor.trace_size[i]);
+
+		snprintf(tname, sizeof(tname), "trace-%x-%"PRIx64,
+			 debug_descriptor.trace_pir[i],
+			 debug_descriptor.trace_phys[i]);
+		dt_add_property_u64s(exports, tname, debug_descriptor.trace_phys[i],
+				     debug_descriptor.trace_size[i]);
 	}
 
 	dt_add_property(opal_node, "ibm,opal-traces",
@@ -183,7 +193,7 @@ static void trace_add_dt_props(void)
 	dt_add_property_u64(opal_node, "ibm,opal-trace-mask", tmask);
 }
 
-static void trace_add_desc(struct trace_info *t, uint64_t size)
+static void trace_add_desc(struct trace_info *t, uint64_t size, uint16_t pir)
 {
 	unsigned int i = debug_descriptor.num_traces;
 
@@ -193,9 +203,10 @@ static void trace_add_desc(struct trace_info *t, uint64_t size)
 	}
 	debug_descriptor.num_traces++;
 
-	debug_descriptor.trace_phys[i] = (uint64_t)&t->tb;
+	debug_descriptor.trace_phys[i] = (uint64_t)t;
 	debug_descriptor.trace_tce[i] = 0; /* populated later */
 	debug_descriptor.trace_size[i] = size;
+	debug_descriptor.trace_pir[i] = pir;
 }
 
 /* Allocate trace buffers once we know memory topology */
@@ -206,24 +217,24 @@ void init_trace_buffers(void)
 	uint64_t size;
 
 	/* Boot the boot trace in the debug descriptor */
-	trace_add_desc(any, sizeof(boot_tracebuf.buf));
+	trace_add_desc(any, sizeof(boot_tracebuf), this_cpu()->pir);
 
 	/* Allocate a trace buffer for each primary cpu. */
 	for_each_cpu(t) {
 		if (t->is_secondary)
 			continue;
 
-		/* Use a 4K alignment for TCE mapping */
-		size = ALIGN_UP(sizeof(*t->trace) + tracebuf_extra(), 0x1000);
-		t->trace = local_alloc(t->chip_id, size, 0x1000);
+		/* Use a 64K alignment for TCE mapping */
+		size = ALIGN_UP(sizeof(*t->trace) + tracebuf_extra(), 0x10000);
+		t->trace = local_alloc(t->chip_id, size, 0x10000);
 		if (t->trace) {
 			any = t->trace;
 			memset(t->trace, 0, size);
 			init_lock(&t->trace->lock);
-			t->trace->tb.mask = cpu_to_be64(TBUF_SZ - 1);
 			t->trace->tb.max_size = cpu_to_be32(MAX_SIZE);
+			t->trace->tb.buf_size = cpu_to_be64(TBUF_SZ);
 			trace_add_desc(any, sizeof(t->trace->tb) +
-				       tracebuf_extra());
+				       tracebuf_extra(), t->pir);
 		} else
 			prerror("TRACE: cpu 0x%x allocation failed\n", t->pir);
 	}

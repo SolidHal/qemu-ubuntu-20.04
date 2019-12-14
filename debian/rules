@@ -53,6 +53,11 @@ ifneq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
 common_configure_opts  += --cross-prefix=$(DEB_HOST_GNU_TYPE)-
 endif
 
+ifeq ($(DEB_TARGET_ARCH), hppa)
+# allow configure to run on unsupported arches to build qemu-utils and the like
+common_configure_opts += --enable-tcg-interpreter
+endif
+
 ifeq (${enable_system},enable)
 
 # list of system (softmmu) targets, from ./configure
@@ -284,6 +289,12 @@ build-indep:
 # x86 optionrom
 	${MAKE} -f ${CURDIR}/debian/optionrom.mak -C ${CURDIR}/b/fw SRC_PATH=${CURDIR}
 
+# qboot, aka bios-microvm
+	cp -al roms/qboot b/
+	${MAKE} -C ${CURDIR}/b/qboot
+	cp b/qboot/bios.bin b/fw/bios-microvm.bin
+	chmod 0644 b/fw/bios-microvm.bin
+
 # sgabios. The Makefile is too complex and forces current date to be embedded to binary
 	cc -c -o b/fw/sgabios.o roms/sgabios/sgabios.S -Wall -Os -m32 -nostdlib \
 	  -DBUILD_DATE="\"$$(LC_ALL=C date -u -r roms/sgabios/sgabios.S)\"" \
@@ -293,6 +304,7 @@ build-indep:
 	objcopy -O binary b/fw/sgabios.elf b/fw/sgabios.bin
 	cc -Wall -O2 -o b/fw/csum8 roms/sgabios/csum8.c
 	b/fw/csum8 b/fw/sgabios.bin
+	chmod 0644 b/fw/sgabios.bin
 
 # alpha firmware in roms/palcode-clipper
 	cp -al roms/qemu-palcode b/

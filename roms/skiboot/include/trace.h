@@ -21,7 +21,6 @@
 #include <lock.h>
 #include <trace_types.h>
 
-#define TBUF_SZ (1024 * 1024)
 
 struct cpu_thread;
 
@@ -29,11 +28,13 @@ struct cpu_thread;
 void init_boot_tracebuf(struct cpu_thread *boot_cpu);
 
 struct trace_info {
-	/* Lock for writers. */
+	/* Lock for writers. Exposed to kernel. */
 	struct lock lock;
 	/* Exposed to kernel. */
 	struct tracebuf tb;
 };
+
+#define TBUF_SZ ((1024 * 1024) - sizeof(struct trace_info) - sizeof(union trace))
 
 /* Allocate trace buffers once we know memory topology */
 void init_trace_buffers(void);

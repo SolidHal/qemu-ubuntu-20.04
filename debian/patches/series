@@ -1,4 +1,2 @@
-v4.1.1.diff
 use-fixed-data-path.patch
 bt-use-size_t-type-for-length-parameters-instead-of-int-CVE-2018-19665.patch
-enable-pschange-mc-no.patch
