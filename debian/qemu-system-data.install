@@ -7,3 +7,5 @@ b/fw/*.bin usr/share/qemu
 b/fw/s390*.img usr/share/qemu
 # alpha firmware
 b/qemu-palcode/palcode-clipper usr/share/qemu
+# skiboot firmware for powernv qemu machine
+b/skiboot/skiboot.lid usr/share/qemu

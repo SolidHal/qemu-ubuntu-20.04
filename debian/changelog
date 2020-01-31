@@ -1,3 +1,36 @@
+qemu (1:4.2-2) unstable; urgency=medium
+
+  [ Fabrice Bauzac ]
+  * Fix a typo in the description of the qemu binary package
+
+  [ Frédéric Bonnard ]
+  * Enable powernv emulation with skiboot firmware
+
+  [ Michael R. Crusoe ]
+  * Modernize watch file (Closes: #909743)
+
+  [ Christian Ehrhardt ]
+  * d/control-in: promote qemu-efi/ovmf in Ubuntu
+  * d/control-in: bump debhelper build-dep for compat 12
+  * - d/control-in: update VCS links
+  * - d/control-in: disable bluetooth being deprecated
+  * d/not-installed: ignore new interop docs and extra icons for now
+  * do not install elf2dmp until namespaced
+  * d/control-in: Enable numa support for s390x
+  * Create qemu-system-s390x package (Ubuntu only for now)
+
+  [ Michael Tokarev ]
+  * stop using inttypes.h in qboot code;
+    this makes dependency on libc6-dev-i386 to be unnecessary
+  * qboot-no-jump-tables.diff - use #pragma for one file in qboot
+  * do not install qemu-edid and qemu-keymap for now
+  * no need in bluetooth patches as bluetooth is disabled
+  * scsi-cap-block-count-from-GET-LBA-STATUS-CVE-2020-1711.patch
+    (Closes: #949731, CVE-2020-1711)
+  * enable libpmem support on amd64|arm64|ppc64el (Closes: #935327)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 31 Jan 2020 23:51:09 +0300
+
 qemu (1:4.2-1) unstable; urgency=medium
 
   * new upstream release (4.2.0)

@@ -6,7 +6,7 @@ Maintainer: Debian QEMU Team <pkg-qemu-devel@lists.alioth.debian.org>
 Uploaders: Aurelien Jarno <aurel32@debian.org>,
 	Riku Voipio <riku.voipio@iki.fi>,
 	Michael Tokarev <mjt@tls.msk.ru>
-Build-Depends: debhelper (>= 11),
+Build-Depends: debhelper (>= 12),
 # In comments below we also specify (system-specific) arguments
 # to qemu's configure script, -- optional features which depend
 # on build-dependencies.
@@ -28,8 +28,8 @@ Build-Depends: debhelper (>= 11),
 # for virtfs
 # --enable-attr
  libattr1-dev,
-# --enable-bluez	linux-*
- libbluetooth-dev [linux-any],
+# bluetooth subsystem got deprecated by upstream
+# --disable-bluez
 # --enable-brlapi
  libbrlapi-dev,
 # --enable-virtfs	linux-*
@@ -55,8 +55,8 @@ Build-Depends: debhelper (>= 11),
  libepoxy-dev, libdrm-dev, libgbm-dev,
 # --enable-libnfs
  libnfs-dev (>> 1.9.3),
-# --enable-numa	i386|amd64|ia64|mips|mipsel|powerpc|powerpcspe|x32|ppc64|ppc64el|arm64|sparc
- libnuma-dev   [i386 amd64 ia64 mips mipsel mips64 mips64el powerpc powerpcspe x32 ppc64 ppc64el arm64 sparc],
+# --enable-numa	i386|amd64|ia64|mips|mipsel|powerpc|powerpcspe|x32|ppc64|ppc64el|arm64|sparc|s390x
+ libnuma-dev   [i386 amd64 ia64 mips mipsel mips64 mips64el powerpc powerpcspe x32 ppc64 ppc64el arm64 sparc s390x],
 # --enable-smartcard
  libcacard-dev,
  libpixman-1-dev,
@@ -105,6 +105,8 @@ Build-Depends: debhelper (>= 11),
  libjpeg-dev,
 # --enable-vnc-png
  libpng-dev,
+# --enable-libpmem	linux-amd64|linux-arm64|linux-ppc64el
+ libpmem-dev [linux-amd64 linux-arm64 linux-ppc64el],
 # --enable-kvm		linux-*
 # --enable-vhost-net	linux-*	# is it really linux-specific?
 ##--enable-lzo todo, for (memory) dumps
@@ -119,8 +121,8 @@ Build-Depends-Indep:
 # libc6.1-dev-alpha-cross isn't really needed but the code,
 # for whatever reason, #include's string.h which needs libc6.1-dev
  gcc-alpha-linux-gnu, libc6.1-dev-alpha-cross,
-# for qboot some system headers are needed
- libc6-dev-i386,
+# skiboot firmware
+ gcc-powerpc64-linux-gnu,
 Build-Conflicts: oss4-dev
 Standards-Version: 3.9.8
 Homepage: http://www.qemu.org/
@@ -142,7 +144,7 @@ Description: fast processor emulator, dummy package
  .
  If you want full system emulation of some architecture, install one or more
  of qemu-system-ARCH packages. If you want user-mode emulation, install
- qemu-user pr qemu-user-static package. If you need utilities, use qemu-utils
+ qemu-user or qemu-user-static package. If you need utilities, use qemu-utils
  package.
  .
  This package can safely be removed.
@@ -153,8 +155,8 @@ Multi-Arch: foreign
 Depends: ${misc:Depends},
  qemu-system-arm,
  qemu-system-mips,
- qemu-system-ppc, 
- qemu-system-sparc, 
+ qemu-system-ppc,
+ qemu-system-sparc,
  qemu-system-x86,
  qemu-system-misc
 Description: QEMU full system emulation binaries
@@ -187,7 +189,7 @@ Package: qemu-system-data
 Architecture: all
 Multi-Arch: foreign
 Conflicts: sgabios
-Replaces: qemu-system-common (<< 1:2.12+dfsg-2~), sgabios
+Replaces: qemu-system-common (<< 1:2.12+dfsg-2~), sgabios,
 Provides: qemu-keymaps, sgabios
 Depends: ${misc:Depends}
 Description: QEMU full system emulation (data files)
@@ -324,7 +326,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, qemu-system-common (>> 1:2.12~), qe
 Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
 # sparc64 uses vgabios-stdvga and bootroms
  seabios, ipxe-qemu (>= 1.0.0+git-20131111.c3d1e78-1~)
-Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}), 
+Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
 Provides: ${sysprovides:sparc}
 Description: QEMU full system emulation binaries (sparc)
  QEMU is a fast processor emulator: currently the package supports
@@ -348,7 +350,6 @@ Recommends: qemu-system-gui (= ${binary:Version}), qemu-utils,
  ovmf,
 Suggests: samba, vde2, qemu-block-extra (= ${binary:Version}),
  sgabios,
-# can we recommend ovmf on ubuntu the same way as on debian?
 Provides: ${sysprovides:x86}
 Description: QEMU full system emulation binaries (x86)
  QEMU is a fast processor emulator: currently the package supports
@@ -480,3 +481,4 @@ Description: QEMU Full virtualization on x86 hardware
  QEMU is a fast processor emulator.  This package provides just a wrapper
  script /usr/bin/kvm which run qemu-system-x86 in kvm mode for backwards
  compatibility.
+
