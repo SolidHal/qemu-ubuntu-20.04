@@ -1,3 +1,12 @@
+qemu (1:4.2-3) unstable; urgency=medium
+
+  * mention closing of #909743 in previous changelog (Closes: #909743)
+  * do not link to qemu-skiboot from qemu-system-ppc (Closes: #950431)
+  * provide+conflict qemu-skiboot from qemu-system-data,
+    as we are not using this package anymore
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Sat, 01 Feb 2020 22:10:57 +0300
+
 qemu (1:4.2-2) unstable; urgency=medium
 
   [ Fabrice Bauzac ]
