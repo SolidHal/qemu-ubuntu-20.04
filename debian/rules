@@ -75,9 +75,10 @@ system_targets = \
  sh4 sh4eb sparc sparc64 s390x tricore xtensa xtensaeb unicore32
 
 # qemu-system subpackages, from d/control
-sys_systems = arm mips ppc sparc x86
 ifeq ($(VENDOR),UBUNTU)
-sys_systems = ${sys_systems} s390x
+sys_systems = arm mips ppc sparc x86 s390x
+else
+sys_systems = arm mips ppc sparc x86
 endif
 systems = ${sys_systems} misc
 sysarch_arm   = $(filter aarch64 arm,${system_targets})
