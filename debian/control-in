@@ -105,8 +105,8 @@ Build-Depends: debhelper (>= 12),
  libjpeg-dev,
 # --enable-vnc-png
  libpng-dev,
-# --enable-libpmem	linux-amd64|linux-arm64|linux-ppc64el
- libpmem-dev [linux-amd64 linux-arm64 linux-ppc64el],
+# --enable-libpmem	linux-amd64|linux-arm64
+ libpmem-dev [linux-amd64 linux-arm64],
 # --enable-kvm		linux-*
 # --enable-vhost-net	linux-*	# is it really linux-specific?
 ##--enable-lzo todo, for (memory) dumps
