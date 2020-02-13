@@ -171,7 +171,7 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64),)
 		--disable-tcg-interpreter --disable-tcg \
 		--without-default-devices \
 		$(QEMU_CONFIGURE_OPTIONS) || \
-	 { echo ===== CONFIGURE FAILED ===; tail -n 50 config.log; exit 1; }
+	 { echo ===== CONFIGURE FAILED ===; tail -n 50 b/qemu-microvm/config.log; exit 1; }
 	echo "#define CONFIG_MICROVM_DEFAULT 1" >> b/qemu-microvm/x86_64-softmmu/config-target.h
 endif
 
