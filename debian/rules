@@ -194,7 +194,7 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 		$(shell sh debian/extract-config-opts \
 		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
 		$(QEMU_CONFIGURE_OPTIONS) || \
-	 { echo ===== CONFIGURE FAILED ===; tail -n 50 config.log; exit 1; }
+	 { echo ===== CONFIGURE FAILED ===; tail -n 50 b/qemu-xen/config.log; exit 1; }
 # same config as the main build.
 	sed -i -r 's/(CONFIG_(CURSES|-GTK|-SDL|AUDIO_(-PA|OSS|ALSA|-SDL)))=m/\1=y/' \
 		b/qemu-xen/config-host.mak
