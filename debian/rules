@@ -134,7 +134,7 @@ b/configure-stamp: configure
 		$(shell sh debian/extract-config-opts \
 		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
 		$(QEMU_CONFIGURE_OPTIONS) || \
-	 { echo ===== CONFIGURE FAILED ===; tail -n 50 config.log; exit 1; }
+	 { echo ===== CONFIGURE FAILED ===; tail -n 50 b/qemu/config.log; exit 1; }
 
 # switch some simple UI and simple audio modules to be built-ins,
 # but keep more complex to be modules to move to a separate package
