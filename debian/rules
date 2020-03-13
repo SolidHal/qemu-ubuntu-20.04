@@ -140,6 +140,7 @@ b/configure-stamp: configure
 		--${enable_linux_user}-linux-user \
 		--disable-xen \
 		--enable-modules \
+		--enable-module-upgrades \
 		$(shell sh debian/extract-config-opts \
 		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
 		$(QEMU_CONFIGURE_OPTIONS) || \
@@ -200,6 +201,7 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 		--enable-xen \
 		--target-list="aarch64-softmmu arm-softmmu i386-softmmu x86_64-softmmu"
 		--enable-modules \
+		--enable-module-upgrades \
 		$(shell sh debian/extract-config-opts \
 		    $(DEB_HOST_ARCH_OS)-$(DEB_HOST_ARCH) debian/control) \
 		$(QEMU_CONFIGURE_OPTIONS) || \
