@@ -1,0 +1,51 @@
+From 2cabd9a80d9c37f0e1e0e1094689c284e75dfad9 Mon Sep 17 00:00:00 2001
+From: Janosch Frank <frankja@linux.ibm.com>
+Date: Tue, 23 Jul 2019 13:17:32 +0200
+Subject: [PATCH] s390x: protvirt: Set guest IPL PSW
+
+Handling of CPU reset and setting of the IPL psw from guest storage at
+offset 0 is done by a Ultravisor call. Let's only fetch it if
+necessary.
+
+Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
+Reviewed-by: Thomas Huth <thuth@redhat.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+
+Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
+Origin: backport, https://github.com/borntraeger/qemu/commit/2cabd9a80d
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-03-20
+
+---
+ target/s390x/cpu.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/target/s390x/cpu.c b/target/s390x/cpu.c
+index 479f1978c9..6da0c3f155 100644
+--- a/target/s390x/cpu.c
++++ b/target/s390x/cpu.c
+@@ -77,8 +77,16 @@ static bool s390_cpu_has_work(CPUState *cs)
+ static void s390_cpu_load_normal(CPUState *s)
+ {
+     S390CPU *cpu = S390_CPU(s);
+-    cpu->env.psw.addr = ldl_phys(s->as, 4) & PSW_MASK_ESA_ADDR;
+-    cpu->env.psw.mask = PSW_MASK_32 | PSW_MASK_64;
++    if (!s390_is_pv()) {
++        cpu->env.psw.addr = ldl_phys(s->as, 4) & PSW_MASK_ESA_ADDR;
++        cpu->env.psw.mask = PSW_MASK_32 | PSW_MASK_64;
++    } else {
++        /*
++         * Firmware requires us to set the load state before we set
++         * the cpu to operating on protected guests.
++         */
++        s390_cpu_set_state(S390_CPU_STATE_LOAD, cpu);
++    }
+     s390_cpu_set_state(S390_CPU_STATE_OPERATING, cpu);
+ }
+ #endif
+-- 
+2.25.1
+

@@ -1,0 +1,61 @@
+From ad83d48ffd04844f4d931bee94c9084c943d3f5a Mon Sep 17 00:00:00 2001
+From: Janosch Frank <frankja@linux.ibm.com>
+Date: Wed, 5 Feb 2020 07:02:51 -0500
+Subject: [PATCH] s390x: protvirt: Move STSI data over SIDAD
+
+For protected guests, we need to put the STSI emulation results into
+the SIDA, so SIE will write them into the guest at the next entry.
+
+Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+
+Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
+Origin: backport, https://github.com/borntraeger/qemu/commit/ad83d48ffd
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-03-20
+
+---
+ target/s390x/kvm.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
+index 941e4df630..d00e05cc10 100644
+--- a/target/s390x/kvm.c
++++ b/target/s390x/kvm.c
+@@ -50,6 +50,7 @@
+ #include "exec/memattrs.h"
+ #include "hw/s390x/s390-virtio-ccw.h"
+ #include "hw/s390x/s390-virtio-hcall.h"
++#include "hw/s390x/pv.h"
+ 
+ #ifndef DEBUG_KVM
+ #define DEBUG_KVM  0
+@@ -1803,7 +1804,9 @@ static void insert_stsi_3_2_2(S390CPU *cpu, __u64 addr, uint8_t ar)
+     SysIB_322 sysib;
+     int del;
+ 
+-    if (s390_cpu_virt_mem_read(cpu, addr, ar, &sysib, sizeof(sysib))) {
++    if (s390_is_pv()) {
++        s390_cpu_pv_mem_read(cpu, 0, &sysib, sizeof(sysib));
++    } else if (s390_cpu_virt_mem_read(cpu, addr, ar, &sysib, sizeof(sysib))) {
+         return;
+     }
+     /* Shift the stack of Extended Names to prepare for our own data */
+@@ -1843,7 +1846,11 @@ static void insert_stsi_3_2_2(S390CPU *cpu, __u64 addr, uint8_t ar)
+     /* Insert UUID */
+     memcpy(sysib.vm[0].uuid, &qemu_uuid, sizeof(sysib.vm[0].uuid));
+ 
+-    s390_cpu_virt_mem_write(cpu, addr, ar, &sysib, sizeof(sysib));
++    if (s390_is_pv()) {
++        s390_cpu_pv_mem_write(cpu, 0, &sysib, sizeof(sysib));
++    } else {
++        s390_cpu_virt_mem_write(cpu, addr, ar, &sysib, sizeof(sysib));
++    }
+ }
+ 
+ static int handle_stsi(S390CPU *cpu)
+-- 
+2.25.1
+

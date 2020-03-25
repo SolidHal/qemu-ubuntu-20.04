@@ -1,0 +1,70 @@
+From 617d3f7be6434962614dc5ee381f3d67aca85578 Mon Sep 17 00:00:00 2001
+From: Janosch Frank <frankja@linux.ibm.com>
+Date: Fri, 6 Mar 2020 06:40:13 -0500
+Subject: [PATCH] s390x: protvirt: Add migration blocker
+
+Migration is not yet supported.
+
+Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+
+Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
+Origin: backport, https://github.com/borntraeger/qemu/commit/617d3f7be6
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-03-20
+
+---
+ hw/s390x/s390-virtio-ccw.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/hw/s390x/s390-virtio-ccw.c b/hw/s390x/s390-virtio-ccw.c
+index 5149030d22..ed910a0996 100644
+--- a/hw/s390x/s390-virtio-ccw.c
++++ b/hw/s390x/s390-virtio-ccw.c
+@@ -44,6 +44,9 @@
+ #include "sysemu/sysemu.h"
+ #include "hw/s390x/pv.h"
+ #include <linux/kvm.h>
++#include "migration/blocker.h"
++
++static Error *pv_mig_blocker;
+ 
+ S390CPU *s390_cpu_addr2state(uint16_t cpu_addr)
+ {
+@@ -325,15 +328,30 @@ static void s390_machine_unprotect(S390CcwMachineState *ms)
+ {
+     s390_pv_vm_disable();
+     ms->pv = false;
++    migrate_del_blocker(pv_mig_blocker);
++    error_free_or_abort(&pv_mig_blocker);
+ }
+ 
+ static int s390_machine_protect(S390CcwMachineState *ms)
+ {
++    Error *local_err = NULL;
+     int rc;
+ 
++    error_setg(&pv_mig_blocker,
++               "protected VMs are currently not migrateable.");
++    rc = migrate_add_blocker(pv_mig_blocker, &local_err);
++    if (rc) {
++        error_report_err(local_err);
++        error_free_or_abort(&pv_mig_blocker);
++        return rc;
++    }
++
+     /* Create SE VM */
+     rc = s390_pv_vm_enable();
+     if (rc) {
++        error_report_err(local_err);
++        migrate_del_blocker(pv_mig_blocker);
++        error_free_or_abort(&pv_mig_blocker);
+         return rc;
+     }
+ 
+-- 
+2.25.1
+

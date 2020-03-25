@@ -1,0 +1,141 @@
+From f3673a4cba21dae20c2a87bd6639a2e03ef7ff39 Mon Sep 17 00:00:00 2001
+From: Janosch Frank <frankja@linux.ibm.com>
+Date: Wed, 5 Feb 2020 06:57:35 -0500
+Subject: [PATCH] s390x: Add SIDA memory ops
+
+Protected guests save the instruction control blocks in the SIDA
+instead of QEMU/KVM directly accessing the guest's memory.
+
+Let's introduce new functions to access the SIDA.
+
+The memops for doing so are available with KVM_CAP_S390_PROTECTED, so
+let's check for that.
+
+Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+
+Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
+Origin: backport, https://github.com/borntraeger/qemu/commit/f3673a4cba
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-03-20
+
+---
+ target/s390x/cpu.h        |  7 ++++++-
+ target/s390x/kvm.c        | 26 ++++++++++++++++++++++++++
+ target/s390x/kvm_s390x.h  |  2 ++
+ target/s390x/mmu_helper.c | 14 ++++++++++++++
+ 4 files changed, 48 insertions(+), 1 deletion(-)
+
+diff --git a/target/s390x/cpu.h b/target/s390x/cpu.h
+index d2af13b345..2ec0f78b48 100644
+--- a/target/s390x/cpu.h
++++ b/target/s390x/cpu.h
+@@ -821,7 +821,12 @@ int s390_cpu_virt_mem_rw(S390CPU *cpu, vaddr laddr, uint8_t ar, void *hostbuf,
+ #define s390_cpu_virt_mem_check_write(cpu, laddr, ar, len)   \
+         s390_cpu_virt_mem_rw(cpu, laddr, ar, NULL, len, true)
+ void s390_cpu_virt_mem_handle_exc(S390CPU *cpu, uintptr_t ra);
+-
++int s390_cpu_pv_mem_rw(S390CPU *cpu, unsigned int offset, void *hostbuf,
++                       int len, bool is_write);
++#define s390_cpu_pv_mem_read(cpu, offset, dest, len)    \
++        s390_cpu_pv_mem_rw(cpu, offset, dest, len, false)
++#define s390_cpu_pv_mem_write(cpu, offset, dest, len)       \
++        s390_cpu_pv_mem_rw(cpu, offset, dest, len, true)
+ 
+ /* sigp.c */
+ int s390_cpu_restart(S390CPU *cpu);
+diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
+index abeeaaa674..941e4df630 100644
+--- a/target/s390x/kvm.c
++++ b/target/s390x/kvm.c
+@@ -154,6 +154,7 @@ static int cap_ri;
+ static int cap_gs;
+ static int cap_hpage_1m;
+ static int cap_vcpu_resets;
++static int cap_protected;
+ 
+ static int active_cmma;
+ 
+@@ -351,6 +352,7 @@ int kvm_arch_init(MachineState *ms, KVMState *s)
+     cap_mem_op = kvm_check_extension(s, KVM_CAP_S390_MEM_OP);
+     cap_s390_irq = kvm_check_extension(s, KVM_CAP_S390_INJECT_IRQ);
+     cap_vcpu_resets = kvm_check_extension(s, KVM_CAP_S390_VCPU_RESETS);
++    cap_protected = kvm_check_extension(s, KVM_CAP_S390_PROTECTED);
+ 
+     if (!kvm_check_extension(s, KVM_CAP_S390_GMAP)
+         || !kvm_check_extension(s, KVM_CAP_S390_COW)) {
+@@ -848,6 +850,30 @@ int kvm_s390_mem_op(S390CPU *cpu, vaddr addr, uint8_t ar, void *hostbuf,
+     return ret;
+ }
+ 
++int kvm_s390_mem_op_pv(S390CPU *cpu, uint64_t offset, void *hostbuf,
++                       int len, bool is_write)
++{
++    struct kvm_s390_mem_op mem_op = {
++        .sida_offset = offset,
++        .size = len,
++        .op = is_write ? KVM_S390_MEMOP_SIDA_WRITE
++                       : KVM_S390_MEMOP_SIDA_READ,
++        .buf = (uint64_t)hostbuf,
++    };
++    int ret;
++
++    if (!cap_mem_op || !cap_protected) {
++        return -ENOSYS;
++    }
++
++    ret = kvm_vcpu_ioctl(CPU(cpu), KVM_S390_MEM_OP, &mem_op);
++    if (ret < 0) {
++        error_report("KVM_S390_MEM_OP failed: %s", strerror(-ret));
++        abort();
++    }
++    return ret;
++}
++
+ /*
+  * Legacy layout for s390:
+  * Older S390 KVM requires the topmost vma of the RAM to be
+diff --git a/target/s390x/kvm_s390x.h b/target/s390x/kvm_s390x.h
+index dea813f450..6ab17c81b7 100644
+--- a/target/s390x/kvm_s390x.h
++++ b/target/s390x/kvm_s390x.h
+@@ -19,6 +19,8 @@ void kvm_s390_vcpu_interrupt(S390CPU *cpu, struct kvm_s390_irq *irq);
+ void kvm_s390_access_exception(S390CPU *cpu, uint16_t code, uint64_t te_code);
+ int kvm_s390_mem_op(S390CPU *cpu, vaddr addr, uint8_t ar, void *hostbuf,
+                     int len, bool is_write);
++int kvm_s390_mem_op_pv(S390CPU *cpu, vaddr addr, void *hostbuf, int len,
++                       bool is_write);
+ void kvm_s390_program_interrupt(S390CPU *cpu, uint16_t code);
+ int kvm_s390_set_cpu_state(S390CPU *cpu, uint8_t cpu_state);
+ void kvm_s390_vcpu_interrupt_pre_save(S390CPU *cpu);
+diff --git a/target/s390x/mmu_helper.c b/target/s390x/mmu_helper.c
+index c9f3f34750..ec8befbdc8 100644
+--- a/target/s390x/mmu_helper.c
++++ b/target/s390x/mmu_helper.c
+@@ -474,6 +474,20 @@ static int translate_pages(S390CPU *cpu, vaddr addr, int nr_pages,
+     return 0;
+ }
+ 
++int s390_cpu_pv_mem_rw(S390CPU *cpu, unsigned int offset, void *hostbuf,
++                       int len, bool is_write)
++{
++    int ret;
++
++    if (kvm_enabled()) {
++        ret = kvm_s390_mem_op_pv(cpu, offset, hostbuf, len, is_write);
++    } else {
++        /* Protected Virtualization is a KVM/Hardware only feature */
++        g_assert_not_reached();
++    }
++    return ret;
++}
++
+ /**
+  * s390_cpu_virt_mem_rw:
+  * @laddr:     the logical start address
+-- 
+2.25.1
+

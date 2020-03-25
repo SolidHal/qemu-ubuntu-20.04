@@ -1,0 +1,67 @@
+From 8c284a11c5dd980fd2cea00306c18ea644c0754d Mon Sep 17 00:00:00 2001
+From: Christian Borntraeger <borntraeger@de.ibm.com>
+Date: Tue, 25 Feb 2020 06:28:51 -0500
+Subject: [PATCH] s390x: Add unpack facility feature to GA1
+
+The unpack facility is an indication that diagnose 308 subcodes 8-10
+are available to the guest. That means, that the guest can put itself
+into protected mode.
+
+Once it is in protected mode, the hardware stops any attempt of VM
+introspection by the hypervisor.
+
+Some features are currently not supported in protected mode:
+     * vfio devices
+     * Migration
+     * Huge page backings
+
+Signed-off-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
+
+Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
+Origin: backport, https://github.com/borntraeger/qemu/commit/8c284a11c5
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-03-20
+
+---
+ target/s390x/gen-features.c | 1 +
+ target/s390x/kvm.c          | 8 ++++++++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/target/s390x/gen-features.c b/target/s390x/gen-features.c
+index 6278845b12..8ddeebc544 100644
+--- a/target/s390x/gen-features.c
++++ b/target/s390x/gen-features.c
+@@ -562,6 +562,7 @@ static uint16_t full_GEN15_GA1[] = {
+     S390_FEAT_GROUP_MSA_EXT_9,
+     S390_FEAT_GROUP_MSA_EXT_9_PCKMO,
+     S390_FEAT_ETOKEN,
++    S390_FEAT_UNPACK,
+ };
+ 
+ /* Default features (in order of release)
+diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
+index d94b915da4..8b82e4c93d 100644
+--- a/target/s390x/kvm.c
++++ b/target/s390x/kvm.c
+@@ -2407,6 +2407,14 @@ void kvm_s390_get_host_cpu_model(S390CPUModel *model, Error **errp)
+         clear_bit(S390_FEAT_BPB, model->features);
+     }
+ 
++    /*
++     * If we have support for protected virtualization, indicate
++     * the protected virtualization IPL unpack facility.
++     */
++    if (cap_protected) {
++        set_bit(S390_FEAT_UNPACK, model->features);
++    }
++
+     /* We emulate a zPCI bus and AEN, therefore we don't need HW support */
+     set_bit(S390_FEAT_ZPCI, model->features);
+     set_bit(S390_FEAT_ADAPTER_EVENT_NOTIFICATION, model->features);
+-- 
+2.25.1
+
