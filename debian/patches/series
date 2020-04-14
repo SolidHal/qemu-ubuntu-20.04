@@ -1,4 +1,6 @@
 use-fixed-data-path.patch
+microvm-default-machine-type.patch
 qboot-stop-using-inttypes.patch
 qboot-no-jump-tables.diff
 iscsi-cap-block-count-from-GET-LBA-STATUS-CVE-2020-1711.patch
+net-tulip-check-frame-size-and-r-w-data-length-CVE-2020-11102.patch

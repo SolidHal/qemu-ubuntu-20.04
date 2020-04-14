@@ -1,3 +1,25 @@
+qemu (1:4.2-4) unstable; urgency=medium
+
+  [ Michael Tokarev ]
+  * d/rules: build minimal configuration for qboot/microvm usage
+  * set microvm to be the default machine type for microvm case
+  * install ui-spice-app.so in qemu-system-common
+  * do not depend on libattr-dev, functions are now in libc6 (Closes: #953910)
+  * net-tulip-check-frame-size-and-r-w-data-length-CVE-2020-11102.patch
+    (Closes: #956145, CVE-2020-11102, tulip nic buffer overflow)
+  * qemu-system-data: s/highcolor/hicolor/ (Closes: #955741)
+  * switch binfmt registration to use update-binfmts --[un]import
+    (Closes: #866756)
+  * build openbios-ppc & openbios-sparc binaries in qemu-system-data,
+    and replace corresponding binary packages.
+    Add gcc-sparc64-linux-gnu, fcode-utils & xsltproc to build-depend-indep
+  * build and provide/replace qemu-slof too
+
+  [ Aurelien Jarno ]
+  * enable support for riscv64 hosts
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 14 Apr 2020 12:44:43 +0300
+
 qemu (1:4.2-3) unstable; urgency=medium
 
   * mention closing of #909743 in previous changelog (Closes: #909743)

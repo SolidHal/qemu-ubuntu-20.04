@@ -1,9 +1,6 @@
-# check if we're running inside an (lxc) container
-# (we may copy or move this to the postinst script too, to skip installing it)
-grep -zqs ^container= /proc/1/environ && exit 0
+#!/bin/sh
 
-# == binfmt registration/deregistration ==
-if command -v update-binfmts > /dev/null ; then
+PACKAGE="$1"
 
 fmts="aarch64 alpha arm armeb cris hppa i386 m68k microblaze mips mipsel mipsn32 mipsn32el mips64 mips64el ppc ppc64 ppc64abi32 ppc64le riscv32 riscv64 s390x sh4 sh4eb sparc sparc32plus sparc64 x86_64 xtensa xtensaeb"
 
@@ -73,48 +70,59 @@ sparc32plus_magic='\x7f\x45\x4c\x46\x01\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\
    xtensaeb_magic='\x7f\x45\x4c\x46\x01\x02\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x5e'
     xtensaeb_mask='\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff'
 
+DEB_HOST_ARCH=$(dpkg-architecture -qDEB_HOST_ARCH)
 
 # find which fmts needs to be filtered out, which is arch-dependent.
 # Drop support for emulating amd64 on i386, http://bugs.debian.org/604712
-case "$DPKG_MAINTSCRIPT_ARCH" in
+case "$DEB_HOST_ARCH" in
   amd64 | i386) omit="i386|x86_64" ;;
   arm | armel | armhf | arm64) omit="arm|aarch64" ;;
-  mips | mipsel) omit="$DPKG_MAINTSCRIPT_ARCH" ;;
   ppc64 | powerpc) omit="ppc|ppc64|ppc64abi32" ;;
   ppc64el) omit="ppc64le" ;;
+  riscv64) omit="riscv32|riscv64" ;;
   s390x) omit="s390x" ;;
   sparc | sparc64) omit="sparc|sparc32plus|sparc64" ;;
-  *) omit="$DPKG_MAINTSCRIPT_ARCH" ;;
+  *) omit="$DEB_HOST_ARCH" ;;
 esac
 
-remove_binfmt() {
-    if [ -f /var/lib/binfmts/qemu-$1 ]; then
-	update-binfmts --package @PACKAGE@ --remove qemu-$1 /usr/bin/qemu-$1@SUFFIX@
-    fi
-}
-
-case "$DPKG_MAINTSCRIPT_NAME:$1" in
-
-    postinst:configure)
-	for fmt in $fmts ; do
-
-	    eval "case $fmt in $omit) magic= ;; *) magic=\"\$${fmt}_magic\" mask=\"\$${fmt}_mask\" ;; esac"
-	    if [ -n "$magic" ]; then
-		update-binfmts --package @PACKAGE@ --install qemu-$fmt /usr/bin/qemu-$fmt@SUFFIX@ \
-			--magic "$magic" --mask "$mask" --offset 0 --credential yes @FIX_BINARY@
-	    else
-		remove_binfmt $fmt
-	    fi
-	done
-	;;
-
-    prerm:remove)
-	for fmt in $fmts ; do
-	    remove_binfmt $fmt
-	done
-	;;
-
+case "$PACKAGE" in
+  qemu-user-static) SUFFIX=-static; FIX_BINARY=yes ;;
+  qemu-user-binfmt) SUFFIX=; FIX_BINARY=no ;;
+  *) echo "usage: $0 <qemu-user-binfmt|qemu-user-static>"; exit 1 ;;
 esac
 
+mkdir -p debian/$PACKAGE/usr/share/binfmts
+installed_fmts=
+for fmt in $fmts ; do
+    eval "case $fmt in $omit) magic= ;; *) magic=\"\$${fmt}_magic\" mask=\"\$${fmt}_mask\" ;; esac"
+    [ -z "$magic" ] && continue
+    installed_fmts="$installed_fmts $fmt"
+    cat >>debian/$PACKAGE/usr/share/binfmts/qemu-$fmt <<EOF
+package $PACKAGE
+interpreter /usr/bin/qemu-$fmt$SUFFIX
+magic $magic
+offset 0
+mask $mask
+credentials yes
+fix_binary $FIX_BINARY
+EOF
+done
+
+for action in postinst prerm; do
+    case $action in
+      (postinst) do=import;   phase=configure;;
+         (prerm) do=unimport; phase=remove;;
+    esac
+    cat >>debian/$PACKAGE.$action.debhelper <<EOF
+# binfmt support
+# do not touch binfmts inside a (lxc) container
+if ! grep -zqs ^container= /proc/1/environ
+then
+if test "\$1" = $phase && command -v update-binfmts >/dev/null ; then
+    for fmt in $installed_fmts; do
+	update-binfmts --$do qemu-\$fmt
+    done
 fi
-# == binfmt registration/deregistration ==
+fi
+EOF
+done

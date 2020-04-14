@@ -1,6 +1,6 @@
 pc-bios/keymaps usr/share/qemu
 ui/qemu.desktop usr/share/applications
-ui/icons/qemu.svg usr/share/icons/highcolor/scalable/apps
+ui/icons/qemu.svg usr/share/icons/hicolor/scalable/apps
 # x86 optionrom and other firmware files
 b/fw/*.bin usr/share/qemu
 # s390x firmware
@@ -9,3 +9,7 @@ b/fw/s390*.img usr/share/qemu
 b/qemu-palcode/palcode-clipper usr/share/qemu
 # skiboot firmware for powernv qemu machine
 b/skiboot/skiboot.lid usr/share/qemu
+b/fw/openbios-* usr/share/qemu
+b/openbios/obj-sparc32/QEMU,tcx.bin     usr/share/qemu
+b/openbios/obj-sparc32/QEMU,cgthree.bin usr/share/qemu
+b/openbios/obj-sparc64/QEMU,VGA.bin     usr/share/qemu
