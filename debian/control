@@ -59,8 +59,8 @@ Build-Depends: debhelper (>= 12),
 # --enable-smartcard
  libcacard-dev,
  libpixman-1-dev,
-# --enable-rbd		linux-*
- librados-dev [linux-any], librbd-dev [linux-any],
+# --enable-rbd		amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x|ppc64|riscv64|sparc64
+ librbd-dev            [amd64 arm64 armel armhf i386 mips64el mipsel ppc64el s390x ppc64 riscv64 sparc64],
 # glusterfs is debian-only since ubuntu/glusterfs is in universe (MIR LP: #1274247)
 # before buster it was glusterfs-common so keep it for now for bpo
 # --enable-glusterfs
@@ -68,8 +68,8 @@ Build-Depends: debhelper (>= 12),
 # --enable-vnc-sasl
  libsasl2-dev,
 # --disable-sdl
-# --enable-seccomp	linux-*
- libseccomp-dev (>= 2.3.0) [linux-any],
+# --enable-seccomp	amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x|hppa|powerpc|ppc64|riscv64|x32
+ libseccomp-dev        [amd64 arm64 armel armhf i386 mips64el mipsel ppc64el s390x hppa powerpc ppc64 riscv64 x32],
 # --enable-slirp=system
  libslirp-dev,
 # --enable-spice	linux-amd64|linux-i386|linux-arm64

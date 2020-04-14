@@ -8,6 +8,8 @@ include /usr/share/dpkg/architecture.mk
 # get CFLAGS LDFLAGS etc
 include /usr/share/dpkg/buildflags.mk
 
+libdir = /usr/lib/${DEB_HOST_MULTIARCH}/qemu
+
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes),yes)
 VENDOR := UBUNTU
 DEB_BUILD_PARALLEL = yes
@@ -40,7 +42,7 @@ common_configure_opts = \
 	--extra-cflags="$(CFLAGS) $(CPPFLAGS)" --extra-ldflags="$(LDFLAGS) -Wl,--as-needed" \
 	--prefix=/usr \
 	--sysconfdir=/etc \
-	--libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
+	--libdir=${libdir} \
 	--libexecdir=/usr/lib/qemu \
 	--firmwarepath=${FIRMWAREPATH} \
 	--localstatedir=/var \
@@ -258,6 +260,13 @@ endif
 	  mv debian/tmp/$$f debian/qemu-system-common/$$f ; \
 	done
 
+# ui-spice-app is optional (see d/control for spice)
+	if [ -f debian/tmp${libdir}/ui-spice-app.so ]; then \
+	  mkdir -p debian/qemu-system-common${libdir} ; \
+	  mv debian/tmp${libdir}/ui-spice-app.so \
+	     debian/qemu-system-common${libdir}/ ; \
+	fi
+
 endif # linux
 
 endif # enable_system
@@ -329,7 +338,6 @@ endif
 
 
 OPENBIOS_EXTRACFLAGS = -ffreestanding -fno-pic -fno-stack-protector
-# -Wno-error=address-of-packed-member
 
 build-indep:
 

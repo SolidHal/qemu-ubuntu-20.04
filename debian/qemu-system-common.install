@@ -11,4 +11,3 @@ debian/tmp/usr/share/doc/qemu/qemu-qmp-ref.* usr/share/doc/qemu-system-common
 debian/tmp/usr/bin/ivshmem-server
 debian/tmp/usr/bin/ivshmem-client
 debian/tmp/usr/bin/qemu-pr-helper
-debian/tmp/usr/lib/*/qemu/ui-spice-app.so

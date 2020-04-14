@@ -1,3 +1,19 @@
+qemu (1:4.2-5) unstable; urgency=medium
+
+  * no error-out on address-of-packet-member in openbios
+  * install ui-spice-app.so only if built, spice is optional
+  * arm-fix-PAuth-sbox-functions-CVE-2020-10702.patch -
+    Closes: CVE-2020-10702, weak signature generation
+    in Pointer Authentication support for ARM
+  * (temporarily) enable seccomp only on architectures where it can be built
+    (Closes: #956624)
+  * seccomp has grown up, no need in versioned build-dep
+  * do not list librados-dev in build-dep as we only use librbd-dev
+    and the latter depends on the former
+  * only enable librbd on architectures where it is buildable
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 14 Apr 2020 15:47:40 +0300
+
 qemu (1:4.2-4) unstable; urgency=medium
 
   [ Michael Tokarev ]
