@@ -8,7 +8,7 @@ include /usr/share/dpkg/architecture.mk
 # get CFLAGS LDFLAGS etc
 include /usr/share/dpkg/buildflags.mk
 
-libdir = /usr/lib/${DEB_HOST_MULTIARCH}/qemu
+libdir = /usr/lib/${DEB_HOST_MULTIARCH}
 
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes),yes)
 VENDOR := UBUNTU
@@ -261,10 +261,10 @@ endif
 	done
 
 # ui-spice-app is optional (see d/control for spice)
-	if [ -f debian/tmp${libdir}/ui-spice-app.so ]; then \
-	  mkdir -p debian/qemu-system-common${libdir} ; \
-	  mv debian/tmp${libdir}/ui-spice-app.so \
-	     debian/qemu-system-common${libdir}/ ; \
+	if [ -f debian/tmp${libdir}/qemu/ui-spice-app.so ]; then \
+	  mkdir -p debian/qemu-system-common${libdir}/qemu ; \
+	  mv debian/tmp${libdir}/qemu/ui-spice-app.so \
+	     debian/qemu-system-common${libdir}/qemu/ ; \
 	fi
 
 endif # linux
