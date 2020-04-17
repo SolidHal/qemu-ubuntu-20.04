@@ -41,3 +41,4 @@ ubuntu/lp-1835546-s390x-protvirt-Move-IO-control-structures-over-SIDA.patch
 ubuntu/lp-1835546-s390x-protvirt-Handle-SIGP-store-status-correctly.patch
 ubuntu/lp-1835546-s390x-Add-unpack-facility-feature-to-GA1.patch
 ubuntu/lp-1835546-s390x-protvirt-Fix-stray-error_report_err.patch
+ubuntu/lp-1872931-s390x-s390-virtio-ccw-Fix-build-on-systems-without-K.patch
