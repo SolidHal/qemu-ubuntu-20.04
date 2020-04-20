@@ -1,3 +1,22 @@
+qemu (1:4.2-7) unstable; urgency=medium
+
+  * qemu-system-gui: Multi-Arch=same, not foreign (Closes: #956763)
+  * x32 arch is in the same family as i386 & x86_64, omit binfmt registration
+  * check systemd-detect-virt before running update-binfmt
+  * gluster is de-facto linux-only, do not build-depend on it on non-linux
+  * virglrenderer is also essentially linux-specific
+  * qemu-user-static does not depend on shlibs
+  * disable parallel building of targets of d/rules
+  * add lintian overrides (arch-dependent static binaries) for openbios binaries
+  * separate binary-indep target into install-indep-prep and binary-indep
+  * split out various components of qemu-system-data into independent
+    build/install rules and add infrastructure for more components:
+    x86-optionrom, sgabios, qboot, openbios, skiboot, palcode-clipper,
+    slof, s390x-fw
+  * iscsi-fix-heap-buffer-overflow-in-iscsi_aio_ioctl_cb.patch
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Mon, 20 Apr 2020 18:30:00 +0300
+
 qemu (1:4.2-6) unstable; urgency=medium
 
   * d/rules: fix FTBFS (brown-paper-bag bug) in last upload

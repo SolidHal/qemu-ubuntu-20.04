@@ -14,9 +14,8 @@ all: ${BINS}
 %.o: %.c
 	${CC} ${CFLAGS} -c -o $@ $<
 %.img: %.o
-	${LD} -m elf_i386 -T ${SRC_PATH}/pc-bios/optionrom/flat.lds -s -o $@ $<
+	${LD} -m elf_i386 -T ${SRC_PATH}/pc-bios/optionrom/flat.lds -s -o $@ $^
 pvh.img: pvh.o pvh_main.o
-	${LD} -m elf_i386 -T ${SRC_PATH}/pc-bios/optionrom/flat.lds -s -o $@ $+
 %.raw: %.img
 	${OBJCOPY} -O binary -j .text $< $@
 %.bin: %.raw
@@ -25,4 +24,7 @@ pvh.img: pvh.o pvh_main.o
 clean:
 	rm -f ${BINS}
 
-.PHONY: all clean
+install: ${BINS}
+	install -m 0644 -t "${DESTDIR}" ${BINS}
+
+.PHONY: all clean install

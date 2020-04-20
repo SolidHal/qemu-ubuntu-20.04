@@ -1,0 +1,77 @@
+From: Chen Qun <kuhn.chenqun@huawei.com>
+Subject: block/iscsi: fix heap-buffer-overflow in iscsi_aio_ioctl_cb
+Date: Sat, 18 Apr 2020 14:26:02 +0800
+
+There is an overflow, the source 'datain.data[2]' is 100 bytes,
+ but the 'ss' is 252 bytes.This may cause a security issue because
+ we can access a lot of unrelated memory data.
+
+The len for sbp copy data should take the minimum of mx_sb_len and
+ sb_len_wr, not the maximum.
+
+If we use iscsi device for VM backend storage, ASAN show stack:
+
+READ of size 252 at 0xfffd149dcfc4 thread T0
+    #0 0xaaad433d0d34 in __asan_memcpy (aarch64-softmmu/qemu-system-aarch64+0x2cb0d34)
+    #1 0xaaad45f9d6d0 in iscsi_aio_ioctl_cb /qemu/block/iscsi.c:996:9
+    #2 0xfffd1af0e2dc  (/usr/lib64/iscsi/libiscsi.so.8+0xe2dc)
+    #3 0xfffd1af0d174  (/usr/lib64/iscsi/libiscsi.so.8+0xd174)
+    #4 0xfffd1af19fac  (/usr/lib64/iscsi/libiscsi.so.8+0x19fac)
+    #5 0xaaad45f9acc8 in iscsi_process_read /qemu/block/iscsi.c:403:5
+    #6 0xaaad4623733c in aio_dispatch_handler /qemu/util/aio-posix.c:467:9
+    #7 0xaaad4622f350 in aio_dispatch_handlers /qemu/util/aio-posix.c:510:20
+    #8 0xaaad4622f350 in aio_dispatch /qemu/util/aio-posix.c:520
+    #9 0xaaad46215944 in aio_ctx_dispatch /qemu/util/async.c:298:5
+    #10 0xfffd1bed12f4 in g_main_context_dispatch (/lib64/libglib-2.0.so.0+0x512f4)
+    #11 0xaaad46227de0 in glib_pollfds_poll /qemu/util/main-loop.c:219:9
+    #12 0xaaad46227de0 in os_host_main_loop_wait /qemu/util/main-loop.c:242
+    #13 0xaaad46227de0 in main_loop_wait /qemu/util/main-loop.c:518
+    #14 0xaaad43d9d60c in qemu_main_loop /qemu/softmmu/vl.c:1662:9
+    #15 0xaaad4607a5b0 in main /qemu/softmmu/main.c:49:5
+    #16 0xfffd1a460b9c in __libc_start_main (/lib64/libc.so.6+0x20b9c)
+    #17 0xaaad43320740 in _start (aarch64-softmmu/qemu-system-aarch64+0x2c00740)
+
+0xfffd149dcfc4 is located 0 bytes to the right of 100-byte region [0xfffd149dcf60,0xfffd149dcfc4)
+allocated by thread T0 here:
+    #0 0xaaad433d1e70 in __interceptor_malloc (aarch64-softmmu/qemu-system-aarch64+0x2cb1e70)
+    #1 0xfffd1af0e254  (/usr/lib64/iscsi/libiscsi.so.8+0xe254)
+    #2 0xfffd1af0d174  (/usr/lib64/iscsi/libiscsi.so.8+0xd174)
+    #3 0xfffd1af19fac  (/usr/lib64/iscsi/libiscsi.so.8+0x19fac)
+    #4 0xaaad45f9acc8 in iscsi_process_read /qemu/block/iscsi.c:403:5
+    #5 0xaaad4623733c in aio_dispatch_handler /qemu/util/aio-posix.c:467:9
+    #6 0xaaad4622f350 in aio_dispatch_handlers /qemu/util/aio-posix.c:510:20
+    #7 0xaaad4622f350 in aio_dispatch /qemu/util/aio-posix.c:520
+    #8 0xaaad46215944 in aio_ctx_dispatch /qemu/util/async.c:298:5
+    #9 0xfffd1bed12f4 in g_main_context_dispatch (/lib64/libglib-2.0.so.0+0x512f4)
+    #10 0xaaad46227de0 in glib_pollfds_poll /qemu/util/main-loop.c:219:9
+    #11 0xaaad46227de0 in os_host_main_loop_wait /qemu/util/main-loop.c:242
+    #12 0xaaad46227de0 in main_loop_wait /qemu/util/main-loop.c:518
+    #13 0xaaad43d9d60c in qemu_main_loop /qemu/softmmu/vl.c:1662:9
+    #14 0xaaad4607a5b0 in main /qemu/softmmu/main.c:49:5
+    #15 0xfffd1a460b9c in __libc_start_main (/lib64/libc.so.6+0x20b9c)
+    #16 0xaaad43320740 in _start (aarch64-softmmu/qemu-system-aarch64+0x2c00740)
+
+Reported-by: Euler Robot <euler.robot@huawei.com>
+Signed-off-by: Chen Qun <kuhn.chenqun@huawei.com>
+Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+---
+ block/iscsi.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/block/iscsi.c b/block/iscsi.c
+index 4e216bd8aa..0b4b7210df 100644
+--- a/block/iscsi.c
++++ b/block/iscsi.c
+@@ -991,8 +991,7 @@ iscsi_aio_ioctl_cb(struct iscsi_context *iscsi, int status,
+         acb->ioh->driver_status |= SG_ERR_DRIVER_SENSE;
+ 
+         acb->ioh->sb_len_wr = acb->task->datain.size - 2;
+-        ss = (acb->ioh->mx_sb_len >= acb->ioh->sb_len_wr) ?
+-             acb->ioh->mx_sb_len : acb->ioh->sb_len_wr;
++        ss = MIN(acb->ioh->mx_sb_len, acb->ioh->sb_len_wr);
+         memcpy(acb->ioh->sbp, &acb->task->datain.data[2], ss);
+     }
+ 
+-- 
+2.23.0
+

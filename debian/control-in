@@ -49,8 +49,8 @@ Build-Depends: debhelper (>= 12),
  libiscsi-dev (>> 1.9.0~),
 # --enable-curses
  libncursesw5-dev,
-# --enable-virglrenderer
- libvirglrenderer-dev,
+# --enable-virglrenderer	linux-*
+ libvirglrenderer-dev [linux-any],
 # --enable-opengl
  libepoxy-dev, libdrm-dev, libgbm-dev,
 :debian:# --enable-libnfs
@@ -64,8 +64,8 @@ Build-Depends: debhelper (>= 12),
  librbd-dev            [amd64 arm64 armel armhf i386 mips64el mipsel ppc64el s390x ppc64 riscv64 sparc64],
 # glusterfs is debian-only since ubuntu/glusterfs is in universe (MIR LP: #1274247)
 # before buster it was glusterfs-common so keep it for now for bpo
-:debian:# --enable-glusterfs
-:debian: libglusterfs-dev|glusterfs-common,
+:debian:# --enable-glusterfs	linux-any
+:debian: libglusterfs-dev [linux-any] | glusterfs-common [linux-any],
 # --enable-vnc-sasl
  libsasl2-dev,
 # --disable-sdl
@@ -226,7 +226,7 @@ Description: QEMU full system emulation binaries (common files)
 
 Package: qemu-system-gui
 Architecture: amd64 arm arm64 armel armhf i386 ia64 kfreebsd-amd64 kfreebsd-i386 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el riscv64 s390x sparc sparc64 x32
-Multi-Arch: foreign
+Multi-Arch: same
 Depends: ${misc:Depends}, ${shlibs:Depends},
 Description: QEMU full system emulation binaries (user interface and audio support)
  This package provides local graphical user interface (currently GTK)
@@ -403,7 +403,7 @@ Package: qemu-user-static
 Architecture: amd64 arm arm64 armel armhf i386 ia64 mips mipsel mips64 mips64el powerpc powerpcspe ppc64 ppc64el riscv64 s390x sparc sparc64 x32
 Built-Using: ${built-using}
 Multi-Arch: foreign
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${misc:Depends}
 Recommends: binfmt-support
 Breaks: binfmt-support (<< 2.1.7~)
 Provides: qemu-user-binfmt

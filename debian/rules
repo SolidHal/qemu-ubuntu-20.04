@@ -1,6 +1,10 @@
 #!/usr/bin/make -f
 SHELL = /bin/sh -e
 
+# in order to keep output non-intermixed together, disable parallel building
+# of different targets in this d/rules but allow running parallel submakes
+.NOTPARALLEL:
+
 # get DEB_VERSION
 include /usr/share/dpkg/pkg-info.mk
 # get DEB_HOST_ARCH DEB_HOST_ARCH_OS DEB_HOST_GNU_TYPE DEB_HOST_MULTIARCH DEB_BUILD_GNU_TYPE
@@ -32,6 +36,7 @@ enable_system = $(if $(filter qemu-system,${BUILD_PACKAGES}),enable,disable)
 enable_linux_user = $(if $(filter qemu-user,${BUILD_PACKAGES}),enable,disable)
 
 FIRMWAREPATH = /usr/share/qemu:/usr/share/seabios:/usr/lib/ipxe/qemu
+sysdatadir = debian/qemu-system-data/usr/share/qemu
 
 ALPHAEV67_CROSSPFX = alpha-linux-gnu-
 PPC64_CROSSPFX = powerpc64-linux-gnu-
@@ -336,65 +341,121 @@ debian/control: debian/control-in debian/rules
 	chmod -w $@
 endif
 
+### openbios rules
+b/openbios/config-host.mak:
+	mkdir -p b/openbios
+	cd b/openbios && ../../roms/openbios/config/scripts/switch-arch builtin-ppc builtin-sparc32 builtin-sparc64
+build-openbios: $(addprefix b/openbios/obj-, $(addsuffix /.built, ppc sparc32 sparc64))
+b/openbios/obj-%/.built: b/openbios/config-host.mak
+	${MAKE} -C ${@D} V=${V} EXTRACFLAGS="-ffreestanding -fno-pic -fno-stack-protector"
+	@touch $@
+install-openbios: build-openbios
+	install -m 0644 b/openbios/obj-ppc/openbios-qemu.elf "${sysdatadir}/openbios-ppc"
+	install -m 0644 b/openbios/obj-sparc32/openbios-builtin.elf "${sysdatadir}/openbios-sparc32"
+	install -m 0644 b/openbios/obj-sparc64/openbios-builtin.elf "${sysdatadir}/openbios-sparc64"
+	install -m 0644 -t "${sysdatadir}" \
+		b/openbios/obj-sparc32/QEMU,tcx.bin \
+		b/openbios/obj-sparc32/QEMU,cgthree.bin \
+		b/openbios/obj-sparc64/QEMU,VGA.bin
+sysdata-components += openbios
 
-OPENBIOS_EXTRACFLAGS = -ffreestanding -fno-pic -fno-stack-protector
+### powernv firmware in roms/skiboot
+build-skiboot: b/skiboot/skiboot.lid
+b/skiboot/skiboot.lid:
+	mkdir -p b/skiboot
+	${MAKE} -C b/skiboot -f ${CURDIR}/roms/skiboot/Makefile \
+	  SRC=${CURDIR}/roms/skiboot \
+	  CROSS_COMPILE=${PPC64_CROSSPFX} V=${V}
+install-skiboot: b/skiboot/skiboot.lid
+	install -m 0644 -t "${sysdatadir}" $<
+sysdata-components += skiboot
 
-build-indep:
+### x86 optionrom
+build-x86-optionrom: b/optionrom/built
+b/optionrom/built:
+	mkdir -p b/optionrom
+	${MAKE) -f ${CURDIR}/debian/optionrom.mak -C b/optionrom SRC_PATH="${CURDIR}" all
+	touch $@
+install-x86-optionrom: build-x86-optionrom b/install-indep-prep.stamp | ${sysdatadir}
+	${MAKE} -f ${CURDIR}/debian/optionrom.mak -C b/optionrom SRC_PATH="${CURDIR}" install DESTDIR="${CURDIR}/${sysdatadir}"
+sysdata-components += x86-optionrom
 
-	mkdir -p b/fw
-
-# x86 optionrom
-	${MAKE} -f ${CURDIR}/debian/optionrom.mak -C ${CURDIR}/b/fw SRC_PATH=${CURDIR}
-
-# qboot, aka bios-microvm
-	cp -al roms/qboot b/
-	${MAKE} -C ${CURDIR}/b/qboot
-	cp b/qboot/bios.bin b/fw/bios-microvm.bin
-	chmod 0644 b/fw/bios-microvm.bin
-
-# sgabios. The Makefile is too complex and forces current date to be embedded to binary
-	cc -c -o b/fw/sgabios.o roms/sgabios/sgabios.S -Wall -Os -m32 -nostdlib \
+### sgabios.
+# The Makefile is too complex and forces current date to be embedded to binary
+build-sgabios: b/sgabios/sgabios.bin
+b/sgabios/sgabios.bin:
+	mkdir -p b/sgabios
+	cc -c -o b/sgabios/sgabios.o roms/sgabios/sgabios.S -Wall -Os -m32 -nostdlib \
 	  -DBUILD_DATE="\"$$(LC_ALL=C date -u -r roms/sgabios/sgabios.S)\"" \
 	  -DBUILD_SHORT_DATE="\"$$(date -u +%D -r roms/sgabios/sgabios.S)\"" \
 	  -DBUILD_HOST=\"debian\" -DBUILD_USER=\"build\"
-	ld -T roms/sgabios/rom16.ld -nostdlib b/fw/sgabios.o -o b/fw/sgabios.elf
-	objcopy -O binary b/fw/sgabios.elf b/fw/sgabios.bin
-	cc -Wall -O2 -o b/fw/csum8 roms/sgabios/csum8.c
-	b/fw/csum8 b/fw/sgabios.bin
-	chmod 0644 b/fw/sgabios.bin
+	ld -T roms/sgabios/rom16.ld -nostdlib b/sgabios/sgabios.o -o b/sgabios/sgabios.elf
+	objcopy -O binary b/sgabios/sgabios.elf b/sgabios/sgabios.bin
+	cc -Wall -O2 -o b/sgabios/csum8 roms/sgabios/csum8.c
+	b/sgabios/csum8 b/sgabios/sgabios.bin
+install-sgabios: b/sgabios/sgabios.bin
+	install -m 0644 $< ${sysdatadir}/sgabios.bin
+sysdata-components += sgabios
 
-# alpha firmware in roms/palcode-clipper
+### qboot, aka bios-microvm
+build-qboot: b/qboot/bios.bin
+b/qboot/bios.bin:
+	cp -al roms/qboot b/
+	${MAKE} -C ${CURDIR}/b/qboot
+install-qboot: b/qboot/bios.bin
+	install -m 0644 $< ${sysdatadir}/bios-microvm.bin
+sysdata-components += qboot
+
+### alpha firmware in roms/palcode-clipper
+build-palcode-clipper: b/qemu-palcode/palcode-clipper
+b/qemu-palcode/palcode-clipper:
 	cp -al roms/qemu-palcode b/
 	${MAKE} -C ${CURDIR}/b/qemu-palcode CROSS=${ALPHAEV67_CROSSPFX}
 	${ALPHAEV67_CROSSPFX}strip b/qemu-palcode/palcode-clipper
+install-palcode-clipper: b/qemu-palcode/palcode-clipper
+	install -m 0644 $< ${sysdatadir}/palcode-clipper
+sysdata-components += palcode-clipper
 
-# s390x firmware in pc-bios/s390-ccw
-	${MAKE} -f debian/s390fw.mak OUT=b/fw/
-
-# powernv firmware in roms/skiboot
-	cp -al roms/skiboot b/
-	${MAKE} -C ${CURDIR}/b/skiboot CROSS=${PPC64_CROSSPFX} V=1
-
-# openbios (ppc && sparc compilers)
-	cp -al roms/openbios b/
-	cd b/openbios && config/scripts/switch-arch builtin-ppc builtin-sparc32 builtin-sparc64
-	${MAKE} -C b/openbios/obj-ppc     EXTRACFLAGS="${OPENBIOS_EXTRACFLAGS}" V=1
-	mv -f b/openbios/obj-ppc/openbios-qemu.elf b/fw/openbios-ppc
-	${MAKE} -C b/openbios/obj-sparc32 EXTRACFLAGS="${OPENBIOS_EXTRACFLAGS}" V=1
-	mv -f b/openbios/obj-sparc32/openbios-builtin.elf b/fw/openbios-sparc32
-	${MAKE} -C b/openbios/obj-sparc64 EXTRACFLAGS="${OPENBIOS_EXTRACFLAGS}" V=1
-	mv -f b/openbios/obj-sparc64/openbios-builtin.elf b/fw/openbios-sparc64
-
-# SLOF
+### SLOF
+build-slof: b/SLOF/boot_rom.bin
+b/SLOF/boot_rom.bin:
 	cp -al roms/SLOF b/
-	env -u LDFLAGS -u CFLAGS $(MAKE) -C b/SLOF qemu CROSS="powerpc64-linux-gnu-" V=2
-	mv -f b/SLOF/boot_rom.bin b/fw/slof.bin
+	env -u LDFLAGS -u CFLAGS $(MAKE) -C b/SLOF qemu CROSS="powerpc64-linux-gnu-" V=${V}
+install-slof: b/SLOF/boot_rom.bin
+	install -m 0644 $< ${sysdatadir}/slof.bin
+sysdata-components += slof
 
-binary-indep:
+### s390x firmware in pc-bios/s390-ccw
+build-s390x-fw: b/s390fw/built
+b/s390fw/built:
+	mkdir -p b/s390fw
+	${MAKE} -f debian/s390fw.mak OUT=b/s390fw/
+	touch $@
+install-s390x-fw: build-s390x-fw
+	install -m 0644 -t "${sysdatadir}" b/s390fw/s390*.img
+sysdata-components += s390x-fw
+
+build-indep: $(addprefix build-, ${sysdata-components})
+
+b/install-indep-prep.stamp:
 	dh_testdir
 	dh_testroot
 	dh_prep -i -Xdebian/tmp
+	touch $@
 
+${sysdatadir}:
+	mkdir -p -m 0755 $@
+b:
+	mkdir -p $@
+
+.PHONY: $(addprefix build-  , ${sysdata-components})
+.PHONY: $(addprefix install-, ${sysdata-components})
+$(addprefix build-  , ${sysdata-components}): | b
+$(addprefix install-, ${sysdata-components}): b/install-indep-prep.stamp | ${sysdatadir}
+
+binary-indep: b/install-indep-prep.stamp \
+	        $(addprefix install-, ${sysdata-components}) \
+		| ${sysdatadir}
 	dh_install -i
 	rm -f debian/qemu-system-data/usr/share/qemu/keymaps/Makefile
 	dh_installdocs -i
