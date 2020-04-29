@@ -1,4 +1,3 @@
 pc-bios/keymaps usr/share/qemu
 ui/qemu.desktop usr/share/applications
 ui/icons/qemu.svg usr/share/icons/hicolor/scalable/apps
-debian/tmp/usr/share/doc/qemu/system usr/share/doc/qemu-system-common/

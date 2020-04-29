@@ -1,3 +1,14 @@
+qemu (1:5.0-2) unstable; urgency=medium
+
+  * (temporarily) disable pie on i386 static build
+    For now -static-pie fails on i386 with the following error message:
+      /usr/bin/ld: /usr/lib/i386-linux-gnu/libc.a(memset_chk-nonshared.o):
+          unsupported non-PIC call to IFUNC `memset'
+  * install qemu-system docs in qemu-system-common, not qemu-system-data,
+    since docs require ./configure run
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 29 Apr 2020 23:41:04 +0300
+
 qemu (1:5.0-1) unstable; urgency=medium
 
   * new upstream release (5.0)
