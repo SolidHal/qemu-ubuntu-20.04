@@ -14,7 +14,6 @@
 #define _LIBVIRTIO_H
 
 #include <stdint.h>
-#include <stdbool.h>
 
 /* Device status bits */
 #define VIRTIO_STAT_ACKNOWLEDGE		1
@@ -30,6 +29,7 @@
 #define VIRTIO_F_RING_INDIRECT_DESC	BIT(28)
 #define VIRTIO_F_RING_EVENT_IDX		BIT(29)
 #define VIRTIO_F_VERSION_1		BIT(32)
+#define VIRTIO_F_IOMMU_PLATFORM         BIT(33)
 
 #define VIRTIO_TIMEOUT		        5000 /* 5 sec timeout */
 
@@ -78,8 +78,18 @@ struct virtio_cap {
 	uint8_t cap_id;
 };
 
+struct vqs {
+	uint32_t size;
+	void *buf_mem;
+	struct vring_desc *desc;
+	struct vring_avail *avail;
+	struct vring_used *used;
+	void **desc_gpas; /* to get gpa from desc->addr (which is ioba) */
+	uint64_t bus_desc;
+};
+
 struct virtio_device {
-	uint32_t is_modern;     /* Indicates whether to use virtio 1.0 */
+	uint64_t features;
 	struct virtio_cap legacy;
 	struct virtio_cap common;
 	struct virtio_cap notify;
@@ -87,15 +97,7 @@ struct virtio_device {
 	struct virtio_cap device;
 	struct virtio_cap pci;
 	uint32_t notify_off_mul;
-};
-
-struct vqs {
-	uint64_t id;	/* Queue ID */
-	uint32_t size;
-	void *buf_mem;
-	struct vring_desc *desc;
-	struct vring_avail *avail;
-	struct vring_used *used;
+	struct vqs vq[3];
 };
 
 /* Parts of the virtqueue are aligned on a 4096 byte page boundary */
@@ -106,10 +108,12 @@ extern unsigned int virtio_get_qsize(struct virtio_device *dev, int queue);
 extern struct vring_desc *virtio_get_vring_desc(struct virtio_device *dev, int queue);
 extern struct vring_avail *virtio_get_vring_avail(struct virtio_device *dev, int queue);
 extern struct vring_used *virtio_get_vring_used(struct virtio_device *dev, int queue);
-extern void virtio_fill_desc(struct vring_desc *desc, bool is_modern,
+extern void virtio_fill_desc(struct vqs *vq, int id, uint64_t features,
                              uint64_t addr, uint32_t len,
                              uint16_t flags, uint16_t next);
-extern int virtio_queue_init_vq(struct virtio_device *dev, struct vqs *vq, unsigned int id);
+extern void virtio_free_desc(struct vqs *vq, int id, uint64_t features);
+void *virtio_desc_addr(struct virtio_device *vdev, int queue, int id);
+extern struct vqs *virtio_queue_init_vq(struct virtio_device *dev, unsigned int id);
 extern void virtio_queue_term_vq(struct virtio_device *dev, struct vqs *vq, unsigned int id);
 
 extern struct virtio_device *virtio_setup_vd(void);
@@ -117,7 +121,6 @@ extern void virtio_reset_device(struct virtio_device *dev);
 extern void virtio_queue_notify(struct virtio_device *dev, int queue);
 extern void virtio_set_status(struct virtio_device *dev, int status);
 extern void virtio_get_status(struct virtio_device *dev, int *status);
-extern void virtio_set_qaddr(struct virtio_device *dev, int queue, unsigned long qaddr);
 extern void virtio_set_guest_features(struct virtio_device *dev, uint64_t features);
 extern uint64_t virtio_get_host_features(struct virtio_device *dev);
 extern int virtio_negotiate_guest_features(struct virtio_device *dev, uint64_t features);

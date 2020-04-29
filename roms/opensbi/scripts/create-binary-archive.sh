@@ -85,16 +85,16 @@ case "${BUILD_RISCV_XLEN}" in
 32)
 	# Setup 32-bit platform list
 	BUILD_PLATFORM_SUBDIR=("qemu/virt")
-	BUILD_PLATFORM_SUBDIR+=("qemu/sifive_u")
 	;;
 64)
 	# Setup 64-bit platform list
 	BUILD_PLATFORM_SUBDIR=("qemu/virt")
-	BUILD_PLATFORM_SUBDIR+=("qemu/sifive_u")
 	BUILD_PLATFORM_SUBDIR+=("sifive/fu540")
 	BUILD_PLATFORM_SUBDIR+=("kendryte/k210")
 	BUILD_PLATFORM_SUBDIR+=("ariane-fpga")
 	BUILD_PLATFORM_SUBDIR+=("andes/ae350")
+	BUILD_PLATFORM_SUBDIR+=("thead/c910")
+	BUILD_PLATFORM_SUBDIR+=("spike")
 	;;
 *)
 	echo "Invalid RISC-V XLEN"

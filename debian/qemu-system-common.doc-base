@@ -8,5 +8,5 @@ Abstract: The QEMU user manual intends to make the user understand what
 Section: Emulators
 
 Format: HTML
-Index: /usr/share/doc/qemu-system-common/qemu-doc.html
-Files: /usr/share/doc/qemu-system-common/qemu-doc.html
+Index: /usr/share/doc/qemu-system-common/system/index.html
+Files: /usr/share/doc/qemu-system-common/system/index.html

@@ -19,7 +19,6 @@ clean_dfsg() {
 rm -vf pc-bios/bios.bin		# roms/seabios/
 rm -vf pc-bios/bios-256k.bin	# roms/seabios/
 rm -vf pc-bios/hppa-firmware.img	# roms/seabios-hppa/
-rm -vf pc-bios/ppc_rom.bin	# comes from openhackware
 rm -vf pc-bios/sgabios.bin	# roms/sgabios/
 rm -vf pc-bios/slof.bin		# roms/SLOF/
 rm -vf pc-bios/spapr-rtas.bin	# pc-bios/spapr-rtas/
@@ -45,7 +44,6 @@ rm -vf pc-bios/qemu_vga.ndrv	# roms/QemuMacDrivers/
 # remove other software (git submodules)
 dir roms/ipxe
 dir roms/openbios
-dir roms/openhackware
 #dir roms/qemu-palcode
 dir roms/seabios
 dir roms/seabios-hppa

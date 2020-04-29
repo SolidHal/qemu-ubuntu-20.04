@@ -1,3 +1,30 @@
+qemu (1:5.0-1) unstable; urgency=medium
+
+  * new upstream release (5.0)
+    Closes: #958926
+    Closes: CVE-2020-11869
+  * refresh patches, remove patches applied upstream
+  * do not mention openhackware, it is not used anymore
+  * do not disable bluez (support removed)
+  * new system arch "rx"
+  * dont install qemu-doc.* for now,
+    but install virtiofsd & qemu-storage-daemon
+  * add shared-lib-without-dependency-information tag
+    to qemu-user-static.lintian-overrides
+  * add html docs to qemu-system-data (to /usr/share/doc/qemu-system-common)
+  * do not install usr/share/doc/qemu/specs & usr/share/doc/qemu/tools
+  * install qemu-user html docs for qemu-user & qemu-user-static
+  * build hppa-firmware.img from roms/seabios-hppa
+    (and Build-Depeds-Indep on gcc-hppa-linux-gnu)
+  * enable liburing on linux (build-depend on liburing-dev)
+  * add upstream signing-key.asc (Michael Roth <flukshun@gmail.com>)
+  * build opensbi firmware
+    (for riscv64 only, riscv32 is possible with compiler flags)
+  * add source-level lintian-overrides for binaries-without-sources
+    (lintian can't find sources for a few firmware images which are in roms/)
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 29 Apr 2020 12:00:12 +0300
+
 qemu (1:4.2-7) unstable; urgency=medium
 
   * qemu-system-gui: Multi-Arch=same, not foreign (Closes: #956763)

@@ -90,6 +90,13 @@ static int icmp_send(struct socket *so, struct mbuf *m, int hlen)
         return -1;
     }
 
+    if (slirp_bind_outbound(so, AF_INET) != 0) {
+        // bind failed - close socket
+        closesocket(so->s);
+        so->s = -1;
+        return -1;
+    }
+
     so->so_m = m;
     so->so_faddr = ip->ip_dst;
     so->so_laddr = ip->ip_src;
@@ -190,7 +197,12 @@ void icmp_input(struct mbuf *m, int hlen)
 
             /* Send the packet */
             addr = so->fhost.ss;
-            sotranslate_out(so, &addr);
+            if (sotranslate_out(so, &addr) < 0) {
+                icmp_send_error(m, ICMP_UNREACH, ICMP_UNREACH_NET, 0,
+                                strerror(errno));
+                udp_detach(so);
+                return;
+            }
 
             if (sendto(so->s, icmp_ping_msg, strlen(icmp_ping_msg), 0,
                        (struct sockaddr *)&addr, sockaddr_size(&addr)) == -1) {

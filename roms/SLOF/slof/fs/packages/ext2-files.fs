@@ -16,8 +16,9 @@ INSTANCE VARIABLE inode-size
 INSTANCE VARIABLE block-size
 INSTANCE VARIABLE inodes/group
 
-INSTANCE VARIABLE group-desc-size
+INSTANCE VARIABLE blocks-per-group
 INSTANCE VARIABLE group-descriptors
+INSTANCE VARIABLE desc-size
 
 : seek  s" seek" $call-parent ;
 : read  s" read" $call-parent ;
@@ -39,9 +40,9 @@ INSTANCE VARIABLE dindirect-block
 
 INSTANCE VARIABLE inode
 INSTANCE VARIABLE file-len
-INSTANCE VARIABLE blocks
+INSTANCE VARIABLE blocks  \ data from disk blocks
 INSTANCE VARIABLE #blocks
-INSTANCE VARIABLE ^blocks
+INSTANCE VARIABLE ^blocks \ current pointer in blocks
 INSTANCE VARIABLE #blocks-left
 : blocks-read ( n -- )  dup negate #blocks-left +! 4 * ^blocks +! ;
 : read-indirect-blocks ( indirect-block# -- )
@@ -73,20 +74,92 @@ INSTANCE VARIABLE #blocks-left
    drop                         \ drop 0, the invalid block number
 ;
 
+: inode-i-block ( inode -- block ) 28 + ;
+80000 CONSTANT EXT4_EXTENTS_FL
+: inode-i-flags ( inode -- i_flags ) 20 + l@-le ;
+F30A CONSTANT EXT4_EH_MAGIC
+: extent-tree-entries ( iblock -- entries ) C + ;
+
+STRUCT
+   2 field ext4-eh>magic
+   2 field ext4-eh>entries
+   2 field ext4-eh>max
+   2 field ext4-eh>depth
+   4 field ext4-eh>generation
+CONSTANT /ext4-eh
+
+STRUCT
+   4 field ext4-ee>block
+   2 field ext4-ee>len
+   2 field ext4-ee>start_hi
+   4 field ext4-ee>start_lo
+CONSTANT /ext4-ee
+
+: ext4-ee-start ( entries -- ee-start )
+    dup ext4-ee>start_hi w@-le 32 lshift
+    swap
+    ext4-ee>start_lo l@-le or
+;
+
+: expand-blocks ( start len -- )
+    bounds
+    ?DO
+        i ^blocks @ l!-le
+        1 blocks-read
+    1 +LOOP
+;
+
+\ [0x28..0x34] ext4_extent_header
+\ [0x34..0x64] ext4_extent_idx[eh_entries if eh_depth > 0] (not supported)
+\              ext4_extent[eh_entries if eh_depth == 0]
+: read-extent-tree ( inode -- )
+    inode-i-block
+    dup ext4-eh>magic w@-le EXT4_EH_MAGIC <> IF ." BAD extent tree magic" cr EXIT THEN
+    dup ext4-eh>depth w@-le 0 <> IF ." Root inode is not lead, not supported" cr EXIT THEN
+    \ depth=0 means it is a leaf and entries are ext4_extent[eh_entries]
+    dup ext4-eh>entries w@-le
+    >r
+    /ext4-eh +
+    r>
+    0
+    DO
+        dup ext4-ee-start
+        over ext4-ee>len w@-le ( ext4_extent^ start len )
+        expand-blocks
+        /ext4-ee +
+    LOOP
+    drop
+;
+
+\ Reads block numbers into blocks
 : read-block#s ( -- )
-  blocks @ ?dup IF #blocks @ 4 * free-mem THEN
-  inode @ 4 + l@-le file-len !
-  file-len @ block-size @ // #blocks !
-  #blocks @ 4 * alloc-mem blocks !
+  blocks @ ?dup IF #blocks @ 4 * free-mem THEN \ free blocks if allocated
+  inode @ 4 + l@-le file-len !                 \ *file-len = i_size_lo
+  file-len @ block-size @ // #blocks !         \ *#blocks = roundup(file-len/block-size)
+  #blocks @ 4 * alloc-mem blocks !             \ *blocks = allocmem(*#blocks)
   blocks @ ^blocks !  #blocks @ #blocks-left !
+  inode @ inode-i-flags EXT4_EXTENTS_FL and IF inode @ read-extent-tree EXIT THEN
   #blocks-left @ c min \ # direct blocks
-  inode @ 28 + over 4 * ^blocks @ swap move blocks-read
+  inode @ inode-i-block over 4 * ^blocks @ swap move blocks-read
   #blocks-left @ IF inode @ 58 + l@-le read-indirect-blocks THEN
   #blocks-left @ IF inode @ 5c + l@-le read-double-indirect-blocks THEN
-  #blocks-left @ IF inode @ 60 + l@-le read-triple-indirect-blocks THEN ;
+  #blocks-left @ IF inode @ 60 + l@-le read-triple-indirect-blocks THEN
+;
+
+: read-inode-table ( groupdesc -- table )
+  dup 8 + l@-le             \ reads bg_inode_table_lo
+  desc-size @ 20 > IF
+    over 28 + l@-le         \ reads bg_inode_table_hi
+    20 lshift or
+  THEN
+  nip
+;
+
 : read-inode ( inode# -- )
-  1- inodes/group @ u/mod \ # in group, group #
-  20 * group-descriptors @ + 8 + l@-le block-size @ * \ # in group, inode table
+  1- inodes/group @ u/mod
+  desc-size @ * group-descriptors @ +
+  read-inode-table
+  block-size @ *          \ # in group, inode table
   swap inode-size @ * + xlsplit seek drop  inode @ inode-size @ read drop
 ;
 
@@ -110,6 +183,13 @@ CREATE mode-chars 10 allot s" ?pc?d?b?-?l?s???" mode-chars swap move
   inode @ 04 + l@-le 9 .r \ size
   r> base ! ;
 
+80 CONSTANT EXT4_INCOMPAT_64BIT
+: super-feature-incompat ( data -- flags ) 60 + l@-le ;
+: super-desc-size ( data -- size ) FE + w@-le ;
+: super-feature-incompat-64bit ( data -- true|false )
+    super-feature-incompat EXT4_INCOMPAT_64BIT and 0<>
+;
+
 : do-super ( -- )
   400 400 read-data
   data @ 14 + l@-le first-block !
@@ -121,11 +201,16 @@ CREATE mode-chars 10 allot s" ?pc?d?b?-?l?s???" mode-chars swap move
   ELSE
      data @ 58 + w@-le inode-size !
   THEN
-  data @ 20 + l@-le group-desc-size !
+  data @ 20 + l@-le blocks-per-group !
+  data @ super-feature-incompat-64bit IF
+     data @ super-desc-size desc-size !
+  ELSE
+     20 desc-size !
+  THEN
 
   \ Read the group descriptor table:
   first-block @ 1+ block-size @ *
-  group-desc-size @
+  blocks-per-group @
   read-data
   data @ group-descriptors !
 
@@ -153,17 +238,25 @@ INSTANCE VARIABLE current-pos
 : read-dir ( inode# -- adr )
   read-inode read-block#s file-len @ alloc-mem
   0 0 seek ABORT" ext2-files read-dir: seek failed"
-  dup file-len @ read file-len @ <> ABORT" ext2-files read-dir: read failed" ;
+  dup file-len @ read file-len @ <> ABORT" ext2-files read-dir: read failed"
+;
+
 : .dir ( inode# -- )
   read-dir dup BEGIN 2dup file-len @ - > over l@-le tuck and WHILE
   cr dup 8 0.r space read-inode .inode space space dup .name
-  dup 4 + w@-le + REPEAT 2drop file-len @ free-mem ;
+  dup 4 + w@-le + REPEAT 2drop file-len @ free-mem
+;
+
 : (find-file) ( adr name len -- inode#|0 )
   2>r dup BEGIN 2dup file-len @ - > over l@-le and WHILE
   dup 8 + over 6 + c@ 2r@ str= IF 2r> 2drop nip l@-le EXIT THEN
-  dup 4 + w@-le + REPEAT 2drop 2r> 2drop 0 ;
+  dup 4 + w@-le + REPEAT 2drop 2r> 2drop 0
+;
+
 : find-file ( inode# name len -- inode#|0 )
-  2>r read-dir dup 2r> (find-file) swap file-len @ free-mem ;
+  2>r read-dir dup 2r> (find-file) swap file-len @ free-mem
+;
+
 : find-path ( inode# name len -- inode#|0 )
   dup 0= IF 3drop 0 ."  empty name " EXIT THEN
   over c@ [char] \ = IF 1 /string ."  slash " RECURSE EXIT THEN
@@ -174,7 +267,7 @@ INSTANCE VARIABLE current-pos
 
 : close
    inode @ inode-size @ free-mem
-   group-descriptors @ group-desc-size @ free-mem
+   group-descriptors @ blocks-per-group @ free-mem
    free-data
    blocks @ ?dup IF #blocks @ 4 * free-mem THEN
 ;

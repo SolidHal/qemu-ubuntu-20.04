@@ -12,10 +12,17 @@
 # o  Do not print "Entering directory ...";
 MAKEFLAGS += -r --no-print-directory
 
+# Readlink -f requires GNU readlink
+ifeq ($(shell uname -s),Darwin)
+READLINK ?= greadlink
+else
+READLINK ?= readlink
+endif
+
 # Find out source, build, and install directories
 src_dir=$(CURDIR)
 ifdef O
- build_dir=$(shell readlink -f $(O))
+ build_dir=$(shell $(READLINK) -f $(O))
 else
  build_dir=$(CURDIR)/build
 endif
@@ -23,7 +30,7 @@ ifeq ($(build_dir),$(CURDIR))
 $(error Build directory is same as source directory.)
 endif
 ifdef I
- install_dir=$(shell readlink -f $(I))
+ install_dir=$(shell $(READLINK) -f $(I))
 else
  install_dir=$(CURDIR)/install
 endif
@@ -34,7 +41,7 @@ ifeq ($(install_dir),$(build_dir))
 $(error Install directory is same as build directory.)
 endif
 ifdef PLATFORM_DIR
-  platform_dir_path=$(shell readlink -f $(PLATFORM_DIR))
+  platform_dir_path=$(shell $(READLINK) -f $(PLATFORM_DIR))
   ifdef PLATFORM
     platform_parent_dir=$(platform_dir_path)
   else
@@ -159,7 +166,7 @@ GENFLAGS	+=	$(libsbiutils-genflags-y)
 GENFLAGS	+=	$(platform-genflags-y)
 GENFLAGS	+=	$(firmware-genflags-y)
 
-CFLAGS		=	-g -Wall -Werror -nostdlib -fno-strict-aliasing -O2
+CFLAGS		=	-g -Wall -Werror -ffreestanding -nostdlib -fno-strict-aliasing -O2
 CFLAGS		+=	-fno-omit-frame-pointer -fno-optimize-sibling-calls
 CFLAGS		+=	-mno-save-restore -mstrict-align
 CFLAGS		+=	-mabi=$(PLATFORM_RISCV_ABI) -march=$(PLATFORM_RISCV_ISA)

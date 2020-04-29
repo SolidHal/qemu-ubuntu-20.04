@@ -224,3 +224,20 @@ int SLOF_get_property(const char *node, const char *propname,
 	*addr = (char *)forth_pop();
 	return 0;
 }
+
+int SLOF_get_keystroke(void)
+{
+	forth_eval("key");
+	return forth_pop();
+}
+
+void SLOF_reset(void)
+{
+	forth_eval("reset-all");
+}
+
+unsigned long SLOF_get_vtpm_unit(void)
+{
+	forth_eval("vtpm-unit");
+	return forth_pop();
+}

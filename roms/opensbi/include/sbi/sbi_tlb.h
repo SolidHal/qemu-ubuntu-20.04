@@ -24,7 +24,10 @@
 enum sbi_tlb_info_types {
 	SBI_TLB_FLUSH_VMA,
 	SBI_TLB_FLUSH_VMA_ASID,
-	SBI_TLB_FLUSH_VMA_VMID,
+	SBI_TLB_FLUSH_GVMA,
+	SBI_TLB_FLUSH_GVMA_VMID,
+	SBI_TLB_FLUSH_VVMA,
+	SBI_TLB_FLUSH_VVMA_ASID,
 	SBI_ITLB_FLUSH
 };
 
@@ -40,12 +43,9 @@ struct sbi_tlb_info {
 
 #define SBI_TLB_INFO_SIZE			sizeof(struct sbi_tlb_info)
 
-int sbi_tlb_fifo_update(struct sbi_scratch *scratch, u32 hartid, void *data);
+int sbi_tlb_request(struct sbi_scratch *scratch, ulong hmask,
+		    ulong hbase, struct sbi_tlb_info *tinfo);
 
-void sbi_tlb_fifo_process(struct sbi_scratch *scratch);
-
-int sbi_tlb_fifo_init(struct sbi_scratch *scratch, bool cold_boot);
-
-void sbi_tlb_fifo_sync(struct sbi_scratch *scratch);
+int sbi_tlb_init(struct sbi_scratch *scratch, bool cold_boot);
 
 #endif

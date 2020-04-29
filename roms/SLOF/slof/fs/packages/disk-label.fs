@@ -338,6 +338,14 @@ CONSTANT /gpt-part-entry
    dup c@ eb = swap 2+ c@ 90 = and
 ;
 
+: measure-mbr ( addr length -- )
+   s" /ibm,vtpm" find-node ?dup IF
+      s" measure-hdd-mbr" rot $call-static
+   ELSE
+      2drop
+   THEN
+;
+
 \ NOTE: block-size is always 512 bytes for DOS partition tables.
 
 : load-from-dos-boot-partition ( addr -- size )
@@ -361,6 +369,7 @@ CONSTANT /gpt-part-entry
             block-size * to part-offset
             0 0 seek drop            ( addr offset )
             block-size * read        ( size )
+            block block-size measure-mbr
             UNLOOP EXIT
          ELSE
             2drop                    ( addr )
@@ -370,34 +379,32 @@ CONSTANT /gpt-part-entry
    drop 0
 ;
 
-\ Check for GPT PReP partition GUID. Only first 3 blocks are
-\ byte-swapped treating last two blocks as contigous for simplifying
-\ comparison
-9E1A2D38            CONSTANT GPT-PREP-PARTITION-1
-C612                CONSTANT GPT-PREP-PARTITION-2
-4316                CONSTANT GPT-PREP-PARTITION-3
-AA268B49521E5A8B    CONSTANT GPT-PREP-PARTITION-4
+: uuid! ( v1 v2 v3 v4 addr -- ) >r r@ 8 + x! r@ 6 + w!-le r@ 4 + w!-le r> l!-le ;
+: uuid= ( addr1 addr2 -- true|false )  10 comp 0= ;
 
+\ PowerPC 	PReP boot 	9E1A2D38-C612-4316-AA26-8B49521E5A8B
+CREATE GPT-PREP-PARTITION 10 allot
+9E1A2D38 C612 4316 AA268B49521E5A8B GPT-PREP-PARTITION uuid!
 : gpt-prep-partition? ( -- true|false )
    block gpt-part-entry>part-type-guid
-   dup l@-le     GPT-PREP-PARTITION-1 <> IF drop false EXIT THEN
-   dup 4 + w@-le GPT-PREP-PARTITION-2 <> IF drop false EXIT THEN
-   dup 6 + w@-le GPT-PREP-PARTITION-3 <> IF drop false EXIT THEN
-       8 + x@    GPT-PREP-PARTITION-4 =
+   GPT-PREP-PARTITION uuid=
 ;
 
 \ Check for GPT MSFT BASIC DATA GUID - fat based
-EBD0A0A2            CONSTANT GPT-BASIC-DATA-PARTITION-1
-B9E5                CONSTANT GPT-BASIC-DATA-PARTITION-2
-4433                CONSTANT GPT-BASIC-DATA-PARTITION-3
-87C068B6B72699C7    CONSTANT GPT-BASIC-DATA-PARTITION-4
-
+\ Windows Basic data partition 	EBD0A0A2-B9E5-4433-87C0-68B6B72699C7
+CREATE GPT-BASIC-DATA-PARTITION 10 allot
+EBD0A0A2 B9E5 4433 87C068B6B72699C7 GPT-BASIC-DATA-PARTITION uuid!
 : gpt-basic-data-partition? ( -- true|false )
    block gpt-part-entry>part-type-guid
-   dup l@-le     GPT-BASIC-DATA-PARTITION-1 <> IF drop false EXIT THEN
-   dup 4 + w@-le GPT-BASIC-DATA-PARTITION-2 <> IF drop false EXIT THEN
-   dup 6 + w@-le GPT-BASIC-DATA-PARTITION-3 <> IF drop false EXIT THEN
-       8 + x@    GPT-BASIC-DATA-PARTITION-4 =
+   GPT-BASIC-DATA-PARTITION uuid=
+;
+
+\ Linux filesystem data 	0FC63DAF-8483-4772-8E79-3D69D8477DE4
+CREATE GPT-LINUX-PARTITION 10 allot
+0FC63DAF 8483 4772 8E793D69D8477DE4 GPT-LINUX-PARTITION uuid!
+: gpt-linux-partition? ( -- true|false )
+   block gpt-part-entry>part-type-guid
+   GPT-LINUX-PARTITION uuid=
 ;
 
 \
@@ -424,6 +431,27 @@ B9E5                CONSTANT GPT-BASIC-DATA-PARTITION-2
    block gpt>signature x@ GPT-SIGNATURE =
 ;
 
+\ Measure the GPT partition table by collecting its LBA1
+\ and GPT Entries and then measuring them.
+\ This function modifies 'block' and 'seek-pos'
+
+: measure-gpt-partition ( -- )
+   s" /ibm,vtpm" find-node ?dup IF
+      get-gpt-partition 0= if drop EXIT THEN
+
+      block block-size tpm-gpt-set-lba1
+
+      block gpt>num-part-entry l@-le
+      1+ 1 ?DO
+         seek-pos 0 seek drop
+         block gpt-part-size read drop
+         block gpt-part-size tpm-gpt-add-entry
+         seek-pos gpt-part-size + to seek-pos
+      LOOP
+      s" measure-gpt" rot $call-static
+   THEN
+;
+
 : load-from-gpt-prep-partition ( addr -- size )
    get-gpt-partition 0= IF false EXIT THEN
    block gpt>num-part-entry l@-le dup 0= IF false exit THEN
@@ -445,13 +473,26 @@ B9E5                CONSTANT GPT-BASIC-DATA-PARTITION-2
    false
 ;
 
+: (interpose-filesystem) ( str len -- )
+   find-package IF args args-len rot interpose THEN
+;
+
+: try-ext2-files ( -- found? )
+   2 read-sector               \ read first superblock
+   block d# 56 + w@-le         \ fetch s_magic
+   ef53 <> IF false EXIT THEN  \ s_magic found?
+   s" ext2-files" (interpose-filesystem)
+   true
+;
+
 : try-gpt-dos-partition ( -- true|false )
+   measure-gpt-partition
    get-gpt-partition 0= IF false EXIT THEN
    block gpt>num-part-entry l@-le dup 0= IF false EXIT THEN
    1+ 1 ?DO
       seek-pos 0 seek drop
       block gpt-part-size read drop
-      gpt-basic-data-partition? IF
+      gpt-basic-data-partition? gpt-linux-partition? or IF
          debug-disk-label? IF ." GPT BASIC DATA partition found " cr THEN
          block gpt-part-entry>first-lba x@-le       ( first-lba )
          dup to part-start                          ( first-lba )
@@ -612,10 +653,6 @@ B9E5                CONSTANT GPT-BASIC-DATA-PARTITION-2
 
 \ try-files and try-partitions
 
-: (interpose-filesystem) ( str len -- )
-   find-package IF args args-len rot interpose THEN
-;
-
 : try-dos-files ( -- found? )
    no-mbr? IF false EXIT THEN
 
@@ -623,15 +660,6 @@ B9E5                CONSTANT GPT-BASIC-DATA-PARTITION-2
    s" fat-files" (interpose-filesystem)
    true
 ;
-
-: try-ext2-files ( -- found? )
-   2 read-sector               \ read first superblock
-   block d# 56 + w@-le         \ fetch s_magic
-   ef53 <> IF false EXIT THEN  \ s_magic found?
-   s" ext2-files" (interpose-filesystem)
-   true
-;
-
 
 : try-iso9660-files
    has-iso9660-filesystem 0= IF false exit THEN

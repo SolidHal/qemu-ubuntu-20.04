@@ -14,8 +14,10 @@
 #include <sbi/sbi_error.h>
 #include <sbi/sbi_fifo.h>
 #include <sbi/sbi_hart.h>
+#include <sbi/sbi_ipi.h>
 #include <sbi/sbi_scratch.h>
 #include <sbi/sbi_tlb.h>
+#include <sbi/sbi_hfence.h>
 #include <sbi/sbi_string.h>
 #include <sbi/sbi_console.h>
 #include <sbi/sbi_platform.h>
@@ -30,7 +32,39 @@ static void sbi_tlb_flush_all(void)
 	__asm__ __volatile("sfence.vma");
 }
 
-static void sbi_tlb_fifo_sfence_vma(struct sbi_tlb_info *tinfo)
+static void sbi_tlb_hfence_vvma(struct sbi_tlb_info *tinfo)
+{
+	unsigned long start = tinfo->start;
+	unsigned long size  = tinfo->size;
+	unsigned long i;
+
+	if ((start == 0 && size == 0) || (size == SBI_TLB_FLUSH_ALL)) {
+		__sbi_hfence_vvma_all();
+		return;
+	}
+
+	for (i = 0; i < size; i += PAGE_SIZE) {
+		__sbi_hfence_vvma_va(start+i);
+	}
+}
+
+static void sbi_tlb_hfence_gvma(struct sbi_tlb_info *tinfo)
+{
+	unsigned long start = tinfo->start;
+	unsigned long size  = tinfo->size;
+	unsigned long i;
+
+	if ((start == 0 && size == 0) || (size == SBI_TLB_FLUSH_ALL)) {
+		__sbi_hfence_gvma_all();
+		return;
+	}
+
+	for (i = 0; i < size; i += PAGE_SIZE) {
+		__sbi_hfence_gvma_gpa(start+i);
+	}
+}
+
+static void sbi_tlb_sfence_vma(struct sbi_tlb_info *tinfo)
 {
 	unsigned long start = tinfo->start;
 	unsigned long size  = tinfo->size;
@@ -49,7 +83,51 @@ static void sbi_tlb_fifo_sfence_vma(struct sbi_tlb_info *tinfo)
 	}
 }
 
-static void sbi_tlb_fifo_sfence_vma_asid(struct sbi_tlb_info *tinfo)
+static void sbi_tlb_hfence_vvma_asid(struct sbi_tlb_info *tinfo)
+{
+	unsigned long start = tinfo->start;
+	unsigned long size  = tinfo->size;
+	unsigned long asid  = tinfo->asid;
+	unsigned long i;
+
+	if (start == 0 && size == 0) {
+		__sbi_hfence_vvma_all();
+		return;
+	}
+
+	if (size == SBI_TLB_FLUSH_ALL) {
+		__sbi_hfence_vvma_asid(asid);
+		return;
+	}
+
+	for (i = 0; i < size; i += PAGE_SIZE) {
+		__sbi_hfence_vvma_asid_va(asid, start + i);
+	}
+}
+
+static void sbi_tlb_hfence_gvma_vmid(struct sbi_tlb_info *tinfo)
+{
+	unsigned long start = tinfo->start;
+	unsigned long size  = tinfo->size;
+	unsigned long vmid  = tinfo->asid;
+	unsigned long i;
+
+	if (start == 0 && size == 0) {
+		__sbi_hfence_gvma_all();
+		return;
+	}
+
+	if (size == SBI_TLB_FLUSH_ALL) {
+		__sbi_hfence_gvma_vmid(vmid);
+		return;
+	}
+
+	for (i = 0; i < size; i += PAGE_SIZE) {
+		__sbi_hfence_gvma_vmid_gpa(vmid, start+i);
+	}
+}
+
+static void sbi_tlb_sfence_vma_asid(struct sbi_tlb_info *tinfo)
 {
 	unsigned long start = tinfo->start;
 	unsigned long size  = tinfo->size;
@@ -80,15 +158,32 @@ static void sbi_tlb_fifo_sfence_vma_asid(struct sbi_tlb_info *tinfo)
 
 static void sbi_tlb_local_flush(struct sbi_tlb_info *tinfo)
 {
-	if (tinfo->type == SBI_TLB_FLUSH_VMA) {
-		sbi_tlb_fifo_sfence_vma(tinfo);
-	} else if (tinfo->type == SBI_TLB_FLUSH_VMA_ASID) {
-		sbi_tlb_fifo_sfence_vma_asid(tinfo);
-	} else if (tinfo->type == SBI_ITLB_FLUSH)
+	switch (tinfo->type) {
+	case SBI_TLB_FLUSH_VMA:
+		sbi_tlb_sfence_vma(tinfo);
+		break;
+	case SBI_TLB_FLUSH_VMA_ASID:
+		sbi_tlb_sfence_vma_asid(tinfo);
+		break;
+	case SBI_TLB_FLUSH_GVMA:
+		sbi_tlb_hfence_gvma(tinfo);
+		break;
+	case SBI_TLB_FLUSH_GVMA_VMID:
+		sbi_tlb_hfence_gvma_vmid(tinfo);
+		break;
+	case SBI_TLB_FLUSH_VVMA:
+		sbi_tlb_hfence_vvma(tinfo);
+		break;
+	case SBI_TLB_FLUSH_VVMA_ASID:
+		sbi_tlb_hfence_vvma_asid(tinfo);
+		break;
+	case SBI_ITLB_FLUSH:
 		__asm__ __volatile("fence.i");
-	else
+		break;
+	default:
 		sbi_printf("Invalid tlb flush request type [%lu]\n",
 			   tinfo->type);
+	}
 	return;
 }
 
@@ -111,7 +206,7 @@ static void sbi_tlb_entry_process(struct sbi_scratch *scratch,
 	}
 }
 
-static void sbi_tlb_fifo_process_count(struct sbi_scratch *scratch, int count)
+static void sbi_tlb_process_count(struct sbi_scratch *scratch, int count)
 {
 	struct sbi_tlb_info tinfo;
 	u32 deq_count = 0;
@@ -127,7 +222,7 @@ static void sbi_tlb_fifo_process_count(struct sbi_scratch *scratch, int count)
 	}
 }
 
-void sbi_tlb_fifo_process(struct sbi_scratch *scratch)
+static void sbi_tlb_process(struct sbi_scratch *scratch)
 {
 	struct sbi_tlb_info tinfo;
 	struct sbi_fifo *tlb_fifo =
@@ -137,7 +232,7 @@ void sbi_tlb_fifo_process(struct sbi_scratch *scratch)
 		sbi_tlb_entry_process(scratch, &tinfo);
 }
 
-void sbi_tlb_fifo_sync(struct sbi_scratch *scratch)
+static void sbi_tlb_sync(struct sbi_scratch *scratch)
 {
 	unsigned long *tlb_sync =
 			sbi_scratch_offset_ptr(scratch, tlb_sync_off);
@@ -147,14 +242,14 @@ void sbi_tlb_fifo_sync(struct sbi_scratch *scratch)
 		 * While we are waiting for remote hart to set the sync,
 		 * consume fifo requests to avoid deadlock.
 		 */
-		sbi_tlb_fifo_process_count(scratch, 1);
+		sbi_tlb_process_count(scratch, 1);
 	}
 
 	return;
 }
 
-static inline int __sbi_tlb_fifo_range_check(struct sbi_tlb_info *curr,
-					     struct sbi_tlb_info *next)
+static inline int __sbi_tlb_range_check(struct sbi_tlb_info *curr,
+					struct sbi_tlb_info *next)
 {
 	unsigned long curr_end;
 	unsigned long next_end;
@@ -196,7 +291,7 @@ static inline int __sbi_tlb_fifo_range_check(struct sbi_tlb_info *curr,
  *	before continuing the while loop. This method is preferred over wfi/ipi because
  *	of MMIO cost involved in later method.
  */
-static int sbi_tlb_fifo_update_cb(void *in, void *data)
+static int sbi_tlb_update_cb(void *in, void *data)
 {
 	struct sbi_tlb_info *curr;
 	struct sbi_tlb_info *next;
@@ -211,20 +306,21 @@ static int sbi_tlb_fifo_update_cb(void *in, void *data)
 	if (next->type == SBI_TLB_FLUSH_VMA_ASID &&
 	    curr->type == SBI_TLB_FLUSH_VMA_ASID) {
 		if (next->asid == curr->asid)
-			ret = __sbi_tlb_fifo_range_check(curr, next);
+			ret = __sbi_tlb_range_check(curr, next);
 	} else if (next->type == SBI_TLB_FLUSH_VMA &&
 		   curr->type == SBI_TLB_FLUSH_VMA) {
-			ret = __sbi_tlb_fifo_range_check(curr, next);
+			ret = __sbi_tlb_range_check(curr, next);
 	}
 
 	return ret;
 }
 
-int sbi_tlb_fifo_update(struct sbi_scratch *rscratch, u32 hartid, void *data)
+static int sbi_tlb_update(struct sbi_scratch *scratch,
+			  struct sbi_scratch *remote_scratch,
+			  u32 remote_hartid, void *data)
 {
 	int ret;
 	struct sbi_fifo *tlb_fifo_r;
-	struct sbi_scratch *lscratch;
 	struct sbi_tlb_info *tinfo = data;
 	u32 curr_hartid = sbi_current_hartid();
 
@@ -242,15 +338,14 @@ int sbi_tlb_fifo_update(struct sbi_scratch *rscratch, u32 hartid, void *data)
 	 * If the request is to queue a tlb flush entry for itself
 	 * then just do a local flush and return;
 	 */
-	if (hartid == curr_hartid) {
+	if (remote_hartid == curr_hartid) {
 		sbi_tlb_local_flush(tinfo);
 		return -1;
 	}
 
-	lscratch = sbi_hart_id_to_scratch(rscratch, curr_hartid);
-	tlb_fifo_r = sbi_scratch_offset_ptr(rscratch, tlb_fifo_off);
+	tlb_fifo_r = sbi_scratch_offset_ptr(remote_scratch, tlb_fifo_off);
 
-	ret = sbi_fifo_inplace_update(tlb_fifo_r, data, sbi_tlb_fifo_update_cb);
+	ret = sbi_fifo_inplace_update(tlb_fifo_r, data, sbi_tlb_update_cb);
 	if (ret != SBI_FIFO_UNCHANGED) {
 		return 1;
 	}
@@ -264,16 +359,32 @@ int sbi_tlb_fifo_update(struct sbi_scratch *rscratch, u32 hartid, void *data)
 		 * TODO: Introduce a wait/wakeup event mechanism to handle
 		 * this properly.
 		 */
-		sbi_tlb_fifo_process_count(lscratch, 1);
-		sbi_dprintf(rscratch, "hart%d: hart%d tlb fifo full\n",
-			    curr_hartid, hartid);
+		sbi_tlb_process_count(scratch, 1);
+		sbi_dprintf(remote_scratch, "hart%d: hart%d tlb fifo full\n",
+			    curr_hartid, remote_hartid);
 	}
 
 	return 0;
 }
 
-int sbi_tlb_fifo_init(struct sbi_scratch *scratch, bool cold_boot)
+static struct sbi_ipi_event_ops tlb_ops = {
+	.name = "IPI_TLB",
+	.update = sbi_tlb_update,
+	.sync = sbi_tlb_sync,
+	.process = sbi_tlb_process,
+};
+
+static u32 tlb_event = SBI_IPI_EVENT_MAX;
+
+int sbi_tlb_request(struct sbi_scratch *scratch, ulong hmask,
+		    ulong hbase, struct sbi_tlb_info *tinfo)
 {
+	return sbi_ipi_send_many(scratch, hmask, hbase, tlb_event, tinfo);
+}
+
+int sbi_tlb_init(struct sbi_scratch *scratch, bool cold_boot)
+{
+	int ret;
 	void *tlb_mem;
 	unsigned long *tlb_sync;
 	struct sbi_fifo *tlb_q;
@@ -298,12 +409,22 @@ int sbi_tlb_fifo_init(struct sbi_scratch *scratch, bool cold_boot)
 			sbi_scratch_free_offset(tlb_sync_off);
 			return SBI_ENOMEM;
 		}
+		ret = sbi_ipi_event_create(&tlb_ops);
+		if (ret < 0) {
+			sbi_scratch_free_offset(tlb_fifo_mem_off);
+			sbi_scratch_free_offset(tlb_fifo_off);
+			sbi_scratch_free_offset(tlb_sync_off);
+			return ret;
+		}
+		tlb_event = ret;
 		tlb_range_flush_limit = sbi_platform_tlbr_flush_limit(plat);
 	} else {
 		if (!tlb_sync_off ||
 		    !tlb_fifo_off ||
 		    !tlb_fifo_mem_off)
 			return SBI_ENOMEM;
+		if (SBI_IPI_EVENT_MAX <= tlb_event)
+			return SBI_ENOSPC;
 	}
 
 	tlb_sync = sbi_scratch_offset_ptr(scratch, tlb_sync_off);

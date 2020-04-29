@@ -26,6 +26,7 @@
 #define LASI_UART_HPA	0xffd05000
 #define LASI_SCSI_HPA	0xffd06000
 #define LASI_LAN_HPA	0xffd07000
+#define LASI_RTC_HPA	0xffd09000
 #define LASI_LPT_HPA	0xffd02000
 #define LASI_AUDIO_HPA	0xffd04000
 #define LASI_PS2KBD_HPA	0xffd08000
@@ -50,6 +51,7 @@
 
 #define HPPA_MAX_CPUS   8      /* max. number of SMP CPUs */
 #define CPU_CLOCK_MHZ   250     /* emulate a 250 MHz CPU */
+#define CPU_HPA_CR_REG  7       /* store CPU HPA in cr7 (SeaBIOS only) */
 
 
 #if 0

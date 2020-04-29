@@ -7,26 +7,9 @@ instead of deriving it at runtime from executable path.
 This way it is possible to move qemu binary to another directory
 and it will still work.
 
---- a/os-posix.c
-+++ b/os-posix.c
-@@ -72,6 +72,7 @@ void os_setup_signal_handling(void)
-     sigaction(SIGTERM, &act, NULL);
- }
- 
-+#if 0 /* we use a fixed configured data path */
- /* Find a likely location for support files using the location of the binary.
-    For installed binaries this will be "$bindir/../share/qemu".  When
-    running from the build tree this will be "$bindir/../pc-bios".  */
-@@ -107,6 +108,7 @@ char *os_find_datadir(void)
- }
- #undef SHARE_SUFFIX
- #undef BUILD_SUFFIX
-+#endif
- 
- void os_set_proc_name(const char *s)
- {
---- a/vl.c
-+++ b/vl.c
+diff --git a/softmmu/vl.c b/softmmu/vl.c
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
 @@ -3051,1 +3051,1 @@ int main(int argc, char **argv, char **e
 -    char *dir, **dirs;
 +    char **dirs;
@@ -42,3 +25,18 @@ and it will still work.
      /* add the datadir specified when building */
      qemu_add_data_dir(CONFIG_QEMU_DATADIR);
  
+diff --git a/os-posix.c b/os-posix.c
+--- a/os-posix.c
++++ b/os-posix.c
+@@ -81,4 +81,5 @@ void os_setup_signal_handling(void)
+ }
+ 
++#if 0
+ /*
+  * Find a likely location for support files using the location of the binary.
+@@ -101,4 +102,5 @@ char *os_find_datadir(void)
+     return g_strdup(CONFIG_QEMU_DATADIR);
+ }
++#endif
+ 
+ void os_set_proc_name(const char *s)

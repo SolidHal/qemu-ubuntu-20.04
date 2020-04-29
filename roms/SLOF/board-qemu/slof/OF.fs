@@ -143,6 +143,9 @@ check-for-nvramrc
 
 8a0 cp
 
+\ For DMA functions used by client/package instances.
+#include "dma-instance-function.fs"
+
 \ The client interface.
 #include "client.fs"
 \ ELF binary file format.
@@ -172,6 +175,9 @@ CREATE version-str 10 ALLOT
     version-str 8 + @               \ end
     over - dump-display-write
     " Press 's' to enter Open Firmware." dump-display-write
+    s" /ibm,vtpm" find-node IF
+        "  Press 't' to enter TPM menu." dump-display-write
+    THEN
     cr cr
     temp-ptr disp-size > IF
         temp-ptr disp-size MOD

@@ -279,6 +279,12 @@ int udp_attach(struct socket *so, unsigned short af)
 {
     so->s = slirp_socket(af, SOCK_DGRAM, 0);
     if (so->s != -1) {
+        if (slirp_bind_outbound(so, af) != 0) {
+            // bind failed - close socket
+            closesocket(so->s);
+            so->s = -1;
+            return -1;
+        }
         so->so_expire = curtime + SO_EXPIRE;
         insque(so, &so->slirp->udb);
     }
@@ -302,7 +308,8 @@ static uint8_t udp_tos(struct socket *so)
     while (udptos[i].tos) {
         if ((udptos[i].fport && ntohs(so->so_fport) == udptos[i].fport) ||
             (udptos[i].lport && ntohs(so->so_lport) == udptos[i].lport)) {
-            so->so_emu = udptos[i].emu;
+            if (so->slirp->enable_emu)
+                so->so_emu = udptos[i].emu;
             return udptos[i].tos;
         }
         i++;
