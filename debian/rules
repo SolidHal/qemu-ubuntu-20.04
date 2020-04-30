@@ -110,10 +110,11 @@ ifeq ($(DEB_HOST_ARCH),i386)
 # XXX as of 2020-04-29, i386 buildd fails to link -static-pie executable:
 # /usr/bin/ld: /usr/lib/i386-linux-gnu/libc.a(memset_chk-nonshared.o):
 #	unsupported non-PIC call to IFUNC `memset'
-# so disable PIE for qemu-user-static build on i386 for now
+# so disable PIE for qemu-user-static build on i386 for now. On other
+# architectures qemu correctly detect that -static-pie availability
 XXXstaticpie = --disable-pie
 else
-XXXstaticpie = --enable-pie
+XXXstaticpie =
 endif
 
 b/configure-stamp: configure

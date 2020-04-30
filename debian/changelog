@@ -1,3 +1,11 @@
+qemu (1:5.0-3) unstable; urgency=medium
+
+  * do not explicitly enable -static-pie on non-i386 architectures.
+    Apparenly only amd64 actually support -static-pie for now, and
+    it is correctly detected.
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Thu, 30 Apr 2020 08:05:31 +0300
+
 qemu (1:5.0-2) unstable; urgency=medium
 
   * (temporarily) disable pie on i386 static build
