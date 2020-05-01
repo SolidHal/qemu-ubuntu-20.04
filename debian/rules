@@ -106,12 +106,14 @@ user_targets = \
 
 endif	# enable_linux_user
 
-ifeq ($(DEB_HOST_ARCH),i386)
+ifneq ($(filter $(DEB_HOST_ARCH),i386 x32),)
 # XXX as of 2020-04-29, i386 buildd fails to link -static-pie executable:
 # /usr/bin/ld: /usr/lib/i386-linux-gnu/libc.a(memset_chk-nonshared.o):
 #	unsupported non-PIC call to IFUNC `memset'
-# so disable PIE for qemu-user-static build on i386 for now. On other
-# architectures qemu correctly detect that -static-pie availability
+# so disable PIE for qemu-user-static build on i386 for now.
+# On x32 -static-pie fails in different way.
+# On amd64 -static-pie appears to work fine.
+# On other architectures qemu correctly detect that -static-pie is not available
 XXXstaticpie = --disable-pie
 else
 XXXstaticpie =

@@ -1,3 +1,10 @@
+qemu (1:5.0-4) unstable; urgency=medium
+
+  * fix binfmt registration (Closes: #959222)
+  * disable PIE for user-static build on x32 too, not only i386
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Fri, 01 May 2020 13:30:43 +0300
+
 qemu (1:5.0-3) unstable; urgency=medium
 
   * do not explicitly enable -static-pie on non-i386 architectures.
