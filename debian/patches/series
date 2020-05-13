@@ -3,3 +3,9 @@ microvm-default-machine-type.patch
 qboot-stop-using-inttypes.patch
 qboot-no-jump-tables.diff
 openbios-address-of-packet-member.patch
+virtiofsd-add-rlimit-nofile-NUM-option.patch
+virtiofsd-stay-below-fs.file-max-CVE-2020-10717.patch
+aio-posix-dont-duplicate-fd-handler-deletion-in-fdmon_io_uring_destroy.patch
+aio-posix-disable-fdmon-io_uring-when-GSource-is-used.patch
+hostmem-dont-use-mbind-if-host-nodes-is-empty.patch
+net-use-peer-when-purging-queue-in-qemu_flush_or_purge_queue_packets.patch

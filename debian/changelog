@@ -1,3 +1,19 @@
+qemu (1:5.0-5) unstable; urgency=medium
+
+  * more binfmt-install updates
+  * CVE-2020-10717 fix from upstream:
+    virtiofsd-add-rlimit-nofile-NUM-option.patch (preparational) and
+    virtiofsd-stay-below-fs.file-max-CVE-2020-10717.patch
+    (Closes: #959746, CVE-2020-10717)
+  * 2 patches from upstream/stable to fix io_uring fd set buildup:
+    aio-posix-dont-duplicate-fd-handler-deletion-in-fdmon_io_uring_destroy.patch
+    aio-posix-disable-fdmon-io_uring-when-GSource-is-used.patch
+  * upstream stable fix: hostmem-dont-use-mbind-if-host-nodes-is-empty.patch
+  * upstream stable fix:
+    net-use-peer-when-purging-queue-in-qemu_flush_or_purge_queue_packets.patch
+
+ -- Michael Tokarev <mjt@tls.msk.ru>  Wed, 13 May 2020 12:57:19 +0300
+
 qemu (1:5.0-4) unstable; urgency=medium
 
   * fix binfmt registration (Closes: #959222)

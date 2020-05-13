@@ -112,7 +112,7 @@ done
 for action in postinst:configure:import prerm:remove:unimport
 do
 
-    ifs="\$IFS"; IFS=:; set $action; IFS="\$ifs"
+    ifs="$IFS"; IFS=:; set $action; IFS="$ifs"
     cat >>debian/$PACKAGE.$1.debhelper <<EOF
 # binfmt support
 binfmt_update() {
