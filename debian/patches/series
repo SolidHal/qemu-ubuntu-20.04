@@ -14,6 +14,7 @@ net-use-peer-when-purging-queue-in-qemu_flush_or_purge_queue_packets.patch
 ubuntu/enable-svm-by-default.patch
 ubuntu/define-ubuntu-machine-types.patch
 ubuntu/pre-bionic-256k-ipxe-efi-roms.patch
+ubuntu/lp-1878973-fix-assert-regression.patch
 
 # LP 1867519 s390x protvirt
 ubuntu/lp-1835546-s390x-Don-t-do-a-normal-reset-on-the-initial-cpu.patch
