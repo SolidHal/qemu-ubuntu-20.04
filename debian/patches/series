@@ -17,17 +17,8 @@ ubuntu/pre-bionic-256k-ipxe-efi-roms.patch
 ubuntu/lp-1878973-fix-assert-regression.patch
 
 # LP 1867519 s390x protvirt
-ubuntu/lp-1835546-s390x-Don-t-do-a-normal-reset-on-the-initial-cpu.patch
-ubuntu/lp-1835546-s390x-Move-reset-normal-to-shared-reset-handler.patch
-ubuntu/lp-1835546-s390x-Move-initial-reset.patch
-ubuntu/lp-1835546-s390x-Move-clear-reset.patch
-ubuntu/lp-1835546-s390x-kvm-Make-kvm_sclp_service_call-void.patch
-ubuntu/lp-1835546-s390x-ipl-Consolidate-iplb-validity-check-into-one-f.patch
-ubuntu/lp-1835546-s390x-Beautify-diag308-handling.patch
-ubuntu/lp-1835546-s390x-Add-missing-vcpu-reset-functions.patch
-ubuntu/lp-1835546-pc-bios-s390x-Save-iplb-location-in-lowcore.patch
+ubuntu/lp-1835546-linux-headers-update-against-Linux-5.7-rc3.patch
 ubuntu/lp-1835546-s390x-Move-diagnose-308-subcodes-and-rcs-into-ipl.h.patch
-ubuntu/lp-1835546-Sync-pv.patch
 ubuntu/lp-1835546-s390x-protvirt-Support-unpack-facility.patch
 ubuntu/lp-1835546-s390x-protvirt-Add-migration-blocker.patch
 ubuntu/lp-1835546-s390x-protvirt-Inhibit-balloon-when-switching-to-pro.patch
@@ -40,6 +31,9 @@ ubuntu/lp-1835546-s390x-protvirt-Move-diag-308-data-over-SIDA.patch
 ubuntu/lp-1835546-s390x-protvirt-Disable-address-checks-for-PV-guest-I.patch
 ubuntu/lp-1835546-s390x-protvirt-Move-IO-control-structures-over-SIDA.patch
 ubuntu/lp-1835546-s390x-protvirt-Handle-SIGP-store-status-correctly.patch
+ubuntu/lp-1835546-docs-system-Add-protvirt-docs.patch
 ubuntu/lp-1835546-s390x-Add-unpack-facility-feature-to-GA1.patch
-ubuntu/lp-1835546-s390x-protvirt-Fix-stray-error_report_err.patch
-ubuntu/lp-1872931-s390x-s390-virtio-ccw-Fix-build-on-systems-without-K.patch
+ubuntu/lp-1835546-s390x-protvirt-Fix-stray-error_report_err-in-s390_ma.patch
+ubuntu/lp-1835546-s390x-pv-Retry-ioctls-on-EINTR.patch
+ubuntu/lp-1835546-s390x-s390-virtio-ccw-Fix-build-on-systems-without-K.patch
+ubuntu/lp-1835546-s390x-pv-Fix-KVM_PV_PREP_RESET-command-wrapper-name.patch

@@ -1,6 +1,6 @@
-From 617d3f7be6434962614dc5ee381f3d67aca85578 Mon Sep 17 00:00:00 2001
+From 0141e1b47707d90f5bd9d252da064ebdaca698a6 Mon Sep 17 00:00:00 2001
 From: Janosch Frank <frankja@linux.ibm.com>
-Date: Fri, 6 Mar 2020 06:40:13 -0500
+Date: Thu, 19 Mar 2020 09:19:09 -0400
 Subject: [PATCH] s390x: protvirt: Add migration blocker
 
 Migration is not yet supported.
@@ -10,21 +10,22 @@ Reviewed-by: David Hildenbrand <david@redhat.com>
 Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
 Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
 Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200319131921.2367-5-frankja@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
 
-Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
-Origin: backport, https://github.com/borntraeger/qemu/commit/617d3f7be6
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=0141e1b477
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
-Last-Update: 2020-03-20
+Last-Update: 2020-06-16
 
 ---
  hw/s390x/s390-virtio-ccw.c | 18 ++++++++++++++++++
  1 file changed, 18 insertions(+)
 
 diff --git a/hw/s390x/s390-virtio-ccw.c b/hw/s390x/s390-virtio-ccw.c
-index 5149030d22..ed910a0996 100644
+index b4d681da43..e00040a00b 100644
 --- a/hw/s390x/s390-virtio-ccw.c
 +++ b/hw/s390x/s390-virtio-ccw.c
-@@ -44,6 +44,9 @@
+@@ -45,6 +45,9 @@
  #include "sysemu/sysemu.h"
  #include "hw/s390x/pv.h"
  #include <linux/kvm.h>
@@ -34,7 +35,7 @@ index 5149030d22..ed910a0996 100644
  
  S390CPU *s390_cpu_addr2state(uint16_t cpu_addr)
  {
-@@ -325,15 +328,30 @@ static void s390_machine_unprotect(S390CcwMachineState *ms)
+@@ -324,15 +327,30 @@ static void s390_machine_unprotect(S390CcwMachineState *ms)
  {
      s390_pv_vm_disable();
      ms->pv = false;
@@ -66,5 +67,5 @@ index 5149030d22..ed910a0996 100644
      }
  
 -- 
-2.25.1
+2.27.0
 

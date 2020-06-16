@@ -1,6 +1,6 @@
-From 151bf36c17a61ae27a8bd114ada96d929f41fdff Mon Sep 17 00:00:00 2001
+From f2a2d9a2bae8f6fdc5e9a40c1241e9428f15b4df Mon Sep 17 00:00:00 2001
 From: Janosch Frank <frankja@linux.ibm.com>
-Date: Tue, 6 Aug 2019 15:40:05 +0200
+Date: Thu, 19 Mar 2020 09:19:19 -0400
 Subject: [PATCH] s390x: protvirt: Handle SIGP store status correctly
 
 For protected VMs status storing is not done by QEMU anymore.
@@ -11,18 +11,19 @@ Reviewed-by: David Hildenbrand <david@redhat.com>
 Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
 Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
 Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200319131921.2367-15-frankja@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
 
-Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
-Origin: backport, https://github.com/borntraeger/qemu/commit/151bf36c17
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=f2a2d9a2ba
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
-Last-Update: 2020-03-20
+Last-Update: 2020-06-16
 
 ---
  target/s390x/helper.c | 6 ++++++
  1 file changed, 6 insertions(+)
 
 diff --git a/target/s390x/helper.c b/target/s390x/helper.c
-index 6808dfda01..36b6d3d9d1 100644
+index ed72684911..09f60406aa 100644
 --- a/target/s390x/helper.c
 +++ b/target/s390x/helper.c
 @@ -25,6 +25,7 @@
@@ -42,9 +43,9 @@ index 6808dfda01..36b6d3d9d1 100644
 +        return 0;
 +    }
 +
-     sa = cpu_physical_memory_map(addr, &len, 1);
+     sa = cpu_physical_memory_map(addr, &len, true);
      if (!sa) {
          return -EFAULT;
 -- 
-2.25.1
+2.27.0
 

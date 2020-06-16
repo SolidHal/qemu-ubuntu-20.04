@@ -1,0 +1,78 @@
+From 9a4325976264e2fac9a77cfabd774bd725c07027 Mon Sep 17 00:00:00 2001
+From: Janosch Frank <frankja@linux.ibm.com>
+Date: Tue, 5 May 2020 08:41:59 -0400
+Subject: [PATCH] s390x: pv: Fix KVM_PV_PREP_RESET command wrapper name
+
+s390_pv_perf_clear_reset() is not a very helpful name since that
+function needs to be called for a normal and a clear reset via
+diag308.
+
+Let's instead name it s390_pv_prep_reset() which reflects the purpose
+of the function a bit better.
+
+Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Message-Id: <20200505124159.24099-1-frankja@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=9a43259762
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-06-16
+
+---
+ hw/s390x/pv.c              | 2 +-
+ hw/s390x/s390-virtio-ccw.c | 2 +-
+ include/hw/s390x/pv.h      | 4 ++--
+ 3 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/hw/s390x/pv.c b/hw/s390x/pv.c
+index f11868e865..ab3a2482aa 100644
+--- a/hw/s390x/pv.c
++++ b/hw/s390x/pv.c
+@@ -88,7 +88,7 @@ int s390_pv_unpack(uint64_t addr, uint64_t size, uint64_t tweak)
+     return s390_pv_cmd(KVM_PV_UNPACK, &args);
+ }
+ 
+-void s390_pv_perf_clear_reset(void)
++void s390_pv_prep_reset(void)
+ {
+     s390_pv_cmd_exit(KVM_PV_PREP_RESET, NULL);
+ }
+diff --git a/hw/s390x/s390-virtio-ccw.c b/hw/s390x/s390-virtio-ccw.c
+index 67ae2e02ff..60b16fef77 100644
+--- a/hw/s390x/s390-virtio-ccw.c
++++ b/hw/s390x/s390-virtio-ccw.c
+@@ -401,7 +401,7 @@ static void s390_pv_prepare_reset(S390CcwMachineState *ms)
+         s390_cpu_set_state(S390_CPU_STATE_STOPPED, S390_CPU(cs));
+     }
+     s390_pv_unshare();
+-    s390_pv_perf_clear_reset();
++    s390_pv_prep_reset();
+ }
+ 
+ static void s390_machine_reset(MachineState *machine)
+diff --git a/include/hw/s390x/pv.h b/include/hw/s390x/pv.h
+index 522ca6a04e..aee758bc2d 100644
+--- a/include/hw/s390x/pv.h
++++ b/include/hw/s390x/pv.h
+@@ -39,7 +39,7 @@ int s390_pv_vm_enable(void);
+ void s390_pv_vm_disable(void);
+ int s390_pv_set_sec_parms(uint64_t origin, uint64_t length);
+ int s390_pv_unpack(uint64_t addr, uint64_t size, uint64_t tweak);
+-void s390_pv_perf_clear_reset(void);
++void s390_pv_prep_reset(void);
+ int s390_pv_verify(void);
+ void s390_pv_unshare(void);
+ void s390_pv_inject_reset_error(CPUState *cs);
+@@ -49,7 +49,7 @@ static inline int s390_pv_vm_enable(void) { return 0; }
+ static inline void s390_pv_vm_disable(void) {}
+ static inline int s390_pv_set_sec_parms(uint64_t origin, uint64_t length) { return 0; }
+ static inline int s390_pv_unpack(uint64_t addr, uint64_t size, uint64_t tweak) { return 0; }
+-static inline void s390_pv_perf_clear_reset(void) {}
++static inline void s390_pv_prep_reset(void) {}
+ static inline int s390_pv_verify(void) { return 0; }
+ static inline void s390_pv_unshare(void) {}
+ static inline void s390_pv_inject_reset_error(CPUState *cs) {};
+-- 
+2.27.0
+

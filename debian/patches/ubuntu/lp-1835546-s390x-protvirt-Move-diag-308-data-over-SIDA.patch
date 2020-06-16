@@ -1,6 +1,6 @@
-From 3a1b07902eec1e32ee4856e9a9cc723a6b2f899e Mon Sep 17 00:00:00 2001
+From 9c61e11238cfa8f70e3eb90aac5d3e5646e5432f Mon Sep 17 00:00:00 2001
 From: Janosch Frank <frankja@linux.ibm.com>
-Date: Wed, 31 Jul 2019 17:49:08 +0200
+Date: Thu, 19 Mar 2020 09:19:16 -0400
 Subject: [PATCH] s390x: protvirt: Move diag 308 data over SIDA
 
 For protected guests the IPIB is written/read to/from the SIDA, so we
@@ -11,11 +11,12 @@ Reviewed-by: David Hildenbrand <david@redhat.com>
 Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
 Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
 Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200319131921.2367-12-frankja@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
 
-Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
-Origin: backport, https://github.com/borntraeger/qemu/commit/3a1b07902e
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=9c61e11238
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
-Last-Update: 2020-03-20
+Last-Update: 2020-06-16
 
 ---
  target/s390x/diag.c | 25 ++++++++++++++++++++-----
@@ -80,5 +81,5 @@ index b2cbefb8cf..1a48429564 100644
      case DIAG308_PV_START:
          iplb = s390_ipl_get_iplb_pv();
 -- 
-2.25.1
+2.27.0
 

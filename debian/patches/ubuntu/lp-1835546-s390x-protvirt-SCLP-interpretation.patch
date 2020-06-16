@@ -1,6 +1,6 @@
-From 4d6c23e0007209b1cf10816903e3263517fb4f38 Mon Sep 17 00:00:00 2001
+From 0f73c5b30b8ba6c0828608be496d2f59a5427539 Mon Sep 17 00:00:00 2001
 From: Janosch Frank <frankja@linux.ibm.com>
-Date: Mon, 3 Jun 2019 16:40:29 +0200
+Date: Thu, 19 Mar 2020 09:19:14 -0400
 Subject: [PATCH] s390x: protvirt: SCLP interpretation
 
 SCLP for a protected guest is done over the SIDAD, so we need to use
@@ -15,11 +15,13 @@ Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
 Reviewed-by: David Hildenbrand <david@redhat.com>
 Reviewed-by: Claudio Imbrenda <imbrenda@linux.ibm.com>
 Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Message-Id: <20200319131921.2367-10-frankja@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
 
-Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
-Origin: backport, https://github.com/borntraeger/qemu/commit/4d6c23e000
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=0f73c5b30b
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
-Last-Update: 2020-03-20
+Last-Update: 2020-06-16
 
 ---
  hw/s390x/sclp.c         | 56 +++++++++++++++++++++++++++++++++--------
@@ -28,7 +30,7 @@ Last-Update: 2020-03-20
  3 files changed, 67 insertions(+), 16 deletions(-)
 
 diff --git a/hw/s390x/sclp.c b/hw/s390x/sclp.c
-index f57ce7b739..1c380a49cc 100644
+index f0c35aa57a..ede056b3ef 100644
 --- a/hw/s390x/sclp.c
 +++ b/hw/s390x/sclp.c
 @@ -33,6 +33,22 @@ static inline SCLPDevice *get_sclp_device(void)
@@ -89,8 +91,8 @@ index f57ce7b739..1c380a49cc 100644
  int sclp_service_call(CPUS390XState *env, uint64_t sccb, uint32_t code)
  {
      SCLPDevice *sclp = get_sclp_device();
-@@ -230,17 +274,7 @@ int sclp_service_call(CPUS390XState *env, uint64_t sccb, uint32_t code)
-         goto out;
+@@ -225,17 +269,7 @@ int sclp_service_call(CPUS390XState *env, uint64_t sccb, uint32_t code)
+         return -PGM_SPECIFICATION;
      }
  
 -    switch (code & SCLP_CMD_CODE_MASK) {
@@ -109,7 +111,7 @@ index f57ce7b739..1c380a49cc 100644
          goto out_write;
      }
 diff --git a/include/hw/s390x/sclp.h b/include/hw/s390x/sclp.h
-index c54413b78c..c0a3faa37d 100644
+index cd7b24359f..822eff4396 100644
 --- a/include/hw/s390x/sclp.h
 +++ b/include/hw/s390x/sclp.h
 @@ -217,5 +217,7 @@ void s390_sclp_init(void);
@@ -121,10 +123,10 @@ index c54413b78c..c0a3faa37d 100644
  
  #endif
 diff --git a/target/s390x/kvm.c b/target/s390x/kvm.c
-index d00e05cc10..d94b915da4 100644
+index e0b61680ab..870dd1b52b 100644
 --- a/target/s390x/kvm.c
 +++ b/target/s390x/kvm.c
-@@ -1230,12 +1230,27 @@ static void kvm_sclp_service_call(S390CPU *cpu, struct kvm_run *run,
+@@ -1233,12 +1233,27 @@ static void kvm_sclp_service_call(S390CPU *cpu, struct kvm_run *run,
      sccb = env->regs[ipbh0 & 0xf];
      code = env->regs[(ipbh0 & 0xf0) >> 4];
  
@@ -158,5 +160,5 @@ index d00e05cc10..d94b915da4 100644
  
  static int handle_b2(S390CPU *cpu, struct kvm_run *run, uint8_t ipa1)
 -- 
-2.25.1
+2.27.0
 

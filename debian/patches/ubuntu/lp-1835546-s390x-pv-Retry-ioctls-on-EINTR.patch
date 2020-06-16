@@ -1,0 +1,45 @@
+From e8d12a55f6d3e577455b02f15907c460578c689b Mon Sep 17 00:00:00 2001
+From: Christian Borntraeger <borntraeger@de.ibm.com>
+Date: Fri, 27 Mar 2020 08:46:16 -0400
+Subject: [PATCH] s390x/pv: Retry ioctls on -EINTR
+
+PV_ENABLE (and maybe others) might return -EINTR when a signal is
+pending. See the Linux kernel patch "s390/gmap: return proper error code
+on ksm unsharing" for details. Let us retry the ioctl in that case.
+
+Fixes: c3347ed0d2ee ("s390x: protvirt: Support unpack facility")
+Reported-by: Marc Hartmayer <mhartmay@linux.ibm.com>
+Acked-by: Janosch Frank <frankja@linux.vnet.ibm.com>
+Tested-by: Marc Hartmayer <mhartmay@linux.ibm.com>
+Signed-off-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Message-Id: <20200327124616.34866-1-borntraeger@de.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=e8d12a55f6
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-06-16
+
+---
+ hw/s390x/pv.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/hw/s390x/pv.c b/hw/s390x/pv.c
+index a40a844806..cb0dce4a4f 100644
+--- a/hw/s390x/pv.c
++++ b/hw/s390x/pv.c
+@@ -23,7 +23,11 @@ static int __s390_pv_cmd(uint32_t cmd, const char *cmdname, void *data)
+         .cmd = cmd,
+         .data = (uint64_t)data,
+     };
+-    int rc = kvm_vm_ioctl(kvm_state, KVM_S390_PV_COMMAND, &pv_cmd);
++    int rc;
++
++    do {
++        rc = kvm_vm_ioctl(kvm_state, KVM_S390_PV_COMMAND, &pv_cmd);
++    } while (rc == -EINTR);
+ 
+     if (rc) {
+         error_report("KVM PV command %d (%s) failed: header rc %x rrc %x "
+-- 
+2.27.0
+

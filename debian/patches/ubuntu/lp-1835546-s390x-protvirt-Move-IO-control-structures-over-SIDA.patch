@@ -1,6 +1,6 @@
-From 3c9801b5947a35ad9ebaf4c489b087b3d94278ab Mon Sep 17 00:00:00 2001
+From fcc10c1470d6e9460ebcf4c30f5bbd37b921a041 Mon Sep 17 00:00:00 2001
 From: Janosch Frank <frankja@linux.ibm.com>
-Date: Wed, 5 Feb 2020 07:02:33 -0500
+Date: Thu, 19 Mar 2020 09:19:18 -0400
 Subject: [PATCH] s390x: protvirt: Move IO control structures over SIDA
 
 For protected guests, we need to put the IO emulation results into the
@@ -9,18 +9,19 @@ SIDA, so SIE will write them into the guest at the next entry.
 Signed-off-by: Janosch Frank <frankja@linux.ibm.com>
 Reviewed-by: David Hildenbrand <david@redhat.com>
 Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200319131921.2367-14-frankja@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
 
-Forwarded: https://lists.gnu.org/archive/html/qemu-devel/2020-03/msg06247.html
-Origin: backport, https://github.com/borntraeger/qemu/commit/3c9801b594
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=fcc10c1470
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
-Last-Update: 2020-03-20
+Last-Update: 2020-06-16
 
 ---
  target/s390x/ioinst.c | 61 +++++++++++++++++++++++++++++++------------
  1 file changed, 45 insertions(+), 16 deletions(-)
 
 diff --git a/target/s390x/ioinst.c b/target/s390x/ioinst.c
-index bbcccf6be2..f40c35c6ff 100644
+index 8828482eec..7a14c52c12 100644
 --- a/target/s390x/ioinst.c
 +++ b/target/s390x/ioinst.c
 @@ -138,7 +138,9 @@ void ioinst_handle_msch(S390CPU *cpu, uint64_t reg1, uint32_t ipb, uintptr_t ra)
@@ -158,5 +159,5 @@ index bbcccf6be2..f40c35c6ff 100644
  }
  
 -- 
-2.25.1
+2.27.0
 

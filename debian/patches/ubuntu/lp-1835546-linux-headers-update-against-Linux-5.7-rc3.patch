@@ -1,0 +1,665 @@
+From dc6f8d458a4ccc360723993f31d310d06469f55f Mon Sep 17 00:00:00 2001
+From: Cornelia Huck <cohuck@redhat.com>
+Date: Mon, 27 Apr 2020 12:24:14 +0200
+Subject: [PATCH] linux-headers: update against Linux 5.7-rc3
+
+commit 6a8b55ed4056ea5559ebe4f6a4b247f627870d4c
+
+Reviewed-by: Michael S. Tsirkin <mst@redhat.com> # virtio/vhost parts
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200427102415.10915-3-cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=dc6f8d458a
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1835546
+Last-Update: 2020-06-16
+
+---
+ include/standard-headers/linux/ethtool.h      |  10 +-
+ .../linux/input-event-codes.h                 |   5 +-
+ include/standard-headers/linux/pci_regs.h     |   2 +
+ include/standard-headers/linux/vhost_types.h  |   8 ++
+ .../standard-headers/linux/virtio_balloon.h   |  12 ++-
+ include/standard-headers/linux/virtio_ids.h   |   1 +
+ include/standard-headers/linux/virtio_net.h   | 102 +++++++++++++++++-
+ linux-headers/COPYING                         |   2 +
+ linux-headers/asm-x86/kvm.h                   |   1 +
+ linux-headers/asm-x86/unistd_32.h             |   1 +
+ linux-headers/asm-x86/unistd_64.h             |   1 +
+ linux-headers/asm-x86/unistd_x32.h            |   1 +
+ linux-headers/linux/kvm.h                     |  47 +++++++-
+ linux-headers/linux/mman.h                    |   5 +-
+ linux-headers/linux/userfaultfd.h             |  40 +++++--
+ linux-headers/linux/vfio.h                    |  37 +++++++
+ linux-headers/linux/vhost.h                   |  24 +++++
+ 17 files changed, 280 insertions(+), 19 deletions(-)
+
+diff --git a/include/standard-headers/linux/ethtool.h b/include/standard-headers/linux/ethtool.h
+index 8adf3b018b..1200890c86 100644
+--- a/include/standard-headers/linux/ethtool.h
++++ b/include/standard-headers/linux/ethtool.h
+@@ -596,6 +596,9 @@ struct ethtool_pauseparam {
+  * @ETH_SS_LINK_MODES: link mode names
+  * @ETH_SS_MSG_CLASSES: debug message class names
+  * @ETH_SS_WOL_MODES: wake-on-lan modes
++ * @ETH_SS_SOF_TIMESTAMPING: SOF_TIMESTAMPING_* flags
++ * @ETH_SS_TS_TX_TYPES: timestamping Tx types
++ * @ETH_SS_TS_RX_FILTERS: timestamping Rx filters
+  */
+ enum ethtool_stringset {
+ 	ETH_SS_TEST		= 0,
+@@ -610,6 +613,9 @@ enum ethtool_stringset {
+ 	ETH_SS_LINK_MODES,
+ 	ETH_SS_MSG_CLASSES,
+ 	ETH_SS_WOL_MODES,
++	ETH_SS_SOF_TIMESTAMPING,
++	ETH_SS_TS_TX_TYPES,
++	ETH_SS_TS_RX_FILTERS,
+ 
+ 	/* add new constants above here */
+ 	ETH_SS_COUNT
+@@ -1330,6 +1336,7 @@ enum ethtool_fec_config_bits {
+ 	ETHTOOL_FEC_OFF_BIT,
+ 	ETHTOOL_FEC_RS_BIT,
+ 	ETHTOOL_FEC_BASER_BIT,
++	ETHTOOL_FEC_LLRS_BIT,
+ };
+ 
+ #define ETHTOOL_FEC_NONE		(1 << ETHTOOL_FEC_NONE_BIT)
+@@ -1337,6 +1344,7 @@ enum ethtool_fec_config_bits {
+ #define ETHTOOL_FEC_OFF			(1 << ETHTOOL_FEC_OFF_BIT)
+ #define ETHTOOL_FEC_RS			(1 << ETHTOOL_FEC_RS_BIT)
+ #define ETHTOOL_FEC_BASER		(1 << ETHTOOL_FEC_BASER_BIT)
++#define ETHTOOL_FEC_LLRS		(1 << ETHTOOL_FEC_LLRS_BIT)
+ 
+ /* CMDs currently supported */
+ #define ETHTOOL_GSET		0x00000001 /* DEPRECATED, Get settings.
+@@ -1521,7 +1529,7 @@ enum ethtool_link_mode_bit_indices {
+ 	ETHTOOL_LINK_MODE_400000baseLR8_ER8_FR8_Full_BIT = 71,
+ 	ETHTOOL_LINK_MODE_400000baseDR8_Full_BIT	 = 72,
+ 	ETHTOOL_LINK_MODE_400000baseCR8_Full_BIT	 = 73,
+-
++	ETHTOOL_LINK_MODE_FEC_LLRS_BIT			 = 74,
+ 	/* must be last entry */
+ 	__ETHTOOL_LINK_MODE_MASK_NBITS
+ };
+diff --git a/include/standard-headers/linux/input-event-codes.h b/include/standard-headers/linux/input-event-codes.h
+index b484c25289..ebf72c1031 100644
+--- a/include/standard-headers/linux/input-event-codes.h
++++ b/include/standard-headers/linux/input-event-codes.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++/* SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note */
+ /*
+  * Input event codes
+  *
+@@ -652,6 +652,9 @@
+ /* Electronic privacy screen control */
+ #define KEY_PRIVACY_SCREEN_TOGGLE	0x279
+ 
++/* Select an area of screen to be copied */
++#define KEY_SELECTIVE_SCREENSHOT	0x27a
++
+ /*
+  * Some keyboards have keys which do not have a defined meaning, these keys
+  * are intended to be programmed / bound to macros by the user. For most
+diff --git a/include/standard-headers/linux/pci_regs.h b/include/standard-headers/linux/pci_regs.h
+index 5437690483..f9701410d3 100644
+--- a/include/standard-headers/linux/pci_regs.h
++++ b/include/standard-headers/linux/pci_regs.h
+@@ -605,6 +605,7 @@
+ #define  PCI_EXP_SLTCTL_PWR_OFF        0x0400 /* Power Off */
+ #define  PCI_EXP_SLTCTL_EIC	0x0800	/* Electromechanical Interlock Control */
+ #define  PCI_EXP_SLTCTL_DLLSCE	0x1000	/* Data Link Layer State Changed Enable */
++#define  PCI_EXP_SLTCTL_IBPD_DISABLE	0x4000 /* In-band PD disable */
+ #define PCI_EXP_SLTSTA		26	/* Slot Status */
+ #define  PCI_EXP_SLTSTA_ABP	0x0001	/* Attention Button Pressed */
+ #define  PCI_EXP_SLTSTA_PFD	0x0002	/* Power Fault Detected */
+@@ -680,6 +681,7 @@
+ #define PCI_EXP_LNKSTA2		50	/* Link Status 2 */
+ #define PCI_CAP_EXP_ENDPOINT_SIZEOF_V2	52	/* v2 endpoints with link end here */
+ #define PCI_EXP_SLTCAP2		52	/* Slot Capabilities 2 */
++#define  PCI_EXP_SLTCAP2_IBPD	0x00000001 /* In-band PD Disable Supported */
+ #define PCI_EXP_SLTCTL2		56	/* Slot Control 2 */
+ #define PCI_EXP_SLTSTA2		58	/* Slot Status 2 */
+ 
+diff --git a/include/standard-headers/linux/vhost_types.h b/include/standard-headers/linux/vhost_types.h
+index 5351fe172d..a678d8fbaa 100644
+--- a/include/standard-headers/linux/vhost_types.h
++++ b/include/standard-headers/linux/vhost_types.h
+@@ -119,6 +119,14 @@ struct vhost_scsi_target {
+ 	unsigned short reserved;
+ };
+ 
++/* VHOST_VDPA specific definitions */
++
++struct vhost_vdpa_config {
++	uint32_t off;
++	uint32_t len;
++	uint8_t buf[0];
++};
++
+ /* Feature bits */
+ /* Log all write descriptors. Can be changed while device is active. */
+ #define VHOST_F_LOG_ALL 26
+diff --git a/include/standard-headers/linux/virtio_balloon.h b/include/standard-headers/linux/virtio_balloon.h
+index 9375ca2a70..f343bfefd8 100644
+--- a/include/standard-headers/linux/virtio_balloon.h
++++ b/include/standard-headers/linux/virtio_balloon.h
+@@ -36,6 +36,7 @@
+ #define VIRTIO_BALLOON_F_DEFLATE_ON_OOM	2 /* Deflate balloon on OOM */
+ #define VIRTIO_BALLOON_F_FREE_PAGE_HINT	3 /* VQ to report free pages */
+ #define VIRTIO_BALLOON_F_PAGE_POISON	4 /* Guest is using page poisoning */
++#define VIRTIO_BALLOON_F_REPORTING	5 /* Page reporting virtqueue */
+ 
+ /* Size of a PFN in the balloon interface. */
+ #define VIRTIO_BALLOON_PFN_SHIFT 12
+@@ -47,8 +48,15 @@ struct virtio_balloon_config {
+ 	uint32_t num_pages;
+ 	/* Number of pages we've actually got in balloon. */
+ 	uint32_t actual;
+-	/* Free page report command id, readonly by guest */
+-	uint32_t free_page_report_cmd_id;
++	/*
++	 * Free page hint command id, readonly by guest.
++	 * Was previously named free_page_report_cmd_id so we
++	 * need to carry that name for legacy support.
++	 */
++	union {
++		uint32_t free_page_hint_cmd_id;
++		uint32_t free_page_report_cmd_id;	/* deprecated */
++	};
+ 	/* Stores PAGE_POISON if page poisoning is in use */
+ 	uint32_t poison_val;
+ };
+diff --git a/include/standard-headers/linux/virtio_ids.h b/include/standard-headers/linux/virtio_ids.h
+index 585e07b273..ecc27a1740 100644
+--- a/include/standard-headers/linux/virtio_ids.h
++++ b/include/standard-headers/linux/virtio_ids.h
+@@ -46,5 +46,6 @@
+ #define VIRTIO_ID_IOMMU        23 /* virtio IOMMU */
+ #define VIRTIO_ID_FS           26 /* virtio filesystem */
+ #define VIRTIO_ID_PMEM         27 /* virtio pmem */
++#define VIRTIO_ID_MAC80211_HWSIM 29 /* virtio mac80211-hwsim */
+ 
+ #endif /* _LINUX_VIRTIO_IDS_H */
+diff --git a/include/standard-headers/linux/virtio_net.h b/include/standard-headers/linux/virtio_net.h
+index 260c3681d7..a90f79e1b1 100644
+--- a/include/standard-headers/linux/virtio_net.h
++++ b/include/standard-headers/linux/virtio_net.h
+@@ -57,6 +57,9 @@
+ 					 * Steering */
+ #define VIRTIO_NET_F_CTRL_MAC_ADDR 23	/* Set MAC address */
+ 
++#define VIRTIO_NET_F_HASH_REPORT  57	/* Supports hash report */
++#define VIRTIO_NET_F_RSS	  60	/* Supports RSS RX steering */
++#define VIRTIO_NET_F_RSC_EXT	  61	/* extended coalescing info */
+ #define VIRTIO_NET_F_STANDBY	  62	/* Act as standby for another device
+ 					 * with the same MAC.
+ 					 */
+@@ -69,6 +72,17 @@
+ #define VIRTIO_NET_S_LINK_UP	1	/* Link is up */
+ #define VIRTIO_NET_S_ANNOUNCE	2	/* Announcement is needed */
+ 
++/* supported/enabled hash types */
++#define VIRTIO_NET_RSS_HASH_TYPE_IPv4          (1 << 0)
++#define VIRTIO_NET_RSS_HASH_TYPE_TCPv4         (1 << 1)
++#define VIRTIO_NET_RSS_HASH_TYPE_UDPv4         (1 << 2)
++#define VIRTIO_NET_RSS_HASH_TYPE_IPv6          (1 << 3)
++#define VIRTIO_NET_RSS_HASH_TYPE_TCPv6         (1 << 4)
++#define VIRTIO_NET_RSS_HASH_TYPE_UDPv6         (1 << 5)
++#define VIRTIO_NET_RSS_HASH_TYPE_IP_EX         (1 << 6)
++#define VIRTIO_NET_RSS_HASH_TYPE_TCP_EX        (1 << 7)
++#define VIRTIO_NET_RSS_HASH_TYPE_UDP_EX        (1 << 8)
++
+ struct virtio_net_config {
+ 	/* The config defining mac address (if VIRTIO_NET_F_MAC) */
+ 	uint8_t mac[ETH_ALEN];
+@@ -92,6 +106,12 @@ struct virtio_net_config {
+ 	 * Any other value stands for unknown.
+ 	 */
+ 	uint8_t duplex;
++	/* maximum size of RSS key */
++	uint8_t rss_max_key_size;
++	/* maximum number of indirection table entries */
++	uint16_t rss_max_indirection_table_length;
++	/* bitmask of supported VIRTIO_NET_RSS_HASH_ types */
++	uint32_t supported_hash_types;
+ } QEMU_PACKED;
+ 
+ /*
+@@ -104,6 +124,7 @@ struct virtio_net_config {
+ struct virtio_net_hdr_v1 {
+ #define VIRTIO_NET_HDR_F_NEEDS_CSUM	1	/* Use csum_start, csum_offset */
+ #define VIRTIO_NET_HDR_F_DATA_VALID	2	/* Csum is valid */
++#define VIRTIO_NET_HDR_F_RSC_INFO	4	/* rsc info in csum_ fields */
+ 	uint8_t flags;
+ #define VIRTIO_NET_HDR_GSO_NONE		0	/* Not a GSO frame */
+ #define VIRTIO_NET_HDR_GSO_TCPV4	1	/* GSO frame, IPv4 TCP (TSO) */
+@@ -113,11 +134,46 @@ struct virtio_net_hdr_v1 {
+ 	uint8_t gso_type;
+ 	__virtio16 hdr_len;	/* Ethernet + IP + tcp/udp hdrs */
+ 	__virtio16 gso_size;	/* Bytes to append to hdr_len per frame */
+-	__virtio16 csum_start;	/* Position to start checksumming from */
+-	__virtio16 csum_offset;	/* Offset after that to place checksum */
++	union {
++		struct {
++			__virtio16 csum_start;
++			__virtio16 csum_offset;
++		};
++		/* Checksum calculation */
++		struct {
++			/* Position to start checksumming from */
++			__virtio16 start;
++			/* Offset after that to place checksum */
++			__virtio16 offset;
++		} csum;
++		/* Receive Segment Coalescing */
++		struct {
++			/* Number of coalesced segments */
++			uint16_t segments;
++			/* Number of duplicated acks */
++			uint16_t dup_acks;
++		} rsc;
++	};
+ 	__virtio16 num_buffers;	/* Number of merged rx buffers */
+ };
+ 
++struct virtio_net_hdr_v1_hash {
++	struct virtio_net_hdr_v1 hdr;
++	uint32_t hash_value;
++#define VIRTIO_NET_HASH_REPORT_NONE            0
++#define VIRTIO_NET_HASH_REPORT_IPv4            1
++#define VIRTIO_NET_HASH_REPORT_TCPv4           2
++#define VIRTIO_NET_HASH_REPORT_UDPv4           3
++#define VIRTIO_NET_HASH_REPORT_IPv6            4
++#define VIRTIO_NET_HASH_REPORT_TCPv6           5
++#define VIRTIO_NET_HASH_REPORT_UDPv6           6
++#define VIRTIO_NET_HASH_REPORT_IPv6_EX         7
++#define VIRTIO_NET_HASH_REPORT_TCPv6_EX        8
++#define VIRTIO_NET_HASH_REPORT_UDPv6_EX        9
++	uint16_t hash_report;
++	uint16_t padding;
++};
++
+ #ifndef VIRTIO_NET_NO_LEGACY
+ /* This header comes first in the scatter-gather list.
+  * For legacy virtio, if VIRTIO_F_ANY_LAYOUT is not negotiated, it must
+@@ -228,7 +284,9 @@ struct virtio_net_ctrl_mac {
+ 
+ /*
+  * Control Receive Flow Steering
+- *
++ */
++#define VIRTIO_NET_CTRL_MQ   4
++/*
+  * The command VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET
+  * enables Receive Flow Steering, specifying the number of the transmit and
+  * receive queues that will be used. After the command is consumed and acked by
+@@ -241,11 +299,47 @@ struct virtio_net_ctrl_mq {
+ 	__virtio16 virtqueue_pairs;
+ };
+ 
+-#define VIRTIO_NET_CTRL_MQ   4
+  #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET        0
+  #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MIN        1
+  #define VIRTIO_NET_CTRL_MQ_VQ_PAIRS_MAX        0x8000
+ 
++/*
++ * The command VIRTIO_NET_CTRL_MQ_RSS_CONFIG has the same effect as
++ * VIRTIO_NET_CTRL_MQ_VQ_PAIRS_SET does and additionally configures
++ * the receive steering to use a hash calculated for incoming packet
++ * to decide on receive virtqueue to place the packet. The command
++ * also provides parameters to calculate a hash and receive virtqueue.
++ */
++struct virtio_net_rss_config {
++	uint32_t hash_types;
++	uint16_t indirection_table_mask;
++	uint16_t unclassified_queue;
++	uint16_t indirection_table[1/* + indirection_table_mask */];
++	uint16_t max_tx_vq;
++	uint8_t hash_key_length;
++	uint8_t hash_key_data[/* hash_key_length */];
++};
++
++ #define VIRTIO_NET_CTRL_MQ_RSS_CONFIG          1
++
++/*
++ * The command VIRTIO_NET_CTRL_MQ_HASH_CONFIG requests the device
++ * to include in the virtio header of the packet the value of the
++ * calculated hash and the report type of hash. It also provides
++ * parameters for hash calculation. The command requires feature
++ * VIRTIO_NET_F_HASH_REPORT to be negotiated to extend the
++ * layout of virtio header as defined in virtio_net_hdr_v1_hash.
++ */
++struct virtio_net_hash_config {
++	uint32_t hash_types;
++	/* for compatibility with virtio_net_rss_config */
++	uint16_t reserved[4];
++	uint8_t hash_key_length;
++	uint8_t hash_key_data[/* hash_key_length */];
++};
++
++ #define VIRTIO_NET_CTRL_MQ_HASH_CONFIG         2
++
+ /*
+  * Control network offloads
+  *
+diff --git a/linux-headers/COPYING b/linux-headers/COPYING
+index da4cb28feb..a635a38ef9 100644
+--- a/linux-headers/COPYING
++++ b/linux-headers/COPYING
+@@ -16,3 +16,5 @@ In addition, other licenses may also apply. Please see:
+ 	Documentation/process/license-rules.rst
+ 
+ for more details.
++
++All contributions to the Linux Kernel are subject to this COPYING file.
+diff --git a/linux-headers/asm-x86/kvm.h b/linux-headers/asm-x86/kvm.h
+index 503d3f42da..3f3f780c8c 100644
+--- a/linux-headers/asm-x86/kvm.h
++++ b/linux-headers/asm-x86/kvm.h
+@@ -390,6 +390,7 @@ struct kvm_sync_regs {
+ #define KVM_STATE_NESTED_GUEST_MODE	0x00000001
+ #define KVM_STATE_NESTED_RUN_PENDING	0x00000002
+ #define KVM_STATE_NESTED_EVMCS		0x00000004
++#define KVM_STATE_NESTED_MTF_PENDING	0x00000008
+ 
+ #define KVM_STATE_NESTED_SMM_GUEST_MODE	0x00000001
+ #define KVM_STATE_NESTED_SMM_VMXON	0x00000002
+diff --git a/linux-headers/asm-x86/unistd_32.h b/linux-headers/asm-x86/unistd_32.h
+index f6e06fcfbd..1e6c1a5867 100644
+--- a/linux-headers/asm-x86/unistd_32.h
++++ b/linux-headers/asm-x86/unistd_32.h
+@@ -429,4 +429,5 @@
+ #define __NR_openat2 437
+ #define __NR_pidfd_getfd 438
+ 
++
+ #endif /* _ASM_X86_UNISTD_32_H */
+diff --git a/linux-headers/asm-x86/unistd_64.h b/linux-headers/asm-x86/unistd_64.h
+index 924f826d2d..6daf0aecb2 100644
+--- a/linux-headers/asm-x86/unistd_64.h
++++ b/linux-headers/asm-x86/unistd_64.h
+@@ -351,4 +351,5 @@
+ #define __NR_openat2 437
+ #define __NR_pidfd_getfd 438
+ 
++
+ #endif /* _ASM_X86_UNISTD_64_H */
+diff --git a/linux-headers/asm-x86/unistd_x32.h b/linux-headers/asm-x86/unistd_x32.h
+index 010307757b..e3f17ef370 100644
+--- a/linux-headers/asm-x86/unistd_x32.h
++++ b/linux-headers/asm-x86/unistd_x32.h
+@@ -340,4 +340,5 @@
+ #define __NR_preadv2 (__X32_SYSCALL_BIT + 546)
+ #define __NR_pwritev2 (__X32_SYSCALL_BIT + 547)
+ 
++
+ #endif /* _ASM_X86_UNISTD_X32_H */
+diff --git a/linux-headers/linux/kvm.h b/linux-headers/linux/kvm.h
+index 265099100e..9804495a46 100644
+--- a/linux-headers/linux/kvm.h
++++ b/linux-headers/linux/kvm.h
+@@ -474,12 +474,17 @@ struct kvm_s390_mem_op {
+ 	__u32 size;		/* amount of bytes */
+ 	__u32 op;		/* type of operation */
+ 	__u64 buf;		/* buffer in userspace */
+-	__u8 ar;		/* the access register number */
+-	__u8 reserved[31];	/* should be set to 0 */
++	union {
++		__u8 ar;	/* the access register number */
++		__u32 sida_offset; /* offset into the sida */
++		__u8 reserved[32]; /* should be set to 0 */
++	};
+ };
+ /* types for kvm_s390_mem_op->op */
+ #define KVM_S390_MEMOP_LOGICAL_READ	0
+ #define KVM_S390_MEMOP_LOGICAL_WRITE	1
++#define KVM_S390_MEMOP_SIDA_READ	2
++#define KVM_S390_MEMOP_SIDA_WRITE	3
+ /* flags for kvm_s390_mem_op->flags */
+ #define KVM_S390_MEMOP_F_CHECK_ONLY		(1ULL << 0)
+ #define KVM_S390_MEMOP_F_INJECT_EXCEPTION	(1ULL << 1)
+@@ -1010,6 +1015,8 @@ struct kvm_ppc_resize_hpt {
+ #define KVM_CAP_ARM_NISV_TO_USER 177
+ #define KVM_CAP_ARM_INJECT_EXT_DABT 178
+ #define KVM_CAP_S390_VCPU_RESETS 179
++#define KVM_CAP_S390_PROTECTED 180
++#define KVM_CAP_PPC_SECURE_GUEST 181
+ 
+ #ifdef KVM_CAP_IRQ_ROUTING
+ 
+@@ -1478,6 +1485,39 @@ struct kvm_enc_region {
+ #define KVM_S390_NORMAL_RESET	_IO(KVMIO,   0xc3)
+ #define KVM_S390_CLEAR_RESET	_IO(KVMIO,   0xc4)
+ 
++struct kvm_s390_pv_sec_parm {
++	__u64 origin;
++	__u64 length;
++};
++
++struct kvm_s390_pv_unp {
++	__u64 addr;
++	__u64 size;
++	__u64 tweak;
++};
++
++enum pv_cmd_id {
++	KVM_PV_ENABLE,
++	KVM_PV_DISABLE,
++	KVM_PV_SET_SEC_PARMS,
++	KVM_PV_UNPACK,
++	KVM_PV_VERIFY,
++	KVM_PV_PREP_RESET,
++	KVM_PV_UNSHARE_ALL,
++};
++
++struct kvm_pv_cmd {
++	__u32 cmd;	/* Command to be executed */
++	__u16 rc;	/* Ultravisor return code */
++	__u16 rrc;	/* Ultravisor return reason code */
++	__u64 data;	/* Data or address */
++	__u32 flags;    /* flags for future extensions. Must be 0 for now */
++	__u32 reserved[3];
++};
++
++/* Available with KVM_CAP_S390_PROTECTED */
++#define KVM_S390_PV_COMMAND		_IOWR(KVMIO, 0xc5, struct kvm_pv_cmd)
++
+ /* Secure Encrypted Virtualization command */
+ enum sev_cmd_id {
+ 	/* Guest initialization commands */
+@@ -1628,4 +1668,7 @@ struct kvm_hyperv_eventfd {
+ #define KVM_HYPERV_CONN_ID_MASK		0x00ffffff
+ #define KVM_HYPERV_EVENTFD_DEASSIGN	(1 << 0)
+ 
++#define KVM_DIRTY_LOG_MANUAL_PROTECT_ENABLE    (1 << 0)
++#define KVM_DIRTY_LOG_INITIALLY_SET            (1 << 1)
++
+ #endif /* __LINUX_KVM_H */
+diff --git a/linux-headers/linux/mman.h b/linux-headers/linux/mman.h
+index 1f6e2cd89c..51ea363759 100644
+--- a/linux-headers/linux/mman.h
++++ b/linux-headers/linux/mman.h
+@@ -5,8 +5,9 @@
+ #include <asm/mman.h>
+ #include <asm-generic/hugetlb_encode.h>
+ 
+-#define MREMAP_MAYMOVE	1
+-#define MREMAP_FIXED	2
++#define MREMAP_MAYMOVE		1
++#define MREMAP_FIXED		2
++#define MREMAP_DONTUNMAP	4
+ 
+ #define OVERCOMMIT_GUESS		0
+ #define OVERCOMMIT_ALWAYS		1
+diff --git a/linux-headers/linux/userfaultfd.h b/linux-headers/linux/userfaultfd.h
+index ce78878d12..8d3996eb82 100644
+--- a/linux-headers/linux/userfaultfd.h
++++ b/linux-headers/linux/userfaultfd.h
+@@ -19,7 +19,8 @@
+  * means the userland is reading).
+  */
+ #define UFFD_API ((__u64)0xAA)
+-#define UFFD_API_FEATURES (UFFD_FEATURE_EVENT_FORK |		\
++#define UFFD_API_FEATURES (UFFD_FEATURE_PAGEFAULT_FLAG_WP |	\
++			   UFFD_FEATURE_EVENT_FORK |		\
+ 			   UFFD_FEATURE_EVENT_REMAP |		\
+ 			   UFFD_FEATURE_EVENT_REMOVE |	\
+ 			   UFFD_FEATURE_EVENT_UNMAP |		\
+@@ -34,7 +35,8 @@
+ #define UFFD_API_RANGE_IOCTLS			\
+ 	((__u64)1 << _UFFDIO_WAKE |		\
+ 	 (__u64)1 << _UFFDIO_COPY |		\
+-	 (__u64)1 << _UFFDIO_ZEROPAGE)
++	 (__u64)1 << _UFFDIO_ZEROPAGE |		\
++	 (__u64)1 << _UFFDIO_WRITEPROTECT)
+ #define UFFD_API_RANGE_IOCTLS_BASIC		\
+ 	((__u64)1 << _UFFDIO_WAKE |		\
+ 	 (__u64)1 << _UFFDIO_COPY)
+@@ -52,6 +54,7 @@
+ #define _UFFDIO_WAKE			(0x02)
+ #define _UFFDIO_COPY			(0x03)
+ #define _UFFDIO_ZEROPAGE		(0x04)
++#define _UFFDIO_WRITEPROTECT		(0x06)
+ #define _UFFDIO_API			(0x3F)
+ 
+ /* userfaultfd ioctl ids */
+@@ -68,6 +71,8 @@
+ 				      struct uffdio_copy)
+ #define UFFDIO_ZEROPAGE		_IOWR(UFFDIO, _UFFDIO_ZEROPAGE,	\
+ 				      struct uffdio_zeropage)
++#define UFFDIO_WRITEPROTECT	_IOWR(UFFDIO, _UFFDIO_WRITEPROTECT, \
++				      struct uffdio_writeprotect)
+ 
+ /* read() structure */
+ struct uffd_msg {
+@@ -203,13 +208,14 @@ struct uffdio_copy {
+ 	__u64 dst;
+ 	__u64 src;
+ 	__u64 len;
++#define UFFDIO_COPY_MODE_DONTWAKE		((__u64)1<<0)
+ 	/*
+-	 * There will be a wrprotection flag later that allows to map
+-	 * pages wrprotected on the fly. And such a flag will be
+-	 * available if the wrprotection ioctl are implemented for the
+-	 * range according to the uffdio_register.ioctls.
++	 * UFFDIO_COPY_MODE_WP will map the page write protected on
++	 * the fly.  UFFDIO_COPY_MODE_WP is available only if the
++	 * write protected ioctl is implemented for the range
++	 * according to the uffdio_register.ioctls.
+ 	 */
+-#define UFFDIO_COPY_MODE_DONTWAKE		((__u64)1<<0)
++#define UFFDIO_COPY_MODE_WP			((__u64)1<<1)
+ 	__u64 mode;
+ 
+ 	/*
+@@ -231,4 +237,24 @@ struct uffdio_zeropage {
+ 	__s64 zeropage;
+ };
+ 
++struct uffdio_writeprotect {
++	struct uffdio_range range;
++/*
++ * UFFDIO_WRITEPROTECT_MODE_WP: set the flag to write protect a range,
++ * unset the flag to undo protection of a range which was previously
++ * write protected.
++ *
++ * UFFDIO_WRITEPROTECT_MODE_DONTWAKE: set the flag to avoid waking up
++ * any wait thread after the operation succeeds.
++ *
++ * NOTE: Write protecting a region (WP=1) is unrelated to page faults,
++ * therefore DONTWAKE flag is meaningless with WP=1.  Removing write
++ * protection (WP=0) in response to a page fault wakes the faulting
++ * task unless DONTWAKE is set.
++ */
++#define UFFDIO_WRITEPROTECT_MODE_WP		((__u64)1<<0)
++#define UFFDIO_WRITEPROTECT_MODE_DONTWAKE	((__u64)1<<1)
++	__u64 mode;
++};
++
+ #endif /* _LINUX_USERFAULTFD_H */
+diff --git a/linux-headers/linux/vfio.h b/linux-headers/linux/vfio.h
+index fb10370d29..a41c452865 100644
+--- a/linux-headers/linux/vfio.h
++++ b/linux-headers/linux/vfio.h
+@@ -707,6 +707,43 @@ struct vfio_device_ioeventfd {
+ 
+ #define VFIO_DEVICE_IOEVENTFD		_IO(VFIO_TYPE, VFIO_BASE + 16)
+ 
++/**
++ * VFIO_DEVICE_FEATURE - _IORW(VFIO_TYPE, VFIO_BASE + 17,
++ *			       struct vfio_device_feature)
++ *
++ * Get, set, or probe feature data of the device.  The feature is selected
++ * using the FEATURE_MASK portion of the flags field.  Support for a feature
++ * can be probed by setting both the FEATURE_MASK and PROBE bits.  A probe
++ * may optionally include the GET and/or SET bits to determine read vs write
++ * access of the feature respectively.  Probing a feature will return success
++ * if the feature is supported and all of the optionally indicated GET/SET
++ * methods are supported.  The format of the data portion of the structure is
++ * specific to the given feature.  The data portion is not required for
++ * probing.  GET and SET are mutually exclusive, except for use with PROBE.
++ *
++ * Return 0 on success, -errno on failure.
++ */
++struct vfio_device_feature {
++	__u32	argsz;
++	__u32	flags;
++#define VFIO_DEVICE_FEATURE_MASK	(0xffff) /* 16-bit feature index */
++#define VFIO_DEVICE_FEATURE_GET		(1 << 16) /* Get feature into data[] */
++#define VFIO_DEVICE_FEATURE_SET		(1 << 17) /* Set feature from data[] */
++#define VFIO_DEVICE_FEATURE_PROBE	(1 << 18) /* Probe feature support */
++	__u8	data[];
++};
++
++#define VFIO_DEVICE_FEATURE		_IO(VFIO_TYPE, VFIO_BASE + 17)
++
++/*
++ * Provide support for setting a PCI VF Token, which is used as a shared
++ * secret between PF and VF drivers.  This feature may only be set on a
++ * PCI SR-IOV PF when SR-IOV is enabled on the PF and there are no existing
++ * open VFs.  Data provided when setting this feature is a 16-byte array
++ * (__u8 b[16]), representing a UUID.
++ */
++#define VFIO_DEVICE_FEATURE_PCI_VF_TOKEN	(0)
++
+ /* -------- API for Type1 VFIO IOMMU -------- */
+ 
+ /**
+diff --git a/linux-headers/linux/vhost.h b/linux-headers/linux/vhost.h
+index 40d028eed6..9fe72e4b13 100644
+--- a/linux-headers/linux/vhost.h
++++ b/linux-headers/linux/vhost.h
+@@ -116,4 +116,28 @@
+ #define VHOST_VSOCK_SET_GUEST_CID	_IOW(VHOST_VIRTIO, 0x60, __u64)
+ #define VHOST_VSOCK_SET_RUNNING		_IOW(VHOST_VIRTIO, 0x61, int)
+ 
++/* VHOST_VDPA specific defines */
++
++/* Get the device id. The device ids follow the same definition of
++ * the device id defined in virtio-spec.
++ */
++#define VHOST_VDPA_GET_DEVICE_ID	_IOR(VHOST_VIRTIO, 0x70, __u32)
++/* Get and set the status. The status bits follow the same definition
++ * of the device status defined in virtio-spec.
++ */
++#define VHOST_VDPA_GET_STATUS		_IOR(VHOST_VIRTIO, 0x71, __u8)
++#define VHOST_VDPA_SET_STATUS		_IOW(VHOST_VIRTIO, 0x72, __u8)
++/* Get and set the device config. The device config follows the same
++ * definition of the device config defined in virtio-spec.
++ */
++#define VHOST_VDPA_GET_CONFIG		_IOR(VHOST_VIRTIO, 0x73, \
++					     struct vhost_vdpa_config)
++#define VHOST_VDPA_SET_CONFIG		_IOW(VHOST_VIRTIO, 0x74, \
++					     struct vhost_vdpa_config)
++/* Enable/disable the ring. */
++#define VHOST_VDPA_SET_VRING_ENABLE	_IOW(VHOST_VIRTIO, 0x75, \
++					     struct vhost_vring_state)
++/* Get the max ring size. */
++#define VHOST_VDPA_GET_VRING_NUM	_IOR(VHOST_VIRTIO, 0x76, __u16)
++
+ #endif
+-- 
+2.27.0
+
