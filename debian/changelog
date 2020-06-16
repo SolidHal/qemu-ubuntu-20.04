@@ -1,3 +1,136 @@
+qemu (1:5.0-5ubuntu1) groovy; urgency=medium
+
+  * Merge with Debian testing (LP: #1749393), remaining changes:
+    - qemu-kvm to systemd unit
+      - d/qemu-kvm-init: script for QEMU KVM preparation modules, ksm,
+        hugepages and architecture specifics
+      - d/qemu-system-common.qemu-kvm.service: systemd unit to call
+        qemu-kvm-init
+      - d/qemu-system-common.install: install helper script
+      - d/qemu-system-common.qemu-kvm.default: defaults for
+        /etc/default/qemu-kvm
+      - d/rules: call dh_installinit and dh_installsystemd for qemu-kvm
+    - Distribution specific machine type (LP: 1304107 1621042)
+      - d/p/ubuntu/define-ubuntu-machine-types.patch: define distro machine
+        types
+      - d/qemu-system-x86.NEWS Info on fixed machine type definitions
+        for host-phys-bits=true (LP: 1776189)
+      - add an info about -hpb machine type in debian/qemu-system-x86.NEWS
+      - provide pseries-bionic-2.11-sxxm type as convenience with all
+        meltdown/spectre workarounds enabled by default. (LP: 1761372).
+      - ubuntu-q35 alias added to auto-select the most recent q35 ubuntu type
+    - Enable nesting by default
+      - d/p/ubuntu/enable-svm-by-default.patch: Enable nested svm by default
+        in qemu64 on amd
+        [ No more strictly needed, but required for backward compatibility ]
+    - improved dependencies
+      - Make qemu-system-common depend on qemu-block-extra
+      - Make qemu-utils depend on qemu-block-extra
+      - let qemu-utils recommend sharutils
+    - arch aware kvm wrappers
+    - tolerate ipxe size change on migrations to >=18.04 (LP: 1713490)
+      - d/p/ubuntu/pre-bionic-256k-ipxe-efi-roms.patch: old machine types
+        reference 256k path
+      - d/control-in: depend on ipxe-qemu-256k-compat-efi-roms to be able to
+        handle incoming migrations from former releases.
+    - d/control-in: Disable capstone disassembler library support (universe)
+    - d/qemu-system-x86.README.Debian: add info about updated nesting changes
+    - d/control*, d/rules: disable xen by default, but provide universe
+      package qemu-system-x86-xen as alternative
+      [includes --disable-xen for user-static builds]
+    - d/control-in: disable pmem on ppc64 as it is currently considered
+      experimental on that architecture (pmdk v1.8-1)
+    - d/rules: makefile definitions can't be recursive - sys_systems for s390x
+    - d/rules: report config log from the correct subdir
+    - allow qemu to load old modules post upgrade (LP 1847361)
+      - d/qemu-block-extra.*.in, d/qemu-system-gui.*.in: save shared objects on
+        upgrade
+      - d/rules: generate maintainer scripts matching package version on build
+      - d/rules: enable --enable-module-upgrades where --enable-modules is set
+    - d/p/ubuntu/lp-1835546-*: backport the s390x protvirt feature (LP 1835546)
+    - d/control-in: disable rbd support unavailable on riscv (LP: 1872931)
+    - debian/patches/ubuntu/lp-1878973-*: fix assert in qemu-guest-agent that
+      crashes it on shutdown (LP 1878973)
+  * Dropped changes (no more needed)
+    - d/qemu-system-common.maintscript: clean old sysv and upstart scripts
+    - d/p/ubuntu/expose-vmx_qemu64cpu.patch: expose nested kvm by default
+      in qemu64 cpu type.
+    - d/control: avoid upgrade issues triggered by moving ivshmem tools after
+      Debian. Fixed by bumping the related Breaks/Replaces to the
+      Version Ubuntu introduced the change (LP 1862287)
+  * Dropped changes (in Debian)
+    - improved s390x support
+    - d/binfmt-update-in: fix binfmt being called in some containers
+      (LP 1840956)
+    - qemu-system-x86-microvm package
+      In addition to the generic multi-purpose qemu also provide a minimal
+      feature binary that is loading faster for use cases with microvm machine
+      type and qboot bios
+      - d/control-in: add a new qemu-system-x86-microvm package
+      - d/rules: add an extra config/build step to get the minimal qemu
+    - Security and packaging fixes (LP 1872937)
+      - arm-fix-PAuth-sbox-functions-CVE-2020-10702.patch
+      - net-tulip-check-frame-size-and-r-w-data-length-CVE-2020-11102.patch
+        CVE-2020-10702
+        CVE-2020-11102
+      - fix external spice UI
+        + install ui-spice-app.so in qemu-system-common
+        + install ui-spice-app.so only if built, spice is optional
+      - switch binfmt registration to use update-binfmts --[un]import (#866756)
+      - qemu-system-gui: Multi-Arch=same, not foreign (#956763)
+      - qemu-system-data: s/highcolor/hicolor/ (#955741)
+    - enable riscv build (LP 1872931)
+      [ changes picked from Debian ]
+      - enable support for riscv64 hosts
+      - only enable librbd on architectures where it is built
+      - ceph: do not list librados-dev as we only use librbd-dev and the latter
+        depends on the former
+      - seccomp grew up, no need in versioned build-dep
+      - enable seccomp only on architectures where it can be built
+  * Dropped changes (upstream)
+    - d/p/ubuntu/lp-1857033-*: add support for Cooper Lake cpu model
+      (LP 1857033)
+    - d/p/lp-1859527-*: avoid breakage on high virtqueue counts (LP 1859527)
+    - d/p/ubuntu/vhost-user-gpu-Drop-trailing-json-comma.patch: fix parsing of
+      vhost-user-gpu
+    - d/p/ubuntu/lp-1847361-vhost-correctly-turn-on-VIRTIO_F_IOMMU_PLATFORM.patch:
+      avoid unnecessary IOTLB transactions (LP 1866207)
+    - d/p/stable/lp-1867519-*: Stabilize qemu 4.2 with upstream
+      patches @qemu-stable (LP 1867519)
+    - remove d/p/ubuntu/expose-vmx_qemu64cpu.patch: Stop adding VMX to qemu64
+      to avoid broken nesting (LP 1868692)
+    - d/p/ubuntu/lp-1871830-*: avoid crash when using QEMU_MODULE_DIR
+      (LP 1871830)
+    - d/p/ubuntu/lp-1872107*: fix migration while rebooting guests (LP 1872107)
+    - d/p/ubuntu/lp-1872931-*: fix build on non KVM platforms
+    - d/p/ubuntu/lp-1872945-*: fix riscv emulation errors that e.g. hung ssh
+      and clobbered doubles (LP 1872945)
+    - SECURITY UPDATE: DoS via integer overflow in ati_2d_blt()
+      - debian/patches/ubuntu/CVE-2020-11869.patch: fix checks in
+        ati_2d_blt() to avoid crash in hw/display/ati_2d.c.
+      - CVE-2020-11869
+    - d/p/ubuntu/lp-1805256*: Fixes for QEMU on aarch64 ARM hosts
+      - async: use explicit memory barriers (LP 1805256)
+      - aio-wait: delegate polling of main AioContext if BQL not held
+    - d/p/ubuntu/lp-1882774-*: fix issues with VMX subfeatures on systems not
+      supporting to set them (LP 1882774)
+    - d/p/ubuntu/lp-1847361-modules-load-upgrade.patch: to fallback module
+      load to a versioned path
+  * Added Changes:
+    - d/control: regenerate debian/control out of control-in
+    - update d/p/ubuntu/lp-1835546-* to the final versions
+      - 11 patches dropped as they are in 5.0
+      - 20 patches updated to how they will be in 5.1
+    - d/p/ubuntu/virtio-net-fix-rsc_ext-compat-handling.patch: fix
+      FTBFS in groovy
+    - Make qemu-system-x86-microvm a transitional package as the binary is now
+      in qemu-system-x86 itself.
+    - d/control-in: build-dep libcap is no more needed
+    - d/rules: update arch aware kvm wrappers
+    - d/qemu-system-x86.README.Debian: fix typo
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 16 Jun 2020 16:50:09 +0200
+
 qemu (1:5.0-5) unstable; urgency=medium
 
   * more binfmt-install updates
