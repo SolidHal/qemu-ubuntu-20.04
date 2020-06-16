@@ -319,6 +319,10 @@ ifeq (${enable_system},enable)
 	install -D debian/qemu-ifup.$(DEB_HOST_ARCH_OS) \
 		debian/qemu-system-common/etc/qemu-ifup
 endif
+	# install /etc/default/qemu-kvm
+	dh_installinit -a -pqemu-system-common --name=qemu-kvm
+	# install and enable qemu-kvm.service
+	dh_installsystemd -a -pqemu-system-common --no-restart-on-upgrade --name=qemu-kvm
 	dh_installinit -a -pqemu-guest-agent
 	dh_installsystemd -a -pqemu-guest-agent --no-start --no-enable
 	dh_link -a
