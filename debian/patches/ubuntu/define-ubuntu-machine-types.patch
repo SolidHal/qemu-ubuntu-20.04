@@ -97,18 +97,22 @@ Forward-info: downstream decision
 
 --- a/hw/i386/pc_piix.c
 +++ b/hw/i386/pc_piix.c
-@@ -429,7 +429,7 @@ static void pc_i440fx_4_2_machine_option
+@@ -423,12 +423,7 @@ static void pc_i440fx_5_0_machine_option
      PCMachineClass *pcmc = PC_MACHINE_CLASS(m);
      pc_i440fx_machine_options(m);
      m->alias = "pc";
--    m->is_default = 1;
-+    m->is_default = 0;
+-    m->is_default = true;
+-#ifdef CONFIG_MICROVM_DEFAULT
+     m->is_default = false;
+-#else
+-    m->is_default = true;
+-#endif
      pcmc->default_cpu_version = 1;
  }
  
-@@ -1026,3 +1026,175 @@ static void xenfv_machine_options(Machin
- DEFINE_PC_MACHINE(xenfv, "xenfv", pc_xen_hvm_init,
-                   xenfv_machine_options);
+@@ -975,3 +970,199 @@ static void xenfv_3_1_machine_options(Ma
+ DEFINE_PC_MACHINE(xenfv, "xenfv-3.1", pc_xen_hvm_init,
+                   xenfv_3_1_machine_options);
  #endif
 +
 +/* Ubuntu machine types */
@@ -232,7 +236,6 @@ Forward-info: downstream decision
 +    pc_i440fx_4_0_machine_options(m);
 +    m->desc = "Ubuntu 20.04 PC (i440FX + PIIX, 1996)";
 +    m->alias = "ubuntu";
-+    m->is_default = 1;
 +}
 +DEFINE_I440FX_MACHINE(focal, "pc-i440fx-focal", NULL,
 +                      pc_focal_machine_options);
@@ -247,6 +250,31 @@ Forward-info: downstream decision
 +}
 +DEFINE_I440FX_MACHINE(focal_hpb, "pc-i440fx-focal-hpb", NULL,
 +                      pc_focal_hpb_machine_options);
++
++static void pc_groovy_machine_options(MachineClass *m)
++{
++    pc_i440fx_5_0_machine_options(m);
++    m->desc = "Ubuntu 20.10 PC (i440FX + PIIX, 1996)";
++    m->alias = "ubuntu";
++#ifdef CONFIG_MICROVM_DEFAULT
++    m->is_default = false;
++#else
++    m->is_default = true;
++#endif
++}
++DEFINE_I440FX_MACHINE(groovy, "pc-i440fx-groovy", NULL,
++                      pc_groovy_machine_options);
++
++static void pc_groovy_hpb_machine_options(MachineClass *m)
++{
++    pc_i440fx_5_0_machine_options(m);
++    m->desc = "Ubuntu 20.10 PC (i440FX + PIIX +host-phys-bits=true, 1996)";
++    m->alias = NULL;
++    compat_props_add(m->compat_props,
++        host_phys_bits_compat, host_phys_bits_compat_len);
++}
++DEFINE_I440FX_MACHINE(groovy_hpb, "pc-i440fx-groovy-hpb", NULL,
++                      pc_groovy_hpb_machine_options);
 +
 +/*
 + * Due to bug 1621042 we have to consider the broken old wily machine
@@ -284,7 +312,7 @@ Forward-info: downstream decision
 +                      pc_wily_machine_options);
 --- a/hw/i386/pc_q35.c
 +++ b/hw/i386/pc_q35.c
-@@ -533,3 +533,144 @@ static void pc_q35_2_4_machine_options(M
+@@ -545,3 +545,165 @@ static void pc_q35_2_4_machine_options(M
  
  DEFINE_Q35_MACHINE(v2_4, "pc-q35-2.4", NULL,
                     pc_q35_2_4_machine_options);
@@ -414,7 +442,6 @@ Forward-info: downstream decision
 +    m->desc = "Ubuntu 20.04 PC (Q35 + ICH9, 2009)";
 +    /* The ubuntu alias and default is on the i440fx type. The
 +     * ubuntu-q35 alias auto-picks the most recent ubuntu q35 type */
-+    m->alias = "ubuntu-q35";
 +}
 +DEFINE_Q35_MACHINE(focal, "pc-q35-focal", NULL,
 +                   pc_q35_focal_machine_options);
@@ -429,10 +456,32 @@ Forward-info: downstream decision
 +}
 +DEFINE_Q35_MACHINE(focal_hpb, "pc-q35-focal-hpb", NULL,
 +                   pc_q35_focal_hpb_machine_options);
++
++static void pc_q35_groovy_machine_options(MachineClass *m)
++{
++    pc_q35_5_0_machine_options(m);
++    m->desc = "Ubuntu 20.10 PC (Q35 + ICH9, 2009)";
++    /* The ubuntu alias and default is on the i440fx type. The
++     * ubuntu-q35 alias auto-picks the most recent ubuntu q35 type */
++    m->alias = "ubuntu-q35";
++}
++DEFINE_Q35_MACHINE(groovy, "pc-q35-groovy", NULL,
++                   pc_q35_groovy_machine_options);
++
++static void pc_q35_groovy_hpb_machine_options(MachineClass *m)
++{
++    pc_q35_groovy_machine_options(m);
++    m->desc = "Ubuntu 20.10 PC (Q35 + ICH9, +host-phys-bits=true, 2009)";
++    m->alias = NULL;
++    compat_props_add(m->compat_props,
++        host_phys_bits_compat, host_phys_bits_compat_len);
++}
++DEFINE_Q35_MACHINE(groovy_hpb, "pc-q35-groovy-hpb", NULL,
++                   pc_q35_groovy_hpb_machine_options);
 --- a/hw/ppc/spapr.c
 +++ b/hw/ppc/spapr.c
-@@ -4470,11 +4470,14 @@ static const TypeInfo spapr_machine_info
- };
+@@ -4579,11 +4579,14 @@ static void spapr_machine_latest_class_o
+ }
  
  #define DEFINE_SPAPR_MACHINE(suffix, verstr, latest)                 \
 +    DEFINE_SPAPR_MACHINE_NAMED(suffix, suffix, verstr, latest)
@@ -445,18 +494,18 @@ Forward-info: downstream decision
 -        spapr_machine_##suffix##_class_options(mc);                  \
 +        spapr_machine_##qemuver##_class_options(mc);                 \
          if (latest) {                                                \
-             mc->alias = "pseries";                                   \
-             mc->is_default = 1;                                      \
-@@ -4499,7 +4502,7 @@ static void spapr_machine_4_2_class_opti
+             spapr_machine_latest_class_options(mc);                  \
+         }                                                            \
+@@ -4607,7 +4610,7 @@ static void spapr_machine_5_0_class_opti
      /* Defaults for the latest behaviour inherited from the base class */
  }
  
--DEFINE_SPAPR_MACHINE(4_2, "4.2", true);
-+DEFINE_SPAPR_MACHINE(4_2, "4.2", false);
+-DEFINE_SPAPR_MACHINE(5_0, "5.0", true);
++DEFINE_SPAPR_MACHINE(5_0, "5.0", false);
  
  /*
-  * pseries-4.1
-@@ -4791,11 +4794,16 @@ DEFINE_SPAPR_MACHINE(2_6, "2.6", false);
+  * pseries-4.2
+@@ -4916,11 +4919,16 @@ DEFINE_SPAPR_MACHINE(2_6, "2.6", false);
   * pseries-2.5
   */
  
@@ -473,7 +522,7 @@ Forward-info: downstream decision
      };
  
      spapr_machine_2_6_class_options(mc);
-@@ -4864,6 +4872,30 @@ static void spapr_machine_2_1_class_opti
+@@ -4989,6 +4997,31 @@ static void spapr_machine_2_1_class_opti
  }
  DEFINE_SPAPR_MACHINE(2_1, "2.1", false);
  
@@ -486,7 +535,8 @@ Forward-info: downstream decision
 +DEFINE_SPAPR_MACHINE_NAMED(2_12, ubuntu_cosmic, "cosmic", false);
 +DEFINE_SPAPR_MACHINE_NAMED(3_1, ubuntu_disco, "disco", false);
 +DEFINE_SPAPR_MACHINE_NAMED(4_0, ubuntu_eoan, "eoan", false);
-+DEFINE_SPAPR_MACHINE_NAMED(4_2, ubuntu_focal, "focal", true);
++DEFINE_SPAPR_MACHINE_NAMED(4_2, ubuntu_focal, "focal", false);
++DEFINE_SPAPR_MACHINE_NAMED(5_0, ubuntu_groovy, "groovy", true);
 +
 +/* Special 2.11 type for 1761372, since 2.12 is unreleased and 18.04 is 2.11 */
 +static void spapr_machine_2_11_sxxm_class_options(MachineClass *mc)
@@ -506,7 +556,7 @@ Forward-info: downstream decision
      type_register_static(&spapr_machine_info);
 --- a/hw/s390x/s390-virtio-ccw.c
 +++ b/hw/s390x/s390-virtio-ccw.c
-@@ -610,12 +610,15 @@ bool css_migration_enabled(void)
+@@ -643,12 +643,15 @@ bool css_migration_enabled(void)
  }
  
  #define DEFINE_CCW_MACHINE(suffix, verstr, latest)                            \
@@ -523,8 +573,8 @@ Forward-info: downstream decision
 +        mc->desc = "VirtIO-ccw based S390 machine " verstr;                   \
          if (latest) {                                                         \
              mc->alias = "s390-ccw-virtio";                                    \
-             mc->is_default = 1;                                               \
-@@ -625,7 +628,7 @@ bool css_migration_enabled(void)
+             mc->is_default = true;                                            \
+@@ -658,7 +661,7 @@ bool css_migration_enabled(void)
      {                                                                         \
          MachineState *machine = MACHINE(obj);                                 \
          current_mc = S390_MACHINE_CLASS(MACHINE_GET_CLASS(machine));          \
@@ -533,16 +583,16 @@ Forward-info: downstream decision
      }                                                                         \
      static const TypeInfo ccw_machine_##suffix##_info = {                     \
          .name = MACHINE_TYPE_NAME("s390-ccw-virtio-" verstr),                 \
-@@ -646,7 +649,7 @@ static void ccw_machine_4_2_instance_opt
- static void ccw_machine_4_2_class_options(MachineClass *mc)
+@@ -679,7 +682,7 @@ static void ccw_machine_5_0_instance_opt
+ static void ccw_machine_5_0_class_options(MachineClass *mc)
  {
  }
--DEFINE_CCW_MACHINE(4_2, "4.2", true);
-+DEFINE_CCW_MACHINE(4_2, "4.2", false);
+-DEFINE_CCW_MACHINE(5_0, "5.0", true);
++DEFINE_CCW_MACHINE(5_0, "5.0", false);
  
- static void ccw_machine_4_1_instance_options(MachineState *machine)
+ static void ccw_machine_4_2_instance_options(MachineState *machine)
  {
-@@ -867,6 +870,17 @@ static void ccw_machine_2_4_class_option
+@@ -913,6 +916,18 @@ static void ccw_machine_2_4_class_option
  }
  DEFINE_CCW_MACHINE(2_4, "2.4", false);
  
@@ -555,14 +605,15 @@ Forward-info: downstream decision
 +DEFINE_CCW_MACHINE_NAMED(2_12, ubuntu_cosmic, "cosmic", false);
 +DEFINE_CCW_MACHINE_NAMED(3_1, ubuntu_disco, "disco", false);
 +DEFINE_CCW_MACHINE_NAMED(3_1, ubuntu_eoan, "eoan", false);
-+DEFINE_CCW_MACHINE_NAMED(4_2, ubuntu_focal, "focal", true);
++DEFINE_CCW_MACHINE_NAMED(4_2, ubuntu_focal, "focal", false);
++DEFINE_CCW_MACHINE_NAMED(5_0, ubuntu_groovy, "groovy", true);
 +
  static void ccw_machine_register_types(void)
  {
      type_register_static(&ccw_machine_info);
---- a/vl.c
-+++ b/vl.c
-@@ -2471,6 +2471,17 @@ static gint machine_class_cmp(gconstpoin
+--- a/softmmu/vl.c
++++ b/softmmu/vl.c
+@@ -2296,6 +2296,17 @@ static gint machine_class_cmp(gconstpoin
                    object_class_get_name(OBJECT_CLASS(mc1)));
  }
  
@@ -580,7 +631,7 @@ Forward-info: downstream decision
  static MachineClass *machine_parse(const char *name, GSList *machines)
  {
      MachineClass *mc;
-@@ -2493,8 +2504,23 @@ static MachineClass *machine_parse(const
+@@ -2318,8 +2329,23 @@ static MachineClass *machine_parse(const
  
      mc = find_machine(name, machines);
      if (!mc) {
@@ -607,7 +658,7 @@ Forward-info: downstream decision
      return mc;
 --- a/hw/i386/pc.c
 +++ b/hw/i386/pc.c
-@@ -109,6 +109,11 @@ const size_t pc_compat_4_1_len = G_N_ELE
+@@ -105,6 +105,11 @@ const size_t pc_compat_4_1_len = G_N_ELE
  GlobalProperty pc_compat_4_0[] = {};
  const size_t pc_compat_4_0_len = G_N_ELEMENTS(pc_compat_4_0);
  
@@ -621,7 +672,7 @@ Forward-info: downstream decision
      { "Opteron_G3" "-" TYPE_X86_CPU, "rdtscp", "off" },
 --- a/include/hw/i386/pc.h
 +++ b/include/hw/i386/pc.h
-@@ -243,6 +243,9 @@ extern const size_t pc_compat_4_1_len;
+@@ -213,6 +213,9 @@ extern const size_t pc_compat_4_1_len;
  extern GlobalProperty pc_compat_4_0[];
  extern const size_t pc_compat_4_0_len;
  
