@@ -1,0 +1,44 @@
+From 9904adfaca139581d6b03947a7e23c7e2cb64339 Mon Sep 17 00:00:00 2001
+From: Cornelia Huck <cohuck@redhat.com>
+Date: Mon, 27 Apr 2020 12:24:13 +0200
+Subject: [PATCH] virtio-net: fix rsc_ext compat handling
+
+virtio_net_rsc_ext_num_{packets,dupacks} needs to be available
+independently of the presence of VIRTIO_NET_HDR_F_RSC_INFO.
+
+Fixes: 2974e916df87 ("virtio-net: support RSC v4/v6 tcp traffic for Windows HCK")
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200427102415.10915-2-cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=9904adfaca139581d6b03947a7e23c7e2cb64339
+Last-Update: 2020-06-17
+
+---
+ hw/net/virtio-net.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/hw/net/virtio-net.c b/hw/net/virtio-net.c
+index a46e3b37a7..e85d902588 100644
+--- a/hw/net/virtio-net.c
++++ b/hw/net/virtio-net.c
+@@ -83,6 +83,8 @@
+ #define VIRTIO_NET_HDR_F_RSC_INFO  4 /* rsc_ext data in csum_ fields */
+ #define VIRTIO_NET_F_RSC_EXT       61
+ 
++#endif
++
+ static inline __virtio16 *virtio_net_rsc_ext_num_packets(
+     struct virtio_net_hdr *hdr)
+ {
+@@ -95,8 +97,6 @@ static inline __virtio16 *virtio_net_rsc_ext_num_dupacks(
+     return &hdr->csum_offset;
+ }
+ 
+-#endif
+-
+ static VirtIOFeature feature_sizes[] = {
+     {.flags = 1ULL << VIRTIO_NET_F_MAC,
+      .end = endof(struct virtio_net_config, mac)},
+-- 
+2.27.0
+

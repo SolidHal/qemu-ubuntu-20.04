@@ -37,3 +37,4 @@ ubuntu/lp-1835546-s390x-protvirt-Fix-stray-error_report_err-in-s390_ma.patch
 ubuntu/lp-1835546-s390x-pv-Retry-ioctls-on-EINTR.patch
 ubuntu/lp-1835546-s390x-s390-virtio-ccw-Fix-build-on-systems-without-K.patch
 ubuntu/lp-1835546-s390x-pv-Fix-KVM_PV_PREP_RESET-command-wrapper-name.patch
+ubuntu/virtio-net-fix-rsc_ext-compat-handling.patch
