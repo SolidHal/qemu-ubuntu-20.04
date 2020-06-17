@@ -32,7 +32,6 @@ Build-Depends: debhelper (>= 12),
  libbrlapi-dev,
 # --enable-virtfs	linux-*
 # needed for virtfs
- libcap-dev [linux-any],
 # --enable-cap-ng	linux-*
  libcap-ng-dev [linux-any],
 # --enable-curl
