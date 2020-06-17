@@ -291,9 +291,14 @@ ifeq (${enable_system},enable)
 
 ifeq ($(VENDOR),UBUNTU)
 ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
-	mkdir -p $(CURDIR)/debian/tmp-xen
-	$(MAKE) -C b/qemu-xen DESTDIR=$(CURDIR)/debian/tmp-xen install KEYMAPS=
-	$(call inst-system,x86,"-xen")
+	# xen enabled build as (mutually exclusive and universe-only) alternative
+	mkdir -p debian/qemu-system-x86-xen/usr/bin/
+	mkdir -p debian/qemu-system-x86-xen/usr/share/man/man1/
+	cp b/qemu-xen/x86_64-softmmu/qemu-system-x86_64 debian/qemu-system-x86-xen/usr/bin/
+	cp b/qemu-xen/i386-softmmu/qemu-system-i386     debian/qemu-system-x86-xen/usr/bin/
+	echo ".so man1/qemu-system.1" > debian/qemu-system-x86-xen/usr/share/man/man1/qemu-system-x86_64.1
+	echo ".so man1/qemu-system.1" > debian/qemu-system-x86-xen/usr/share/man/man1/qemu-system-i386.1
+	dh_link -pqemu-system-x86-xen usr/share/doc/qemu-system-common usr/share/doc/qemu-system-x86-xen/common
 endif
 endif
 
