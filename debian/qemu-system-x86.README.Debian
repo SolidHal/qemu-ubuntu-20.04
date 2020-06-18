@@ -12,7 +12,7 @@ cpu types capable of nesting. Therefore former tweaks to auto-enable nesting
 for extra convenience could be dropped in qemu 1:4.2-1ubuntu1.
 
 While no more needed going forward, for backward compatibility the default
-guest CPU types (if you specify nothing, which isn't recomended in general)
+guest CPU types (if you specify nothing, which isn't recommended in general)
 will continue to add VMX/SVM capabilities.
 
 Finally it might be worth to mention the constraint that live migration of a
