@@ -235,7 +235,7 @@ Forward-info: downstream decision
 +{
 +    pc_i440fx_4_0_machine_options(m);
 +    m->desc = "Ubuntu 20.04 PC (i440FX + PIIX, 1996)";
-+    m->alias = "ubuntu";
++    m->alias = NULL;
 +}
 +DEFINE_I440FX_MACHINE(focal, "pc-i440fx-focal", NULL,
 +                      pc_focal_machine_options);
