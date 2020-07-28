@@ -1,0 +1,85 @@
+From ad06ef0efbf7cafba5074a183fef1ad586f38caa Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alex=20Benn=C3=A9e?= <alex.bennee@linaro.org>
+Date: Fri, 24 Jul 2020 07:44:57 +0100
+Subject: [PATCH] util: add qemu_get_host_physmem utility function
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This will be used in a future patch. For POSIX systems _SC_PHYS_PAGES
+isn't standardised but at least appears in the man pages for
+Open/FreeBSD. The result is advisory so any users of it shouldn't just
+fail if we can't work it out.
+
+The win32 stub currently returns 0 until someone with a Windows system
+can develop and test a patch.
+
+Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+Cc: BALATON Zoltan <balaton@eik.bme.hu>
+Cc: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Message-Id: <20200724064509.331-5-alex.bennee@linaro.org>
+
+Note: From Pull request https://lists.gnu.org/archive/html/qemu-devel/2020-07/msg07422.html
+Origin: backport, https://git.qemu.org/?p=qemu.git;a=commit;h=ad06ef0efbf7cafba5074a183fef1ad586f38caa
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1887763
+Last-Update: 2020-07-28
+
+---
+ include/qemu/osdep.h | 12 ++++++++++++
+ util/oslib-posix.c   | 15 +++++++++++++++
+ util/oslib-win32.c   |  6 ++++++
+ 3 files changed, 33 insertions(+)
+
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -607,4 +607,16 @@ static inline void qemu_reset_optind(voi
+ #endif
+ }
+ 
++/**
++ * qemu_get_host_physmem:
++ *
++ * Operating system agnostic way of querying host memory.
++ *
++ * Returns amount of physical memory on the system. This is purely
++ * advisery and may return 0 if we can't work it out. At the other
++ * end we saturate to SIZE_MAX if you are lucky enough to have that
++ * much memory.
++ */
++size_t qemu_get_host_physmem(void);
++
+ #endif
+--- a/util/oslib-posix.c
++++ b/util/oslib-posix.c
+@@ -752,3 +752,18 @@ void sigaction_invoke(struct sigaction *
+     }
+     action->sa_sigaction(info->ssi_signo, &si, NULL);
+ }
++
++size_t qemu_get_host_physmem(void)
++{
++#ifdef _SC_PHYS_PAGES
++    long pages = sysconf(_SC_PHYS_PAGES);
++    if (pages > 0) {
++        if (pages > SIZE_MAX / qemu_real_host_page_size) {
++            return SIZE_MAX;
++        } else {
++            return pages * qemu_real_host_page_size;
++        }
++    }
++#endif
++    return 0;
++}
+--- a/util/oslib-win32.c
++++ b/util/oslib-win32.c
+@@ -808,3 +808,9 @@ bool qemu_write_pidfile(const char *file
+     }
+     return true;
+ }
++
++size_t qemu_get_host_physmem(void)
++{
++    /* currently unimplemented */
++    return 0;
++}

@@ -1,0 +1,52 @@
+From c83d628b7fba050e59ccf7bda050bc27af241b61 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alex=20Benn=C3=A9e?= <alex.bennee@linaro.org>
+Date: Fri, 24 Jul 2020 07:44:59 +0100
+Subject: [PATCH] accel/tcg: better handle memory constrained systems
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+It turns out there are some 64 bit systems that have relatively low
+amounts of physical memory available to them (typically CI system).
+Even with swapping available a 1GB translation buffer that fills up
+can put the machine under increased memory pressure. Detect these low
+memory situations and reduce tb_size appropriately.
+
+Fixes: 600e17b2615 ("accel/tcg: increase default code gen buffer size for 64 bit")
+Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+Reviewed-by: Robert Foley <robert.foley@linaro.org>
+Cc: BALATON Zoltan <balaton@eik.bme.hu>
+Cc: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Message-Id: <20200724064509.331-7-alex.bennee@linaro.org>
+
+Note: From Pull request https://lists.gnu.org/archive/html/qemu-devel/2020-07/msg07424.html
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=c83d628b7fba050e59ccf7bda050bc27af241b61
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1887763
+Last-Update: 2020-07-28
+
+---
+ accel/tcg/translate-all.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/accel/tcg/translate-all.c b/accel/tcg/translate-all.c
+index 2afa46bd2b..2d83013633 100644
+--- a/accel/tcg/translate-all.c
++++ b/accel/tcg/translate-all.c
+@@ -976,7 +976,12 @@ static inline size_t size_code_gen_buffer(size_t tb_size)
+ {
+     /* Size the buffer.  */
+     if (tb_size == 0) {
+-        tb_size = DEFAULT_CODE_GEN_BUFFER_SIZE;
++        size_t phys_mem = qemu_get_host_physmem();
++        if (phys_mem == 0) {
++            tb_size = DEFAULT_CODE_GEN_BUFFER_SIZE;
++        } else {
++            tb_size = MIN(DEFAULT_CODE_GEN_BUFFER_SIZE, phys_mem / 8);
++        }
+     }
+     if (tb_size < MIN_CODE_GEN_BUFFER_SIZE) {
+         tb_size = MIN_CODE_GEN_BUFFER_SIZE;
+-- 
+2.27.0
+

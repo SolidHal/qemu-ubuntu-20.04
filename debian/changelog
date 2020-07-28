@@ -1,3 +1,90 @@
+qemu (1:5.0-5ubuntu3) groovy; urgency=medium
+
+  * d/p/ubuntu/lp-1887763-*: fix TCG sizing that OOMed many small CI
+    environments (LP: #1887763)
+  * Pick further changes for groovy from debian/master since 5.0-5
+    - ati-vga-check-mm_index-before-recursive-call-CVE-2020-13800.patch
+      Closes: CVE-2020-13800, ati-vga allows guest OS users to trigger
+      infinite recursion via a crafted mm_index value during
+      ati_mm_read or ati_mm_write call.
+    - revert-memory-accept-mismatching-sizes-in-memory_region_access_valid...patch
+      Closes: CVE-2020-13754, possible OOB memory accesses in a bunch of qemu
+      devices which uses min_access_size and max_access_size Memory API fields.
+      Also closes: CVE-2020-13791
+    - exec-set-map-length-to-zero-when-returning-NULL-CVE-2020-13659.patch
+      CVE-2020-13659: address_space_map in exec.c can trigger
+      a NULL pointer dereference related to BounceBuffer
+    - megasas-use-unsigned-type-for-reply_queue_head-and-check-index...patch
+      Closes: #961887, CVE-2020-13362, megasas_lookup_frame in hw/scsi/megasas.c
+      has an OOB read via a crafted reply_queue_head field from a guest OS user
+    - megasas-use-unsigned-type-for-positive-numeric-fields.patch
+      fix other possible cases like in CVE-2020-13362 (#961887)
+    - megasas-fix-possible-out-of-bounds-array-access.patch
+      Some tracepoints use a guest-controlled value as an index into the
+      mfi_frame_desc[] array. Thus a malicious guest could cause a very low
+      impact OOB errors here
+    - nbd-server-avoid-long-error-message-assertions-CVE-2020-10761.patch
+      Closes: CVE-2020-10761, An assertion failure issue in the QEMU NBD Server.
+      This flaw occurs when an nbd-client sends a spec-compliant request that is
+      near the boundary of maximum permitted request length. A remote nbd-client
+      could use this flaw to crash the qemu-nbd server resulting in a DoS.
+    - es1370-check-total-frame-count-against-current-frame-CVE-2020-13361.patch
+      Closes: CVE-2020-13361, es1370_transfer_audio in hw/audio/es1370.c does not
+      properly validate the frame count, which allows guest OS users to trigger
+      an out-of-bounds access during an es1370_write() operation
+    - a few patches from the stable series:
+      - fix-tulip-breakage.patch
+        The tulip network driver in a qemu-system-hppa emulation is broken in
+        the sense that bigger network packages aren't received any longer and
+        thus even running e.g. "apt update" inside the VM fails. Fix this.
+      - 9p-lock-directory-streams-with-a-CoMutex.patch
+        Prevent deadlocks in 9pfs readdir code
+      - net-do-not-include-a-newline-in-the-id-of-nic-device.patch
+        Fix newline accidentally sneaked into id string of a nic
+      - qemu-nbd-close-inherited-stderr.patch
+      - virtio-balloon-fix-free-page-hinting-check-on-unreal.patch
+      - virtio-balloon-fix-free-page-hinting-without-an-iothread.patch
+      - virtio-balloon-unref-the-iothread-when-unrealizing.patch
+    - acpi-tmr-allow-2-byte-reads.patch (Closes: #964247)
+    - reapply CVE-2020-13253 fixed from upstream:
+      sdcard-simplify-realize-a-bit.patch (preparation for the next patch)
+      sdcard-dont-allow-invalid-SD-card-sizes.patch (half part of CVE-2020-13253)
+      sdcard-update-coding-style-to-make-checkpatch-happy.patch (preparational)
+      sdcard-dont-switch-to-ReceivingData-if-address-is-in..-CVE-2020-13253.patch
+      Closes: #961297, CVE-2020-13253
+    - linux-user-refactor-ipc-syscall-and-support-of-semtimedop.patch
+      (Closes: #965109)
+    - linux-user-add-netlink-RTM_SETLINK-command.patch (Closes: #964289)
+    - d/control: since qemu-system-data now contains module(s),
+      it can't be multi-arch. Ditto for qemu-block-extra.
+    - qemu-system-foo: depend on exact version of qemu-system-data,
+      due to the latter having modules
+    - acpi-allow-accessing-acpi-cnt-register-by-byte.patch' (Closes: #964793)
+      This is another incarnation of the recent bugfix which actually enabled
+      memory access constraints, like #964247
+    - acpi-accept-byte-and-word-access-to-core-ACPI-registers.patch
+      this replace acpi-allow-accessing-acpi-cnt-register-by-byte.patch
+      and acpi-tmr-allow-2-byte-reads.patch, a more complete fix
+    - xhci-fix-valid.max_access_size-to-access-address-registers.patch
+      fix one more incarnation of the breakage after the CVE-2020-13754 fix
+    - do not install outdated (0.12 and before) Changelog (Closes: #965381)
+    - xgmac-fix-buffer-overflow-in-xgmac_enet_send-CVE-2020-15863.patch
+      ARM-only XGMAC NIC, possible buffer overflow during packet transmission
+      Closes: CVE-2020-15863
+    - sm501 OOB read/write due to integer overflow in sm501_2d_operation()
+      List of patches:
+       sm501-convert-printf-abort-to-qemu_log_mask.patch
+       sm501-shorten-long-variable-names-in-sm501_2d_operation.patch
+       sm501-use-BIT-macro-to-shorten-constant.patch
+       sm501-clean-up-local-variables-in-sm501_2d_operation.patch
+       sm501-replace-hand-written-implementation-with-pixman-CVE-2020-12829.patch
+      Closes: #961451, CVE-2020-12829
+    - riscv-allow-64-bit-access-to-SiFive-CLINT.patch
+      another fix for revert-memory-accept-.. CVE-2020-13754
+    - seabios-hppa-fno-ipa-sra.patch fix ftbfs with gcc-10
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 28 Jul 2020 13:21:31 +0200
+
 qemu (1:5.0-5ubuntu2) groovy; urgency=medium
 
   * No change rebuild against new libnettle8 and libhogweed6 ABI.
@@ -268,6 +355,12 @@ qemu (1:4.2-4) unstable; urgency=medium
   * enable support for riscv64 hosts
 
  -- Michael Tokarev <mjt@tls.msk.ru>  Tue, 14 Apr 2020 12:44:43 +0300
+
+qemu (1:4.2-3ubuntu10) groovy; urgency=medium
+
+  * No-change rebuild against libnettle8
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 20 Jul 2020 16:12:37 +0000
 
 qemu (1:4.2-3ubuntu9) groovy; urgency=medium
 
