@@ -71,3 +71,5 @@ ubuntu/lp-1835546-s390x-pv-Fix-KVM_PV_PREP_RESET-command-wrapper-name.patch
 ubuntu/virtio-net-fix-rsc_ext-compat-handling.patch
 ubuntu/lp-1887763-util-add-qemu_get_host_physmem-utility-function.patch
 ubuntu/lp-1887763-accel-tcg-better-handle-memory-constrained-systems.patch
+ubuntu/lp-1883984-target-s390x-Fix-SQXBR.patch
+lp-1890154-s390x-protvirt-allow-to-IPL-secure-guests-with-no-re.patch

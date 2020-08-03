@@ -1,0 +1,52 @@
+From d1bb69db4ceb6897ef6a17bf263146b53a123632 Mon Sep 17 00:00:00 2001
+From: Christian Borntraeger <borntraeger@de.ibm.com>
+Date: Tue, 21 Jul 2020 06:32:02 -0400
+Subject: [PATCH] s390x/protvirt: allow to IPL secure guests with -no-reboot
+
+Right now, -no-reboot prevents secure guests from running. This is
+correct from an implementation point of view, as we have modeled the
+transition from non-secure to secure as a program directed IPL. From
+a user perspective, this is not the behavior of least surprise.
+
+We should implement the IPL into protected mode similar to the
+functions that we use for kdump/kexec. In other words, we do not stop
+here when -no-reboot is specified on the command line. Like function 0
+or function 1, function 10 is not a classic reboot. For example, it
+can only be called once. Before calling it a second time, a real
+reboot/reset must happen in-between. So function code 10 is more or
+less a state transition reset, but not a "standard" reset or reboot.
+
+Fixes: 4d226deafc44 ("s390x: protvirt: Support unpack facility")
+Signed-off-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Reviewed-by: Janosch Frank <frankja@linux.ibm.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Acked-by: Viktor Mihajlovski <mihajlov@linux.ibm.com>
+Message-Id: <20200721103202.30610-1-borntraeger@de.ibm.com>
+[CH: tweaked description]
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=d1bb69db4ceb6897ef6a17bf263146b53a123632
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1890154
+Last-Update: 2020-08-05
+
+---
+ hw/s390x/ipl.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/hw/s390x/ipl.c b/hw/s390x/ipl.c
+index d46b1f094f..3d2652d75a 100644
+--- a/hw/s390x/ipl.c
++++ b/hw/s390x/ipl.c
+@@ -630,7 +630,8 @@ void s390_ipl_reset_request(CPUState *cs, enum s390_reset reset_type)
+         }
+     }
+     if (reset_type == S390_RESET_MODIFIED_CLEAR ||
+-        reset_type == S390_RESET_LOAD_NORMAL) {
++        reset_type == S390_RESET_LOAD_NORMAL ||
++        reset_type == S390_RESET_PV) {
+         /* ignore -no-reboot, send no event  */
+         qemu_system_reset_request(SHUTDOWN_CAUSE_SUBSYSTEM_RESET);
+     } else {
+-- 
+2.27.0
+

@@ -17,6 +17,7 @@ libdir = /usr/lib/${DEB_HOST_MULTIARCH}
 ifeq ($(shell dpkg-vendor --derives-from Ubuntu && echo yes),yes)
 VENDOR := UBUNTU
 DEB_BUILD_PARALLEL = yes
+XENBINPATH := $(shell pkg-config --variable libexec_bin xenlight)
 else
 VENDOR := DEBIAN
 endif
@@ -299,6 +300,9 @@ ifneq ($(filter $(DEB_HOST_ARCH),amd64 i386),)
 	echo ".so man1/qemu-system.1" > debian/qemu-system-x86-xen/usr/share/man/man1/qemu-system-x86_64.1
 	echo ".so man1/qemu-system.1" > debian/qemu-system-x86-xen/usr/share/man/man1/qemu-system-i386.1
 	dh_link -pqemu-system-x86-xen usr/share/doc/qemu-system-common usr/share/doc/qemu-system-x86-xen/common
+	# compat links to what libxen-dev reports where to find the binaries
+	dh_link -pqemu-system-x86-xen /usr/bin/qemu-system-i386 ${XENBINPATH}/qemu-system-i386
+	dh_link -pqemu-system-x86-xen /usr/bin/qemu-system-x86_64 ${XENBINPATH}/qemu-system-x86_64
 endif
 endif
 

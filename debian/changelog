@@ -1,3 +1,13 @@
+qemu (1:5.0-5ubuntu4) groovy; urgency=medium
+
+  * xen: provide compat links to what libxen-dev reports where to find
+    the binaries (LP: #1890005)
+  * d/p/ubuntu/lp-1883984-target-s390x-Fix-SQXBR.patch: avoid crash on
+    SQXBR (LP: #1883984)
+  * d/p/lp-1890154-*: fix -no-reboot on s390x secure boot (LP: #1890154)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 03 Aug 2020 07:15:28 +0200
+
 qemu (1:5.0-5ubuntu3) groovy; urgency=medium
 
   * d/p/ubuntu/lp-1887763-*: fix TCG sizing that OOMed many small CI
