@@ -1,3 +1,19 @@
+qemu (1:5.0-5ubuntu5) groovy; urgency=medium
+
+  * fix qemu-user-static initialization to allow executing systemd
+    (LP: #1890881)
+    - d/p/u/lp1890881-linux-user-completely-re-write-init_guest_space.patch
+    - d/p/u/lp1890881-linux-user-deal-with-address-wrap-for-ARM_COMMPAGE-o.patch
+    - d/p/u/lp1890881-linux-user-don-t-use-MAP_FIXED-in-pgd_find_hole_fall.patch
+    - d/p/u/lp1890881-linux-user-elfload-use-MAP_FIXED_NOREPLACE-in-pgb_re.patch
+    - d/p/u/lp1890881-linux-user-limit-check-to-HOST_LONG_BITS-TARGET_ABI_.patch
+    - d/p/u/lp1890881-linux-user-provide-fallback-pgd_find_hole-for-bare-c.patch
+  * fix assertion failue in net_tx_pkt_add_raw_fragment (LP: #1891187)
+    CVE-2020-16092
+    - d/p/u/lp-1891187-hw-net-net_tx_pkt-fix-assertion-failure-in-net_tx.patch
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 19 Aug 2020 07:19:42 +0200
+
 qemu (1:5.0-5ubuntu4) groovy; urgency=medium
 
   * xen: provide compat links to what libxen-dev reports where to find

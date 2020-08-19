@@ -1,0 +1,102 @@
+From ad592e37dfccf730378a44c5fa79acb603a7678d Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alex=20Benn=C3=A9e?= <alex.bennee@linaro.org>
+Date: Fri, 5 Jun 2020 16:49:26 +0100
+Subject: [PATCH] linux-user: provide fallback pgd_find_hole for bare chroots
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When running QEMU out of a chroot environment we may not have access
+to /proc/self/maps. As there is no other "official" way to introspect
+our memory map we need to fall back to the original technique of
+repeatedly trying to mmap an address range until we find one that
+works.
+
+Fortunately it's not quite as ugly as the original code given we
+already re-factored the complications of dealing with the
+ARM_COMMPAGE. We do make an attempt to skip over brk() which is about
+the only concrete piece of information we have about the address map
+at this moment.
+
+Fixes: ee9474303
+Reported-by: Peter Maydell <peter.maydell@linaro.org>
+Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+Message-Id: <20200605154929.26910-12-alex.bennee@linaro.org>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=ad592e37dfccf730378a44c5fa79acb603a7678d
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1890881
+Last-Update: 2020-08-19
+
+---
+ linux-user/elfload.c | 48 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 48 insertions(+)
+
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index ebc663ea0b..475d243f3b 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -2101,6 +2101,50 @@ static void pgb_have_guest_base(const char *image_name, abi_ulong guest_loaddr,
+     }
+ }
+ 
++/**
++ * pgd_find_hole_fallback: potential mmap address
++ * @guest_size: size of available space
++ * @brk: location of break
++ * @align: memory alignment
++ *
++ * This is a fallback method for finding a hole in the host address
++ * space if we don't have the benefit of being able to access
++ * /proc/self/map. It can potentially take a very long time as we can
++ * only dumbly iterate up the host address space seeing if the
++ * allocation would work.
++ */
++static uintptr_t pgd_find_hole_fallback(uintptr_t guest_size, uintptr_t brk, long align)
++{
++    uintptr_t base;
++
++    /* Start (aligned) at the bottom and work our way up */
++    base = ROUND_UP(mmap_min_addr, align);
++
++    while (true) {
++        uintptr_t align_start, end;
++        align_start = ROUND_UP(base, align);
++        end = align_start + guest_size;
++
++        /* if brk is anywhere in the range give ourselves some room to grow. */
++        if (align_start <= brk && brk < end) {
++            base = brk + (16 * MiB);
++            continue;
++        } else if (align_start + guest_size < align_start) {
++            /* we have run out of space */
++            return -1;
++        } else {
++            int flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE | MAP_FIXED;
++            void * mmap_start = mmap((void *) align_start, guest_size,
++                                     PROT_NONE, flags, -1, 0);
++            if (mmap_start != MAP_FAILED) {
++                munmap((void *) align_start, guest_size);
++                return (uintptr_t) mmap_start;
++            }
++            base += qemu_host_page_size;
++        }
++    }
++}
++
+ /* Return value for guest_base, or -1 if no hole found. */
+ static uintptr_t pgb_find_hole(uintptr_t guest_loaddr, uintptr_t guest_size,
+                                long align)
+@@ -2116,6 +2160,10 @@ static uintptr_t pgb_find_hole(uintptr_t guest_loaddr, uintptr_t guest_size,
+     /* Read brk after we've read the maps, which will malloc. */
+     brk = (uintptr_t)sbrk(0);
+ 
++    if (!maps) {
++        return pgd_find_hole_fallback(guest_size, brk, align);
++    }
++
+     /* The first hole is before the first map entry. */
+     this_start = mmap_min_addr;
+ 
+-- 
+2.28.0
+

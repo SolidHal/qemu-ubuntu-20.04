@@ -1,0 +1,66 @@
+From c1f6ad798c7bb328a6f387f2509bf86305383d37 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alex=20Benn=C3=A9e?= <alex.bennee@linaro.org>
+Date: Wed, 1 Jul 2020 14:56:45 +0100
+Subject: [PATCH] linux-user/elfload: use MAP_FIXED_NOREPLACE in
+ pgb_reserved_va
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Given we assert the requested address matches what we asked we should
+also make that clear in the mmap flags. Otherwise we see failures in
+the GitLab environment for some currently unknown but allowable
+reason. We use MAP_FIXED_NOREPLACE if we can so we don't just clobber
+an existing mapping. Also include the strerror string for a bit more
+info on failure.
+
+Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+
+Message-Id: <20200701135652.1366-34-alex.bennee@linaro.org>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=c1f6ad798c7bb328a6f387f2509bf86305383d37
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1890881
+Last-Update: 2020-08-19
+
+---
+ linux-user/elfload.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index b5cb21384a..7e7f642332 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -2294,7 +2294,7 @@ static void pgb_dynamic(const char *image_name, long align)
+ static void pgb_reserved_va(const char *image_name, abi_ulong guest_loaddr,
+                             abi_ulong guest_hiaddr, long align)
+ {
+-    const int flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE;
++    int flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE;
+     void *addr, *test;
+ 
+     if (guest_hiaddr > reserved_va) {
+@@ -2307,15 +2307,19 @@ static void pgb_reserved_va(const char *image_name, abi_ulong guest_loaddr,
+     /* Widen the "image" to the entire reserved address space. */
+     pgb_static(image_name, 0, reserved_va, align);
+ 
++#ifdef MAP_FIXED_NOREPLACE
++    flags |= MAP_FIXED_NOREPLACE;
++#endif
++
+     /* Reserve the memory on the host. */
+     assert(guest_base != 0);
+     test = g2h(0);
+     addr = mmap(test, reserved_va, PROT_NONE, flags, -1, 0);
+     if (addr == MAP_FAILED) {
+         error_report("Unable to reserve 0x%lx bytes of virtual address "
+-                     "space for use as guest address space (check your "
++                     "space (%s) for use as guest address space (check your "
+                      "virtual memory ulimit setting or reserve less "
+-                     "using -R option)", reserved_va);
++                     "using -R option)", reserved_va, strerror(errno));
+         exit(EXIT_FAILURE);
+     }
+     assert(addr == test);
+-- 
+2.28.0
+

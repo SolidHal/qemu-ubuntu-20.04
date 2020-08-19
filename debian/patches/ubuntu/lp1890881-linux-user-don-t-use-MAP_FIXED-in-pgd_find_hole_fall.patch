@@ -1,0 +1,78 @@
+From 2667e069e7b5807c69f32109d930967bc1b222cb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alex=20Benn=C3=A9e?= <alex.bennee@linaro.org>
+Date: Fri, 24 Jul 2020 07:45:01 +0100
+Subject: [PATCH] linux-user: don't use MAP_FIXED in pgd_find_hole_fallback
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Plain MAP_FIXED has the undesirable behaviour of splatting exiting
+maps so we don't actually achieve what we want when looking for gaps.
+We should be using MAP_FIXED_NOREPLACE. As this isn't always available
+we need to potentially check the returned address to see if the kernel
+gave us what we asked for.
+
+Fixes: ad592e37dfc ("linux-user: provide fallback pgd_find_hole for bare chroots")
+Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+Reviewed-by: Richard Henderson <richard.henderson@linaro.org>
+Message-Id: <20200724064509.331-9-alex.bennee@linaro.org>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=2667e069e7b5807c69f32109d930967bc1b222cb
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1890881
+Last-Update: 2020-08-19
+
+---
+ include/qemu/osdep.h |  3 +++
+ linux-user/elfload.c | 10 ++++++----
+ 2 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/include/qemu/osdep.h b/include/qemu/osdep.h
+index 0b1298b3c9..20872e793e 100644
+--- a/include/qemu/osdep.h
++++ b/include/qemu/osdep.h
+@@ -173,6 +173,9 @@ extern int daemon(int, int);
+ #ifndef MAP_ANONYMOUS
+ #define MAP_ANONYMOUS MAP_ANON
+ #endif
++#ifndef MAP_FIXED_NOREPLACE
++#define MAP_FIXED_NOREPLACE 0
++#endif
+ #ifndef ENOMEDIUM
+ #define ENOMEDIUM ENODEV
+ #endif
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index 7e7f642332..fe9dfe795d 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -2134,12 +2134,15 @@ static uintptr_t pgd_find_hole_fallback(uintptr_t guest_size, uintptr_t brk,
+             /* we have run out of space */
+             return -1;
+         } else {
+-            int flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE | MAP_FIXED;
++            int flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_NORESERVE |
++                MAP_FIXED_NOREPLACE;
+             void * mmap_start = mmap((void *) align_start, guest_size,
+                                      PROT_NONE, flags, -1, 0);
+             if (mmap_start != MAP_FAILED) {
+                 munmap((void *) align_start, guest_size);
+-                return (uintptr_t) mmap_start + offset;
++                if (MAP_FIXED_NOREPLACE || mmap_start == (void *) align_start) {
++                    return (uintptr_t) mmap_start + offset;
++                }
+             }
+             base += qemu_host_page_size;
+         }
+@@ -2307,9 +2310,8 @@ static void pgb_reserved_va(const char *image_name, abi_ulong guest_loaddr,
+     /* Widen the "image" to the entire reserved address space. */
+     pgb_static(image_name, 0, reserved_va, align);
+ 
+-#ifdef MAP_FIXED_NOREPLACE
++    /* osdep.h defines this as 0 if it's missing */
+     flags |= MAP_FIXED_NOREPLACE;
+-#endif
+ 
+     /* Reserve the memory on the host. */
+     assert(guest_base != 0);
+-- 
+2.28.0
+

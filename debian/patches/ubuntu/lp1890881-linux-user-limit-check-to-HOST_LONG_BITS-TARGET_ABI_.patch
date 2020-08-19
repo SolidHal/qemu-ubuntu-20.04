@@ -1,0 +1,57 @@
+From a932eec49d9ec106c7952314ad1adc28f0986076 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alex=20Benn=C3=A9e?= <alex.bennee@linaro.org>
+Date: Thu, 21 May 2020 14:57:48 +0100
+Subject: [PATCH] linux-user: limit check to HOST_LONG_BITS < TARGET_ABI_BITS
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Newer clangs rightly spot that you can never exceed the full address
+space of 64 bit hosts with:
+
+  linux-user/elfload.c:2076:41: error: result of comparison 'unsigned
+  long' > 18446744073709551615 is always false
+  [-Werror,-Wtautological-type-limit-compare]
+  4685         if ((guest_hiaddr - guest_base) > ~(uintptr_t)0) {
+  4686             ~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^ ~~~~~~~~~~~~~
+  4687 1 error generated.
+
+So lets limit the check to 32 bit hosts only.
+
+Fixes: ee94743034bf
+Reported-by: Thomas Huth <thuth@redhat.com>
+Signed-off-by: Alex Bennée <alex.bennee@linaro.org>
+Message-Id: <20200525131823.715-8-thuth@redhat.com>
+[thuth: Use HOST_LONG_BITS < TARGET_ABI_BITS instead of HOST_LONG_BITS == 32]
+Signed-off-by: Thomas Huth <thuth@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=a932eec49d9ec106c7952314ad1adc28f0986076
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1890881
+Last-Update: 2020-08-19
+
+---
+ linux-user/elfload.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/linux-user/elfload.c b/linux-user/elfload.c
+index 01a9323a63..ebc663ea0b 100644
+--- a/linux-user/elfload.c
++++ b/linux-user/elfload.c
+@@ -2073,12 +2073,14 @@ static void pgb_have_guest_base(const char *image_name, abi_ulong guest_loaddr,
+             exit(EXIT_FAILURE);
+         }
+     } else {
++#if HOST_LONG_BITS < TARGET_ABI_BITS
+         if ((guest_hiaddr - guest_base) > ~(uintptr_t)0) {
+             error_report("%s: requires more virtual address space "
+                          "than the host can provide (0x%" PRIx64 ")",
+                          image_name, (uint64_t)guest_hiaddr - guest_base);
+             exit(EXIT_FAILURE);
+         }
++#endif
+     }
+ 
+     /*
+-- 
+2.28.0
+

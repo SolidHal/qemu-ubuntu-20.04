@@ -73,3 +73,10 @@ ubuntu/lp-1887763-util-add-qemu_get_host_physmem-utility-function.patch
 ubuntu/lp-1887763-accel-tcg-better-handle-memory-constrained-systems.patch
 ubuntu/lp-1883984-target-s390x-Fix-SQXBR.patch
 lp-1890154-s390x-protvirt-allow-to-IPL-secure-guests-with-no-re.patch
+ubuntu/lp-1891187-hw-net-net_tx_pkt-fix-assertion-failure-in-net_tx.patch
+ubuntu/lp1890881-linux-user-completely-re-write-init_guest_space.patch
+ubuntu/lp1890881-linux-user-limit-check-to-HOST_LONG_BITS-TARGET_ABI_.patch
+ubuntu/lp1890881-linux-user-provide-fallback-pgd_find_hole-for-bare-c.patch
+ubuntu/lp1890881-linux-user-deal-with-address-wrap-for-ARM_COMMPAGE-o.patch
+ubuntu/lp1890881-linux-user-elfload-use-MAP_FIXED_NOREPLACE-in-pgb_re.patch
+ubuntu/lp1890881-linux-user-don-t-use-MAP_FIXED-in-pgd_find_hole_fall.patch
