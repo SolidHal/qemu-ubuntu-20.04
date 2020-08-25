@@ -1,0 +1,52 @@
+From 24e58a7b1d411627e326144030a20dcf0093fed0 Mon Sep 17 00:00:00 2001
+From: Jared Rossi <jrossi@linux.ibm.com>
+Date: Tue, 12 May 2020 14:15:35 -0400
+Subject: [PATCH] vfio-ccw: allow non-prefetch ORBs
+
+Remove the explicit prefetch check when using vfio-ccw devices.
+This check does not trigger in practice as all Linux channel programs
+are intended to use prefetch.
+
+Newer Linux kernel versions do not require to force the PFCH flag with
+vfio-ccw devices anymore.
+
+Signed-off-by: Jared Rossi <jrossi@linux.ibm.com>
+Reviewed-by: Eric Farman <farman@linux.ibm.com>
+Message-Id: <20200512181535.18630-2-jrossi@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=24e58a7b1d411627e326144030a20dcf0093fed0
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1887935
+Last-Update: 2020-08-25
+
+---
+ hw/vfio/ccw.c | 13 +++----------
+ 1 file changed, 3 insertions(+), 10 deletions(-)
+
+diff --git a/hw/vfio/ccw.c b/hw/vfio/ccw.c
+index c8624943c1..63406184d2 100644
+--- a/hw/vfio/ccw.c
++++ b/hw/vfio/ccw.c
+@@ -74,16 +74,9 @@ static IOInstEnding vfio_ccw_handle_request(SubchDev *sch)
+     struct ccw_io_region *region = vcdev->io_region;
+     int ret;
+ 
+-    if (!(sch->orb.ctrl0 & ORB_CTRL0_MASK_PFCH)) {
+-        if (!(vcdev->force_orb_pfch)) {
+-            warn_once_pfch(vcdev, sch, "requires PFCH flag set");
+-            sch_gen_unit_exception(sch);
+-            css_inject_io_interrupt(sch);
+-            return IOINST_CC_EXPECTED;
+-        } else {
+-            sch->orb.ctrl0 |= ORB_CTRL0_MASK_PFCH;
+-            warn_once_pfch(vcdev, sch, "PFCH flag forced");
+-        }
++    if (!(sch->orb.ctrl0 & ORB_CTRL0_MASK_PFCH) && vcdev->force_orb_pfch) {
++        sch->orb.ctrl0 |= ORB_CTRL0_MASK_PFCH;
++        warn_once_pfch(vcdev, sch, "PFCH flag forced");
+     }
+ 
+     QEMU_BUILD_BUG_ON(sizeof(region->orb_area) != sizeof(ORB));
+-- 
+2.28.0
+

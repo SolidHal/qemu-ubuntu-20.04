@@ -1,3 +1,10 @@
+qemu (1:5.0-5ubuntu6) groovy; urgency=medium
+
+  * d/p/ubuntu/lp-1887935-vfio-ccw-allow-non-prefetch-ORBs.patch: fix boot
+    from vfio-ccw (LP: #1887935)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 25 Aug 2020 11:09:12 +0200
+
 qemu (1:5.0-5ubuntu5) groovy; urgency=medium
 
   * fix qemu-user-static initialization to allow executing systemd

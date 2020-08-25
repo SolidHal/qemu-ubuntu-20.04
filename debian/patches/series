@@ -80,3 +80,4 @@ ubuntu/lp1890881-linux-user-provide-fallback-pgd_find_hole-for-bare-c.patch
 ubuntu/lp1890881-linux-user-deal-with-address-wrap-for-ARM_COMMPAGE-o.patch
 ubuntu/lp1890881-linux-user-elfload-use-MAP_FIXED_NOREPLACE-in-pgb_re.patch
 ubuntu/lp1890881-linux-user-don-t-use-MAP_FIXED-in-pgd_find_hole_fall.patch
+ubuntu/lp-1887935-vfio-ccw-allow-non-prefetch-ORBs.patch
