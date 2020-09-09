@@ -1,3 +1,9 @@
+qemu (1:5.0-5ubuntu7) groovy; urgency=medium
+
+  * d/p/u/lp-1894942-*: fix virtio-ccw host/guest notification (LP: #1894942)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 09 Sep 2020 08:47:12 +0200
+
 qemu (1:5.0-5ubuntu6) groovy; urgency=medium
 
   * d/p/ubuntu/lp-1887935-vfio-ccw-allow-non-prefetch-ORBs.patch: fix boot

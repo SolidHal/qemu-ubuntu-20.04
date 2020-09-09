@@ -1,0 +1,75 @@
+From 1a8242f7c3f53341dd66253b142ecd06ce1d2a97 Mon Sep 17 00:00:00 2001
+From: Halil Pasic <pasic@linux.ibm.com>
+Date: Tue, 16 Jun 2020 06:50:34 +0200
+Subject: [PATCH] virtio-ccw: fix virtio_set_ind_atomic
+
+The atomic_cmpxchg() loop is broken because we occasionally end up with
+old and _old having different values (a legit compiler can generate code
+that accessed *ind_addr again to pick up a value for _old instead of
+using the value of old that was already fetched according to the
+rules of the abstract machine). This means the underlying CS instruction
+may use a different old (_old) than the one we intended to use if
+atomic_cmpxchg() performed the xchg part.
+
+Let us use volatile to force the rules of the abstract machine for
+accesses to *ind_addr. Let us also rewrite the loop so, we that the
+new old is used to compute the new desired value if the xchg part
+is not performed.
+
+Fixes: 7e7494627f ("s390x/virtio-ccw: Adapter interrupt support.")
+Reported-by: Andre Wild <Andre.Wild1@ibm.com>
+Signed-off-by: Halil Pasic <pasic@linux.ibm.com>
+Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Message-Id: <20200616045035.51641-2-pasic@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=1a8242f7c3
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1894942
+Last-Update: 2020-09-09
+
+---
+ hw/s390x/virtio-ccw.c | 18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/hw/s390x/virtio-ccw.c b/hw/s390x/virtio-ccw.c
+index c1f4bb1d33..3c988a000b 100644
+--- a/hw/s390x/virtio-ccw.c
++++ b/hw/s390x/virtio-ccw.c
+@@ -786,9 +786,10 @@ static inline VirtioCcwDevice *to_virtio_ccw_dev_fast(DeviceState *d)
+ static uint8_t virtio_set_ind_atomic(SubchDev *sch, uint64_t ind_loc,
+                                      uint8_t to_be_set)
+ {
+-    uint8_t ind_old, ind_new;
++    uint8_t expected, actual;
+     hwaddr len = 1;
+-    uint8_t *ind_addr;
++    /* avoid  multiple fetches */
++    uint8_t volatile *ind_addr;
+ 
+     ind_addr = cpu_physical_memory_map(ind_loc, &len, true);
+     if (!ind_addr) {
+@@ -796,14 +797,15 @@ static uint8_t virtio_set_ind_atomic(SubchDev *sch, uint64_t ind_loc,
+                      __func__, sch->cssid, sch->ssid, sch->schid);
+         return -1;
+     }
++    actual = *ind_addr;
+     do {
+-        ind_old = *ind_addr;
+-        ind_new = ind_old | to_be_set;
+-    } while (atomic_cmpxchg(ind_addr, ind_old, ind_new) != ind_old);
+-    trace_virtio_ccw_set_ind(ind_loc, ind_old, ind_new);
+-    cpu_physical_memory_unmap(ind_addr, len, 1, len);
++        expected = actual;
++        actual = atomic_cmpxchg(ind_addr, expected, expected | to_be_set);
++    } while (actual != expected);
++    trace_virtio_ccw_set_ind(ind_loc, actual, actual | to_be_set);
++    cpu_physical_memory_unmap((void *)ind_addr, len, 1, len);
+ 
+-    return ind_old;
++    return actual;
+ }
+ 
+ static void virtio_ccw_notify(DeviceState *d, uint16_t vector)
+-- 
+2.28.0
+

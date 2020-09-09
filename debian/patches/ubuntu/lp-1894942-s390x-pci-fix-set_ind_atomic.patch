@@ -1,0 +1,72 @@
+From 45175361f1bfc2d3ccdcb4b22570c2352f3de754 Mon Sep 17 00:00:00 2001
+From: Halil Pasic <pasic@linux.ibm.com>
+Date: Tue, 16 Jun 2020 06:50:35 +0200
+Subject: [PATCH] s390x/pci: fix set_ind_atomic
+
+The atomic_cmpxchg() loop is broken because we occasionally end up with
+old and _old having different values (a legit compiler can generate code
+that accessed *ind_addr again to pick up a value for _old instead of
+using the value of old that was already fetched according to the
+rules of the abstract machine). This means the underlying CS instruction
+may use a different old (_old) than the one we intended to use if
+atomic_cmpxchg() performed the xchg part.
+
+Let us use volatile to force the rules of the abstract machine for
+accesses to *ind_addr. Let us also rewrite the loop so, we that the
+new old is used to compute the new desired value if the xchg part
+is not performed.
+
+Fixes: 8cba80c3a0 ("s390: Add PCI bus support")
+Reported-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Signed-off-by: Halil Pasic <pasic@linux.ibm.com>
+Reviewed-by: Christian Borntraeger <borntraeger@de.ibm.com>
+Message-Id: <20200616045035.51641-3-pasic@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=45175361f1
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1894942
+Last-Update: 2020-09-09
+
+---
+ hw/s390x/s390-pci-bus.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/hw/s390x/s390-pci-bus.c b/hw/s390x/s390-pci-bus.c
+index 142e52a8ff..736965c928 100644
+--- a/hw/s390x/s390-pci-bus.c
++++ b/hw/s390x/s390-pci-bus.c
+@@ -637,22 +637,24 @@ static AddressSpace *s390_pci_dma_iommu(PCIBus *bus, void *opaque, int devfn)
+ 
+ static uint8_t set_ind_atomic(uint64_t ind_loc, uint8_t to_be_set)
+ {
+-    uint8_t ind_old, ind_new;
++    uint8_t expected, actual;
+     hwaddr len = 1;
+-    uint8_t *ind_addr;
++    /* avoid  multiple fetches */
++    uint8_t volatile *ind_addr;
+ 
+     ind_addr = cpu_physical_memory_map(ind_loc, &len, true);
+     if (!ind_addr) {
+         s390_pci_generate_error_event(ERR_EVENT_AIRERR, 0, 0, 0, 0);
+         return -1;
+     }
++    actual = *ind_addr;
+     do {
+-        ind_old = *ind_addr;
+-        ind_new = ind_old | to_be_set;
+-    } while (atomic_cmpxchg(ind_addr, ind_old, ind_new) != ind_old);
+-    cpu_physical_memory_unmap(ind_addr, len, 1, len);
++        expected = actual;
++        actual = atomic_cmpxchg(ind_addr, expected, expected | to_be_set);
++    } while (actual != expected);
++    cpu_physical_memory_unmap((void *)ind_addr, len, 1, len);
+ 
+-    return ind_old;
++    return actual;
+ }
+ 
+ static void s390_msi_ctrl_write(void *opaque, hwaddr addr, uint64_t data,
+-- 
+2.28.0
+
