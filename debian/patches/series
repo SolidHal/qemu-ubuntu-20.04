@@ -83,3 +83,9 @@ ubuntu/lp1890881-linux-user-don-t-use-MAP_FIXED-in-pgd_find_hole_fall.patch
 ubuntu/lp-1887935-vfio-ccw-allow-non-prefetch-ORBs.patch
 ubuntu/lp-1894942-virtio-ccw-fix-virtio_set_ind_atomic.patch
 ubuntu/lp-1894942-s390x-pci-fix-set_ind_atomic.patch
+ubuntu/lp-1887930-Linux-headers-update.patch
+ubuntu/lp-1887930-vfio-ccw-Refactor-cleanup-of-regions.patch
+ubuntu/lp-1887930-vfio-ccw-Add-support-for-the-schib-region.patch
+ubuntu/lp-1887930-vfio-ccw-Refactor-ccw-irq-handler.patch
+ubuntu/lp-1887930-s390x-css-Refactor-the-css_queue_crw-routine.patch
+ubuntu/lp-1887930-vfio-ccw-Add-support-for-the-CRW-region-and-IRQ.patch

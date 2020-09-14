@@ -1,3 +1,9 @@
+qemu (1:5.0-5ubuntu8) groovy; urgency=medium
+
+  * d/p/u/lp-1887930-*: Enable Channel Path Handling for vfio-ccw (LP: #1887930)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 14 Sep 2020 08:23:49 +0200
+
 qemu (1:5.0-5ubuntu7) groovy; urgency=medium
 
   * d/p/u/lp-1894942-*: fix virtio-ccw host/guest notification (LP: #1894942)

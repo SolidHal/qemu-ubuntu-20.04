@@ -1,0 +1,64 @@
+From 2a3b9cbaa7b25a4db4cdcfe1c65279c5464f2923 Mon Sep 17 00:00:00 2001
+From: Eric Farman <farman@linux.ibm.com>
+Date: Tue, 5 May 2020 14:57:53 +0200
+Subject: [PATCH] vfio-ccw: Refactor cleanup of regions
+
+While we're at it, add a g_free() for the async_cmd_region that
+is the last thing currently created.  g_free() knows how to handle
+NULL pointers, so this makes it easier to remember what cleanups
+need to be performed when new regions are added.
+
+Signed-off-by: Eric Farman <farman@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200505125757.98209-3-farman@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=2a3b9cbaa7
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1887930
+Last-Update: 2020-09-14
+
+---
+ hw/vfio/ccw.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/hw/vfio/ccw.c b/hw/vfio/ccw.c
+index 63406184d2..ca06213d03 100644
+--- a/hw/vfio/ccw.c
++++ b/hw/vfio/ccw.c
+@@ -363,8 +363,7 @@ static void vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
+     vcdev->io_region_size = info->size;
+     if (sizeof(*vcdev->io_region) != vcdev->io_region_size) {
+         error_setg(errp, "vfio: Unexpected size of the I/O region");
+-        g_free(info);
+-        return;
++        goto out_err;
+     }
+ 
+     vcdev->io_region_offset = info->offset;
+@@ -377,15 +376,20 @@ static void vfio_ccw_get_region(VFIOCCWDevice *vcdev, Error **errp)
+         vcdev->async_cmd_region_size = info->size;
+         if (sizeof(*vcdev->async_cmd_region) != vcdev->async_cmd_region_size) {
+             error_setg(errp, "vfio: Unexpected size of the async cmd region");
+-            g_free(vcdev->io_region);
+-            g_free(info);
+-            return;
++            goto out_err;
+         }
+         vcdev->async_cmd_region_offset = info->offset;
+         vcdev->async_cmd_region = g_malloc0(info->size);
+     }
+ 
+     g_free(info);
++    return;
++
++out_err:
++    g_free(vcdev->async_cmd_region);
++    g_free(vcdev->io_region);
++    g_free(info);
++    return;
+ }
+ 
+ static void vfio_ccw_put_region(VFIOCCWDevice *vcdev)
+-- 
+2.28.0
+

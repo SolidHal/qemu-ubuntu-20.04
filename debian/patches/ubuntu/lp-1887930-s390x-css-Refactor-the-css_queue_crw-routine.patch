@@ -1,0 +1,110 @@
+From f6dde1b012e678aa64339520ef7519ec04026cf1 Mon Sep 17 00:00:00 2001
+From: Eric Farman <farman@linux.ibm.com>
+Date: Tue, 5 May 2020 14:57:56 +0200
+Subject: [PATCH] s390x/css: Refactor the css_queue_crw() routine
+
+We have a use case (vfio-ccw) where a CRW is already built and
+ready to use.  Rather than teasing out the components just to
+reassemble it later, let's rework this code so we can queue a
+fully-qualified CRW directly.
+
+Signed-off-by: Eric Farman <farman@linux.ibm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Message-Id: <20200505125757.98209-6-farman@linux.ibm.com>
+Signed-off-by: Cornelia Huck <cohuck@redhat.com>
+
+Origin: upstream, https://git.qemu.org/?p=qemu.git;a=commit;h=f6dde1b012
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1887930
+Last-Update: 2020-09-14
+
+---
+ hw/s390x/css.c         | 44 ++++++++++++++++++++++++++++--------------
+ include/hw/s390x/css.h |  1 +
+ 2 files changed, 30 insertions(+), 15 deletions(-)
+
+diff --git a/hw/s390x/css.c b/hw/s390x/css.c
+index a44faa3549..d1e365e3e6 100644
+--- a/hw/s390x/css.c
++++ b/hw/s390x/css.c
+@@ -2170,30 +2170,23 @@ void css_subch_assign(uint8_t cssid, uint8_t ssid, uint16_t schid,
+     }
+ }
+ 
+-void css_queue_crw(uint8_t rsc, uint8_t erc, int solicited,
+-                   int chain, uint16_t rsid)
++void css_crw_add_to_queue(CRW crw)
+ {
+     CrwContainer *crw_cont;
+ 
+-    trace_css_crw(rsc, erc, rsid, chain ? "(chained)" : "");
++    trace_css_crw((crw.flags & CRW_FLAGS_MASK_RSC) >> 8,
++                  crw.flags & CRW_FLAGS_MASK_ERC,
++                  crw.rsid,
++                  (crw.flags & CRW_FLAGS_MASK_C) ? "(chained)" : "");
++
+     /* TODO: Maybe use a static crw pool? */
+     crw_cont = g_try_new0(CrwContainer, 1);
+     if (!crw_cont) {
+         channel_subsys.crws_lost = true;
+         return;
+     }
+-    crw_cont->crw.flags = (rsc << 8) | erc;
+-    if (solicited) {
+-        crw_cont->crw.flags |= CRW_FLAGS_MASK_S;
+-    }
+-    if (chain) {
+-        crw_cont->crw.flags |= CRW_FLAGS_MASK_C;
+-    }
+-    crw_cont->crw.rsid = rsid;
+-    if (channel_subsys.crws_lost) {
+-        crw_cont->crw.flags |= CRW_FLAGS_MASK_R;
+-        channel_subsys.crws_lost = false;
+-    }
++
++    crw_cont->crw = crw;
+ 
+     QTAILQ_INSERT_TAIL(&channel_subsys.pending_crws, crw_cont, sibling);
+ 
+@@ -2204,6 +2197,27 @@ void css_queue_crw(uint8_t rsc, uint8_t erc, int solicited,
+     }
+ }
+ 
++void css_queue_crw(uint8_t rsc, uint8_t erc, int solicited,
++                   int chain, uint16_t rsid)
++{
++    CRW crw;
++
++    crw.flags = (rsc << 8) | erc;
++    if (solicited) {
++        crw.flags |= CRW_FLAGS_MASK_S;
++    }
++    if (chain) {
++        crw.flags |= CRW_FLAGS_MASK_C;
++    }
++    crw.rsid = rsid;
++    if (channel_subsys.crws_lost) {
++        crw.flags |= CRW_FLAGS_MASK_R;
++        channel_subsys.crws_lost = false;
++    }
++
++    css_crw_add_to_queue(crw);
++}
++
+ void css_generate_sch_crws(uint8_t cssid, uint8_t ssid, uint16_t schid,
+                            int hotplugged, int add)
+ {
+diff --git a/include/hw/s390x/css.h b/include/hw/s390x/css.h
+index 7e3a5e7433..08c869ab0a 100644
+--- a/include/hw/s390x/css.h
++++ b/include/hw/s390x/css.h
+@@ -205,6 +205,7 @@ void copy_scsw_to_guest(SCSW *dest, const SCSW *src);
+ void css_inject_io_interrupt(SubchDev *sch);
+ void css_reset(void);
+ void css_reset_sch(SubchDev *sch);
++void css_crw_add_to_queue(CRW crw);
+ void css_queue_crw(uint8_t rsc, uint8_t erc, int solicited,
+                    int chain, uint16_t rsid);
+ void css_generate_sch_crws(uint8_t cssid, uint8_t ssid, uint16_t schid,
+-- 
+2.28.0
+
