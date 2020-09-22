@@ -1,3 +1,11 @@
+qemu (1:5.0-5ubuntu9) groovy; urgency=medium
+
+  * d/p/u/usb-fix-setup_len-init-CVE-2020-14364.patch: sanity check usb
+    setup_len
+    CVE-2020-14364
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 22 Sep 2020 16:53:18 +0200
+
 qemu (1:5.0-5ubuntu8) groovy; urgency=medium
 
   * d/p/u/lp-1887930-*: Enable Channel Path Handling for vfio-ccw (LP: #1887930)

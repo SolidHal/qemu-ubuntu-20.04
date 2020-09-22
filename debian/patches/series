@@ -89,3 +89,4 @@ ubuntu/lp-1887930-vfio-ccw-Add-support-for-the-schib-region.patch
 ubuntu/lp-1887930-vfio-ccw-Refactor-ccw-irq-handler.patch
 ubuntu/lp-1887930-s390x-css-Refactor-the-css_queue_crw-routine.patch
 ubuntu/lp-1887930-vfio-ccw-Add-support-for-the-CRW-region-and-IRQ.patch
+ubuntu/usb-fix-setup_len-init-CVE-2020-14364.patch
