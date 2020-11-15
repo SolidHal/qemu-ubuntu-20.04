@@ -1,0 +1,20 @@
+name: build-package
+
+on: [push]
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout project
+        uses: actions/checkout@v2
+      - name: build image
+        run: sudo apt install -y devscripts git-buildpackage &&
+             sudo apt update &&
+             sudo apt install -y ./.github/qemu-build-deps_5.0-5ubuntu9_amd64.deb &&
+             sudo gbp buildpackage --git-debian-branch=prawnos --git-upstream-tree=import/1%5.0-5ubuntu9
+
+      - name: publish image
+        uses: actions/upload-artifact@v2
+        with:
+          name: "qemu-user-static*.deb"
