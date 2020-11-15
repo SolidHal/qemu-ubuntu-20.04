@@ -12,6 +12,8 @@ jobs:
         run: sudo apt install -y devscripts git-buildpackage &&
              sudo apt update &&
              sudo apt install -y ./.github/qemu-build-deps_5.0-5ubuntu9_amd64.deb &&
+             sudo apt install -y ./.github/liburing1_0.6-3ubuntu1_amd64.deb &&
+             sudo apt install -y ./.github/liburing-dev_0.6-3ubuntu1_amd64.deb &&
              sudo gbp buildpackage --git-debian-branch=prawnos --git-upstream-tree=import/1%5.0-5ubuntu9
 
       - name: publish image
