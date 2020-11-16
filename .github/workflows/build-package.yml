@@ -14,7 +14,7 @@ jobs:
              sudo apt install -y ./.github/liburing1_0.6-3ubuntu1_amd64.deb &&
              sudo apt install -y ./.github/liburing-dev_0.6-3ubuntu1_amd64.deb &&
              sudo apt install -y ./.github/qemu-build-deps_5.0-5ubuntu9_amd64.deb &&
-             sudo gbp buildpackage --git-debian-branch=prawnos --git-no-create-orig -uc
+             sudo gbp buildpackage --git-debian-branch=prawnos --git-no-create-orig -uc --git-tarball-dir=./.github/
 
       - name: publish image
         uses: actions/upload-artifact@v2
