@@ -11,10 +11,10 @@ jobs:
       - name: build image
         run: sudo apt install -y devscripts git-buildpackage &&
              sudo apt update &&
-             sudo apt install -y ./.github/liburing1_0.6-3ubuntu1_amd64.deb &&
-             sudo apt install -y ./.github/liburing-dev_0.6-3ubuntu1_amd64.deb &&
-             sudo apt install -y ./.github/qemu-build-deps_5.0-5ubuntu9_amd64.deb &&
-             sudo cp .github/qemu_5.0.orig.tar.gz ../ &&
+             sudo apt install -y ./debian/source/include-binaries/liburing1_0.6-3ubuntu1_amd64.deb &&
+             sudo apt install -y ./debian/source/include-binaries/liburing-dev_0.6-3ubuntu1_amd64.deb &&
+             sudo apt install -y ./debian/source/include-binaries/qemu-build-deps_5.0-5ubuntu9_amd64.deb &&
+             sudo cp ./debian/source/include-binaries/qemu_5.0.orig.tar.gz ../ &&
              sudo gbp buildpackage --git-debian-branch=prawnos --git-no-create-orig -uc
 
       - name: publish image
